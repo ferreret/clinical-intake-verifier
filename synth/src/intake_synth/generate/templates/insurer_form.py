@@ -1,6 +1,7 @@
 """Template ``insurer-form``: an insurer's authorisation form. Cells with the label above
 the value, the request number printed twice (body cell and barcode label), and tests in a
-table where profile headings visually group their components.
+table where profile headings visually group their components. Long tables continue on the
+next page under a compact header.
 """
 
 from __future__ import annotations
@@ -15,12 +16,55 @@ from .common import cell, disclaimer
 
 NAVY = colors.HexColor("#0B2545")
 SHADE = colors.HexColor("#E8ECF1")
+HEADING_SHADE = colors.HexColor("#F3F5F8")
 BORDER = colors.HexColor("#9E9E9E")
+MARGIN = 36
+ROW_H = 15
+
+
+def _table_header(rec: Recorder, y: float, full: float) -> float:
+    m = MARGIN
+    rec.rect(m, y, full, ROW_H, stroke=BORDER, fill=SHADE, width=0.5)
+    rec.text(m + 6, y + 11, "Prueba", font="Helvetica-Bold", size=8)
+    rec.text(
+        m + full - 6, y + 11, "Código autorización", font="Helvetica-Bold", size=8, align="right"
+    )
+    return y + ROW_H
+
+
+def _continuation_header(rec: Recorder, d: DocData) -> float:
+    W, m = rec.W, MARGIN
+    assert d.insurance is not None
+    rec.field_text(
+        m,
+        40,
+        "NombreMutua",
+        d.insurance.name,
+        size=14,
+        font="Helvetica-Bold",
+        color=NAVY,
+        primary=False,
+        hand_ok=False,
+    )
+    rec.text(m, 54, "Solicitud de pruebas diagnósticas · continuación", size=9, color=GREY)
+    rec.barcode(
+        W - m - 160,
+        22,
+        d.request_number,
+        height=26,
+        bar_width=0.8,
+        field="NumeroPeticion",
+        primary=False,
+    )
+    rec.line(m, 70, W - m, 70, width=1.2, color=NAVY)
+    y = 90
+    rec.text(m, y, "PRUEBAS SOLICITADAS (continuación)", font="Helvetica-Bold", size=8, color=NAVY)
+    return y + 6
 
 
 def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
     W, H = rec.W, rec.H
-    m = 36
+    m = MARGIN
     ins = d.insurance
     assert ins is not None, "insurer-form requires insurance data"
 
@@ -93,26 +137,34 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
     cell(rec, m, y, full, h, "DIAGNÓSTICO / MOTIVO DE LA SOLICITUD", None, d.diagnosis)
     y += h
 
-    # ---- tests table
+    # ---- tests table (may continue on further pages)
     y += 16
     rec.text(m, y, "PRUEBAS SOLICITADAS", font="Helvetica-Bold", size=8, color=NAVY)
     y += 6
-    row_h = 15
-    rec.rect(m, y, full, row_h, stroke=BORDER, fill=SHADE, width=0.5)
-    rec.text(m + 6, y + 11, "Prueba", font="Helvetica-Bold", size=8)
-    rec.text(
-        m + full - 6, y + 11, "Código autorización", font="Helvetica-Bold", size=8, align="right"
-    )
-    y += row_h
+    y = _table_header(rec, y, full)
+    limit = H - 196  # keep clear of the conditions paragraph and the footer
+
+    def ensure_room(y: float) -> float:
+        if y + ROW_H > limit:
+            rec.text(
+                W - m,
+                H - 40,
+                "continúa en la página siguiente →",
+                size=7.5,
+                color=GREY,
+                align="right",
+            )
+            rec.new_page("request")
+            return _table_header(rec, _continuation_header(rec, d), full)
+        return y
 
     current_profile: str | None = None
     for item in d.items:
         if item.profile != current_profile:
             current_profile = item.profile
             if current_profile is not None:
-                rec.rect(
-                    m, y, full, row_h, stroke=BORDER, fill=colors.HexColor("#F3F5F8"), width=0.5
-                )
+                y = ensure_room(y)
+                rec.rect(m, y, full, ROW_H, stroke=BORDER, fill=HEADING_SHADE, width=0.5)
                 rec.text(
                     m + 6,
                     y + 11,
@@ -121,8 +173,9 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
                     size=8,
                     color=NAVY,
                 )
-                y += row_h
-        rec.rect(m, y, full, row_h, stroke=BORDER, width=0.5)
+                y += ROW_H
+        y = ensure_room(y)
+        rec.rect(m, y, full, ROW_H, stroke=BORDER, width=0.5)
         indent = 18 if item.profile else 6
         if item.profile:
             rec.text(m + 8, y + 11, "•", size=8)
@@ -137,21 +190,26 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
                 color=GREY,
                 align="right",
             )
-        y += row_h
+        y += ROW_H
 
-    # ---- footer
+    # ---- conditions + footer (always on the last page)
     fy = H - 96
-    rec.text(
+    cy = fy - 66
+    rec.text(m, cy, "CONDICIONES", font="Helvetica-Bold", size=7, color=NAVY)
+    rec.paragraph(
         m,
-        fy,
-        "La presente solicitud tiene una validez de 30 días desde su emisión. El centro prestador adjuntará",
+        cy + 11,
+        "La presente solicitud tiene una validez de 30 días desde su emisión y ampara únicamente "
+        "las pruebas relacionadas. El centro prestador adjuntará esta hoja a la factura. Cualquier "
+        "prueba adicional requerirá una nueva autorización expresa de la entidad.",
+        full,
         size=6.5,
         color=GREY,
     )
     rec.text(
         m,
         fy + 9,
-        "esta hoja a la factura. Los datos se tratan conforme a la normativa de protección de datos.",
+        "Los datos se tratan conforme a la normativa de protección de datos vigente.",
         size=6.5,
         color=GREY,
     )

@@ -50,6 +50,8 @@ def draw_boxes(golden_path: Path, out_dir: Path | None = None, dpi: int = 110) -
             paint(loc["page"], loc["bbox"], ALSO_AT_COLOR, f"{name} (also)")
     for i, t in enumerate(golden["tests"], start=1):
         paint(t["page"], t["bbox"], TEST_COLOR, f"test {i}")
+        for loc in t["also_at"]:
+            paint(loc["page"], loc["bbox"], ALSO_AT_COLOR, f"test {i} (also)")
 
     outputs = []
     for i, img in enumerate(images, start=1):

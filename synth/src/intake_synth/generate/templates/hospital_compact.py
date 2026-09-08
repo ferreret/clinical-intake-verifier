@@ -1,6 +1,7 @@
 """Template ``hospital-compact``: monochrome, dense hospital request. A patient sticker with
 a record number (NHC) and its own Code39 barcode acts as a distractor next to the real
-request number barcode. Tests are a plain multi-column list.
+request number barcode. Tests are a plain multi-column list that continues on the next page
+when needed.
 """
 
 from __future__ import annotations
@@ -14,13 +15,59 @@ from ..model import DocData
 from ..recorder import BLACK, GREY, Recorder
 from .common import disclaimer
 
+MARGIN = 34
+ROW_H = 14
+NOTES_TOP = 150  # distance from the page bottom to the notes block heading
+SAMPLE_TYPES = ("Suero", "Sangre EDTA", "Plasma citrato", "Orina", "Heces", "Sangre total")
+
+
+def _label(rec: Recorder, x: float, y: float, s: str, font: str) -> float:
+    b = rec.text(x, y, s, font=font, size=8.5, color=GREY)
+    return b[2] + 4
+
+
+def _continuation_header(rec: Recorder, d: DocData, body_font: str, body_bold: str) -> float:
+    W, m = rec.W, MARGIN
+    rec.text(W - m, m + 12, d.center.name, font="Helvetica-Bold", size=11, align="right")
+    rec.text(W - m, m + 24, "continuación", size=8, color=GREY, align="right")
+    x = _label(rec, m, m + 12, "Petición:", body_font)
+    rec.field_text(
+        x,
+        m + 12,
+        "NumeroPeticion",
+        d.request_number,
+        size=10,
+        font=body_bold,
+        primary=False,
+        hand_ok=False,
+    )
+    x = _label(rec, m, m + 30, "Paciente:", body_font)
+    rec.field_text(
+        x,
+        m + 30,
+        "Paciente",
+        d.patient_printed_name,
+        size=10,
+        font=body_bold,
+        primary=False,
+        hand_ok=False,
+    )
+    rec.line(m, m + 42, W - m, m + 42, width=0.8)
+    y = m + 66
+    rec.text(m, y, "PRUEBAS SOLICITADAS (continuación)", font="Helvetica-Bold", size=9)
+    rec.line(m, y + 4, W - m, y + 4, width=0.8)
+    return y + 20
+
 
 def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
     W, H = rec.W, rec.H
-    m = 34
+    m = MARGIN
     mono = rng.random() < 0.4
     body_font = "Courier" if mono else "Helvetica"
     body_bold = "Courier-Bold" if mono else "Helvetica-Bold"
+
+    def label(x: float, yy: float, s: str) -> float:
+        return _label(rec, x, yy, s, body_font)
 
     # ---- patient sticker (top-left)
     sx, sy, sw, sh = m, m, 250, 92
@@ -72,10 +119,6 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
     y = sy + sh + 30
     rec.line(m, y - 16, W - m, y - 16, width=0.8)
 
-    def label(x: float, yy: float, s: str) -> float:
-        b = rec.text(x, yy, s, font=body_font, size=8.5, color=GREY)
-        return b[2] + 4
-
     x = label(m, y, "Petición:")
     rec.field_text(x, y, "NumeroPeticion", d.request_number, size=10, font=body_bold, hand_ok=False)
     x = label(m + 220, y, "Fecha extracción:")
@@ -117,23 +160,51 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
     if d.diagnosis:
         rec.text(x, y, d.diagnosis, font=body_font, size=10)
 
-    # ---- tests
+    # ---- tests (multi-column, may continue on further pages)
     y += 34
     rec.text(m, y, "PRUEBAS SOLICITADAS", font="Helvetica-Bold", size=9)
     rec.line(m, y + 4, W - m, y + 4, width=0.8)
     y += 20
     names = list(d.tests)
-    ncols = 3 if len(names) > 6 else 2
-    per_col = max(1, math.ceil(len(names) / ncols))
+    # Long requests are listed one per line with the sample type alongside (a distractor
+    # column, never part of the test text); they usually continue on a second page.
+    long_list = len(names) > 12
+    ncols = 1 if long_list else (3 if len(names) > 6 else 2)
+    row_h = 21 if long_list else ROW_H
     col_w = (W - 2 * m) / ncols
-    row_h = 14
-    for i, name in enumerate(names):
-        col, row = divmod(i, per_col)
-        x = m + col * col_w
-        yy = y + row * row_h
-        rec.text(x, yy, "-", font=body_font, size=8.5)
-        rec.test_text(x + 8, yy, name, size=8.5, font=body_font)
-    y += per_col * row_h + 14
+    limit = H - NOTES_TOP - 40
+    if long_list:
+        rec.text(m + 8, y - 4, "Determinación", font=body_bold, size=7.5, color=GREY)
+        rec.text(m + 320, y - 4, "Muestra", font=body_bold, size=7.5, color=GREY)
+        y += 10
+    i = 0
+    while i < len(names):
+        rows_avail = int((limit - y) // row_h)
+        if rows_avail < 2:
+            rec.text(
+                W - m,
+                H - 40,
+                "continúa en la página siguiente →",
+                font=body_font,
+                size=7.5,
+                color=GREY,
+                align="right",
+            )
+            rec.new_page("request")
+            y = _continuation_header(rec, d, body_font, body_bold)
+            continue
+        chunk = names[i : i + ncols * rows_avail]
+        per_col = max(1, math.ceil(len(chunk) / ncols))
+        for k, name in enumerate(chunk):
+            col, row = divmod(k, per_col)
+            x = m + col * col_w
+            yy = y + row * row_h
+            rec.text(x, yy, "-", font=body_font, size=8.5)
+            rec.test_text(x + 8, yy, name, size=8.5, font=body_font)
+            if long_list:
+                rec.text(m + 320, yy, rng.choice(SAMPLE_TYPES), font=body_font, size=8, color=GREY)
+        i += len(chunk)
+        y += per_col * row_h + 14
 
     # ---- observations (decorative handwriting)
     rec.text(m, y, "Observaciones:", font=body_font, size=8.5, color=GREY)
@@ -142,7 +213,7 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
         rec.scribble(m + 80, y - 1, d.observations, size=13)
 
     # ---- pre-printed notes block
-    ny = H - 150
+    ny = H - NOTES_TOP
     rec.line(m, ny - 12, W - m, ny - 12, width=0.4, color=GREY)
     rec.text(m, ny, "INFORMACIÓN AL PACIENTE", font=body_bold, size=7.5, color=GREY)
     for k, line in enumerate(d.instructions):
@@ -151,8 +222,8 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
     # ---- footer
     fy = H - 80
     rec.text(m, fy, "Etiquetas de tubos:", font=body_font, size=8, color=GREY)
-    for i in range(4):
-        rec.rect(m + 90 + i * 60, fy - 10, 52, 14, stroke=GREY, width=0.4)
+    for k in range(4):
+        rec.rect(m + 90 + k * 60, fy - 10, 52, 14, stroke=GREY, width=0.4)
     rec.text(W - m, fy, "Firma:", font=body_font, size=8, color=GREY, align="right")
     rec.scribble(W - m - 120, fy + 22, d.physician.signature, size=15)
     disclaimer(rec)

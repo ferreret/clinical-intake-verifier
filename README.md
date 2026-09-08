@@ -80,18 +80,27 @@ uv run pytest
 
 ## What the generator produces
 
-Three templates of Spanish lab request forms: a private laboratory form with a coloured header
-and checkbox test list, an insurer authorisation form with cell layout and grouped test
+**Multipage scans, the way they really arrive.** Most documents have several pages: the
+request form itself (three templates, with long test lists continuing on a second page) plus
+companion sheets in random order: the insurer's authorisation letter, a photocopy of the
+insurance card and identity card, an informed-consent form filled in by hand, a fax cover
+sheet, the blank back of a duplex scan, or the same form scanned twice. The request is not
+always page 1, any field may sit on any page, and values repeat across sheets.
+
+**Three templates** of Spanish lab request forms: a private laboratory form with a coloured
+header and checkbox test list, an insurer authorisation form with cell layout and grouped test
 profiles, and a dense monochrome hospital form with a patient sticker. Across documents the
 generator varies date and identifier formats, drops optional fields, removes the insurer block
 entirely, writes some fields in handwriting fonts, repeats the request number under a barcode,
 adds distractors (record numbers with their own barcode, unticked pre-printed tests, diagnosis
-text, observations) and pushes half of the output through a scanner simulation.
+text, observations, an identity card that prints F for mujer) and pushes half of the output
+through a scanner simulation with per-page skew.
 
 Because the generator knows exactly what it drew, every document comes with its ground truth
-for free: the value of each field, the verbatim printed string, page and bounding box, and
-whether it was printed or handwritten. That is what makes evaluation runnable on every commit.
-The format is specified in [docs/golden-format.md](docs/golden-format.md).
+for free: the value of each field, the verbatim printed string, page and bounding box of the
+primary occurrence, every other location where the value appears, and whether it was printed
+or handwritten. That is what makes evaluation runnable on every commit. The format is
+specified in [docs/golden-format.md](docs/golden-format.md).
 
 ## Fields (v1)
 

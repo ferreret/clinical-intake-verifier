@@ -3,21 +3,50 @@
 from __future__ import annotations
 
 from ..schema import field_names, validate_golden
-from .recorder import BBoxPt, Drawn
+from .recorder import BBoxPt, Drawn, PageInfo
 
 
 class GoldenError(RuntimeError):
     """The generator produced something the golden contract does not allow. Always a bug."""
 
 
-def _norm(box: BBoxPt, page_size: tuple[float, float]) -> dict:
-    w, h = page_size
+def _norm(box: BBoxPt, page: PageInfo) -> dict:
     x0, y0, x1, y1 = box
 
     def clamp(v: float) -> float:
         return round(min(1.0, max(0.0, v)), 4)
 
-    return {"x0": clamp(x0 / w), "y0": clamp(y0 / h), "x1": clamp(x1 / w), "y1": clamp(y1 / h)}
+    return {
+        "x0": clamp(x0 / page.width),
+        "y0": clamp(y0 / page.height),
+        "x1": clamp(x1 / page.width),
+        "y1": clamp(y1 / page.height),
+    }
+
+
+def _collapse(drawn: list[Drawn], pages: list[PageInfo], label: str) -> dict:
+    """Several occurrences of one value -> primary entry plus ``also_at`` locations.
+
+    The primary is the first occurrence flagged ``primary`` (the main form's body value),
+    falling back to the first drawn. Order of ``also_at`` follows drawing order.
+    """
+    values = {d.value for d in drawn}
+    if len(values) != 1:
+        raise GoldenError(f"{label}: inconsistent values across occurrences {sorted(values)}")
+    primaries = [d for d in drawn if d.primary] or drawn
+    p = primaries[0]
+    others = [d for d in drawn if d is not p]
+    return {
+        "value": p.value,
+        "printed": p.printed,
+        "page": p.page,
+        "bbox": _norm(p.box, pages[p.page - 1]),
+        "style": p.style,
+        "also_at": [
+            {"page": o.page, "bbox": _norm(o.box, pages[o.page - 1]), "printed": o.printed}
+            for o in others
+        ],
+    }
 
 
 def build_golden(
@@ -26,53 +55,36 @@ def build_golden(
     file_name: str,
     sha256: str,
     generator: dict,
-    pages: list[tuple[float, float]],
+    pages: list[PageInfo],
     items: list[Drawn],
     context: dict,
 ) -> dict:
     names = field_names()
     known = set(names)
-
-    fields: dict[str, dict | None] = {}
     for d in items:
         if d.kind == "field" and d.name not in known:
             raise GoldenError(
                 f"recorded unknown field {d.name!r}; add it to schema/fields.json first"
             )
 
+    fields: dict[str, dict | None] = {}
     for name in names:
         drawn = [d for d in items if d.kind == "field" and d.name == name]
-        if not drawn:
-            fields[name] = None
-            continue
-        values = {d.value for d in drawn}
-        if len(values) != 1:
-            raise GoldenError(f"{name}: inconsistent values across occurrences {sorted(values)}")
-        primaries = [d for d in drawn if d.primary] or drawn
-        p = primaries[0]
-        others = [d for d in drawn if d is not p]
-        fields[name] = {
-            "value": p.value,
-            "printed": p.printed,
-            "page": p.page,
-            "bbox": _norm(p.box, pages[p.page - 1]),
-            "style": p.style,
-            "also_at": [{"page": o.page, "bbox": _norm(o.box, pages[o.page - 1])} for o in others],
-        }
+        fields[name] = _collapse(drawn, pages, name) if drawn else None
 
+    # Tests: one entry per distinct value, in order of first appearance.
+    by_value: dict[str, list[Drawn]] = {}
+    for d in items:
+        if d.kind == "test":
+            by_value.setdefault(d.value, []).append(d)
     tests = [
-        {
-            "value": d.value,
-            "printed": d.printed,
-            "page": d.page,
-            "bbox": _norm(d.box, pages[d.page - 1]),
-            "style": d.style,
-        }
-        for d in items
-        if d.kind == "test"
+        _collapse(occurrences, pages, f"test {value!r}") for value, occurrences in by_value.items()
     ]
-    if len({t["value"] for t in tests}) != len(tests):
-        raise GoldenError("duplicate test entries recorded")
+
+    generator = dict(generator)
+    generator["handwritten_fields"] = sorted(
+        name for name, f in fields.items() if f is not None and f["style"] == "handwritten"
+    )
 
     golden = {
         "golden_version": 1,
@@ -81,8 +93,13 @@ def build_golden(
         "sha256": sha256,
         "generator": generator,
         "pages": [
-            {"number": i + 1, "width_pt": round(w, 2), "height_pt": round(h, 2)}
-            for i, (w, h) in enumerate(pages)
+            {
+                "number": i + 1,
+                "width_pt": round(p.width, 2),
+                "height_pt": round(p.height, 2),
+                "role": p.role,
+            }
+            for i, p in enumerate(pages)
         ],
         "fields": fields,
         "tests": tests,

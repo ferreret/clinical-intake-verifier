@@ -1,5 +1,9 @@
 """End-to-end generation of one document or a batch.
 
+A document is a sequence of sheets: the main request form (one template, possibly continued
+over several pages) plus companion sheets in random order, the way real scans arrive. Any
+field may therefore sit on any page, and the request is not always page 1.
+
 Determinism contract: the seed of document ``i`` is derived from ``(seed, i)``, so
 ``generate_document(i)`` produces byte-identical output whether run alone or inside a batch.
 The scan decision is the first random draw, so changing ``scan_ratio`` never changes the
@@ -26,9 +30,23 @@ from .identities import make_doc_data
 from .model import DocData
 from .recorder import INK_COLORS, HandwritingPlan, Recorder
 from .scan import sample_scan_params, scan_pdf, transform_box_pt
-from .templates import HANDWRITING_CANDIDATES, TEMPLATES
+from .templates import HANDWRITING_CANDIDATES, SHEETS, TEMPLATES
 
 MANIFEST_NAME = "manifest.json"
+
+# Companion sheets and their relative frequency. "duplicate" re-renders the request form
+# (the same sheet scanned twice) and is handled by the pipeline, not by SHEETS.
+SHEET_WEIGHTS: dict[str, int] = {
+    "authorization": 3,
+    "id-copy": 2,
+    "consent": 2,
+    "fax-cover": 1,
+    "blank": 2,
+    "duplicate": 1,
+}
+# Number of companion sheets: most documents are multipage.
+EXTRA_SHEET_COUNTS = (0, 1, 2, 3, 4)
+EXTRA_SHEET_WEIGHTS = (25, 35, 25, 10, 5)
 
 
 @dataclass(frozen=True)
@@ -55,6 +73,10 @@ class GeneratedDoc:
     @property
     def golden_name(self) -> str:
         return f"{self.id}.json"
+
+    @property
+    def page_count(self) -> int:
+        return len(self.golden["pages"])
 
 
 def doc_seed(seed: int, index: int) -> int:
@@ -83,19 +105,41 @@ def _present_candidates(data: DocData, template: str) -> list[str]:
 def _plan_handwriting(
     rng: random.Random, data: DocData, template: str, ratio: float
 ) -> HandwritingPlan:
+    font = rng.choice(["Caveat", "IndieFlower"])
+    ink = rng.choice(INK_COLORS)
+    scale = rng.uniform(1.2, 1.45)
     if rng.random() >= ratio:
-        return HandwritingPlan()
+        return HandwritingPlan(font=font, ink=ink, scale=scale)
     candidates = _present_candidates(data, template)
     if not candidates:
-        return HandwritingPlan()
+        return HandwritingPlan(font=font, ink=ink, scale=scale)
     k = rng.randint(1, min(3, len(candidates)))
-    chosen = frozenset(rng.sample(candidates, k))
     return HandwritingPlan(
-        fields=chosen,
-        font=rng.choice(["Caveat", "IndieFlower"]),
-        ink=rng.choice(INK_COLORS),
-        scale=rng.uniform(1.2, 1.45),
+        fields=frozenset(rng.sample(candidates, k)), font=font, ink=ink, scale=scale
     )
+
+
+def _plan_sheets(rng: random.Random, data: DocData) -> list[str]:
+    """Order of sheets in the scan. The request is always present; a fax cover always leads;
+    a duplicate always follows the request; everything else is shuffled."""
+    n_extra = rng.choices(EXTRA_SHEET_COUNTS, weights=EXTRA_SHEET_WEIGHTS, k=1)[0]
+    pool = dict(SHEET_WEIGHTS)
+    if data.insurance is None:
+        pool.pop("authorization")
+    extras: list[str] = []
+    for _ in range(n_extra):
+        kinds = [k for k in pool if k == "blank" or k not in extras]
+        if not kinds:
+            break
+        extras.append(rng.choices(kinds, weights=[pool[k] for k in kinds], k=1)[0])
+    cover = [e for e in extras if e == "fax-cover"]
+    others = [e for e in extras if e not in ("fax-cover", "duplicate")]
+    rng.shuffle(others)
+    pos = rng.randint(0, len(others))
+    seq = others[:pos] + ["request"] + others[pos:]
+    if "duplicate" in extras:
+        seq.insert(seq.index("request") + 1, "duplicate")
+    return cover + seq
 
 
 def generate_document(index: int, opts: GenerateOptions) -> GeneratedDoc:
@@ -111,35 +155,50 @@ def generate_document(index: int, opts: GenerateOptions) -> GeneratedDoc:
     template = rng.choice(list(opts.templates))
     data = make_doc_data(rng, fake, index, template=template)
     plan = _plan_handwriting(rng, data, template, opts.handwriting_ratio)
+    sheets = _plan_sheets(rng, data)
+    layout_seed = rng.getrandbits(64)
+    hand_seed = rng.getrandbits(64)
 
-    rec = Recorder(A4, rng, plan)
-    TEMPLATES[template](rec, data, rng)
+    rec = Recorder(A4, random.Random(hand_seed), plan, role=sheets[0])
+    for i, kind in enumerate(sheets):
+        if i > 0:
+            rec.new_page(kind)
+        if kind in ("request", "duplicate"):
+            # Same layout seed and same handwriting rng: a duplicate is the very same sheet.
+            rec.rng = random.Random(hand_seed)
+            TEMPLATES[template](rec, data, random.Random(layout_seed))
+        else:
+            SHEETS[kind](rec, data, rng, len(sheets))
     pdf = rec.save()
     items = rec.items
     pages = rec.pages
 
     scan_public = None
     if scan_roll < opts.scan_ratio:
-        params = sample_scan_params(rng, dpi=opts.dpi)
+        params = sample_scan_params(rng, n_pages=len(pages), dpi=opts.dpi)
         pdf = scan_pdf(pdf, params, np_rng)
         items = [
             replace(
-                d, box=transform_box_pt(d.box, pages[d.page - 1][0], pages[d.page - 1][1], params)
+                d,
+                box=transform_box_pt(
+                    d.box,
+                    pages[d.page - 1].width,
+                    pages[d.page - 1].height,
+                    params.pages[d.page - 1],
+                    opts.dpi,
+                ),
             )
             for d in items
         ]
         scan_public = params.public()
 
-    handwritten = sorted(
-        {d.name for d in items if d.kind == "field" and d.style == "handwritten" and d.name}
-    )
     generator = {
         "version": __version__,
         "seed": opts.seed,
         "index": index,
         "template": template,
         "scan": scan_public,
-        "handwritten_fields": handwritten,
+        "handwritten_fields": [],  # filled in by build_golden from the primary styles
     }
     context = {
         "issue_date": data.issue_date.isoformat(),
@@ -151,6 +210,7 @@ def generate_document(index: int, opts: GenerateOptions) -> GeneratedDoc:
         "urgent": data.urgent,
         "sex_shown": data.show_sex,
         "insurance_block": data.insurance is not None,
+        "sheets": sheets,
     }
     id_ = doc_id(index)
     golden = build_golden(
@@ -180,7 +240,10 @@ def generate_batch(
     *,
     progress: Callable[[GeneratedDoc], None] | None = None,
 ) -> dict:
-    """Generate the given indices into ``out_dir`` and write ``manifest.json``. Returns the manifest."""
+    """Generate the given indices into ``out_dir`` and write ``manifest.json``.
+
+    Returns the manifest.
+    """
     docs_meta = []
     for i in indices:
         doc = generate_document(i, opts)
@@ -192,6 +255,8 @@ def generate_batch(
                 "file": doc.pdf_name,
                 "golden": doc.golden_name,
                 "template": doc.template,
+                "pages": doc.page_count,
+                "roles": [p["role"] for p in g["pages"]],
                 "scanned": doc.scanned,
                 "handwritten_fields": g["generator"]["handwritten_fields"],
                 "fields_present": sum(1 for v in g["fields"].values() if v is not None),

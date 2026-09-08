@@ -2,7 +2,8 @@
 two-column patient data, checkbox test list and a Code128 barcode in the footer.
 
 About a third of the documents use a pre-printed test list where only some boxes are
-ticked; unticked tests are distractors and are not ground truth.
+ticked; unticked tests are distractors and are not ground truth. Long lists continue on a
+second page under a compact header that repeats the request number and the patient name.
 """
 
 from __future__ import annotations
@@ -24,11 +25,38 @@ BANDS = (
     colors.HexColor("#37474F"),
     colors.HexColor("#00695C"),
 )
+ROW_H = 15
+MARGIN = 42
+FOOTER_TOP = 118  # distance from the page bottom to the barcode top
+INSTRUCTIONS_H = 62
+
+
+def _continuation_header(rec: Recorder, d: DocData, band: colors.Color) -> float:
+    W, m = rec.W, MARGIN
+    rec.rect(0, 0, W, 44, fill=band, stroke=None)
+    rec.text(m, 28, d.center.name, font="Helvetica-Bold", size=12, color=WHITE)
+    rec.text(W - m, 18, "Nº PETICIÓN", size=6.5, color=WHITE, align="right")
+    rec.field_text(
+        W - m,
+        36,
+        "NumeroPeticion",
+        d.request_number,
+        size=12,
+        font="Helvetica-Bold",
+        color=WHITE,
+        align="right",
+        primary=False,
+        hand_ok=False,
+    )
+    y = 70
+    kv(rec, m, y, "Paciente:", "Paciente", d.patient_printed_name, label_w=62, primary=False)
+    rec.text(W - m, y, "continuación", size=8, color=GREY, align="right")
+    return section(rec, m, y + 26, W - 2 * m, "PRUEBAS SOLICITADAS (continuación)", color=band)
 
 
 def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
     W, H = rec.W, rec.H
-    m = 42
+    m = MARGIN
     band = rng.choice(BANDS)
 
     # ---- header band
@@ -114,32 +142,51 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
         kv(rec, m, y, "Nº Autorización:", "NumeroAutorizacion", ins.autorizacion, label_w=88)
         kv(rec, col2, y, "Nº Tarjeta:", "NumeroTarjeta", ins.tarjeta, label_w=70)
 
-    # ---- tests
+    # ---- tests (two columns, may continue on further pages)
     y = section(rec, m, y + 30, W - 2 * m, "PRUEBAS SOLICITADAS", color=band)
     requested = list(d.tests)
     preprinted = rng.random() < 0.35
     if preprinted:
         pool = [t for t in catalog.TESTS if t not in requested]
         rng.shuffle(pool)
-        listed = requested + pool[: max(0, 26 - len(requested))]
+        # Pre-printed catalogues come in several lengths; the long ones span two pages.
+        target = max(rng.choice([26, 26, 44, 60]), len(requested) + 6)
+        listed = requested + pool[: max(0, target - len(requested))]
         rng.shuffle(listed)
     else:
         listed = requested
-    row_h = 15
-    per_col = max(1, math.ceil(len(listed) / 2))
-    col_w = (W - 2 * m) / 2
     mark = rng.choice(["x", "tick"])
-    for i, name in enumerate(listed):
-        col, row = divmod(i, per_col)
-        x = m + col * col_w
-        yy = y + row * row_h
-        checked = name in requested
-        rec.checkbox(x, yy - 7.5, 8, checked, mark=mark)
-        if checked:
-            rec.test_text(x + 13, yy, name, size=9)
-        else:
-            rec.text(x + 13, yy, name, size=9, color=GREY)
-    y += per_col * row_h + 6
+    col_w = (W - 2 * m) / 2
+    limit = H - FOOTER_TOP - INSTRUCTIONS_H - 46  # keep clear of the instructions box
+    i = 0
+    while i < len(listed):
+        rows_avail = int((limit - y) // ROW_H)
+        if rows_avail < 2:
+            rec.text(
+                W - m,
+                H - 40,
+                "continúa en la página siguiente →",
+                size=7.5,
+                color=GREY,
+                align="right",
+            )
+            rec.new_page("request")
+            y = _continuation_header(rec, d, band)
+            continue
+        chunk = listed[i : i + 2 * rows_avail]
+        per_col = max(1, math.ceil(len(chunk) / 2))
+        for k, name in enumerate(chunk):
+            col, row = divmod(k, per_col)
+            x = m + col * col_w
+            yy = y + row * ROW_H
+            checked = name in requested
+            rec.checkbox(x, yy - 7.5, 8, checked, mark=mark)
+            if checked:
+                rec.test_text(x + 13, yy, name, size=9)
+            else:
+                rec.text(x + 13, yy, name, size=9, color=GREY)
+        i += len(chunk)
+        y += per_col * ROW_H + 6
 
     # ---- observations (decorative handwriting, never a field)
     rec.text(m, y + 8, "Observaciones:", font="Helvetica-Bold", size=8, color=GREY)
@@ -148,9 +195,11 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
         rec.scribble(m + 84, y + 7, d.observations, size=13)
 
     # ---- pre-printed instructions box, anchored above the footer
-    fy = H - 118
-    iy = fy - 84
-    rec.rect(m, iy, W - 2 * m, 62, stroke=GREY, width=0.5, fill=colors.HexColor("#F7F7F7"))
+    fy = H - FOOTER_TOP
+    iy = fy - INSTRUCTIONS_H - 22
+    rec.rect(
+        m, iy, W - 2 * m, INSTRUCTIONS_H, stroke=GREY, width=0.5, fill=colors.HexColor("#F7F7F7")
+    )
     rec.text(
         m + 8,
         iy + 14,

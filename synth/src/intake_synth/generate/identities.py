@@ -149,14 +149,22 @@ def sample_items(rng: random.Random) -> list[RequestedItem]:
         # Profile requested as a single line item.
         add(rng.choice(list(catalog.PROFILES)))
 
-    n_single = rng.choices([1, 2, 3, 4, 5, 6, 8], weights=[2, 4, 5, 4, 3, 2, 1], k=1)[0]
+    long_list = rng.random() < 0.20
+    if long_list:
+        # Extensive request: a second expanded profile plus many single tests. Templates
+        # continue such lists on a further page.
+        profile = rng.choice(list(catalog.PROFILES))
+        for comp in catalog.PROFILES[profile]:
+            add(comp, profile)
+        n_single = rng.randint(10, 16)
+    else:
+        n_single = rng.choices([1, 2, 3, 4, 5, 6, 8], weights=[2, 4, 5, 4, 3, 2, 1], k=1)[0]
     pool = list(catalog.TESTS)
     rng.shuffle(pool)
     for name in pool[:n_single]:
         add(name)
 
-    # Keep within what every template can lay out on one page.
-    return items[:14]
+    return items[:28]
 
 
 # --------------------------------------------------------------------------- document

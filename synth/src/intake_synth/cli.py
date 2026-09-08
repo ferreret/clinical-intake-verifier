@@ -96,8 +96,10 @@ def generate(
         flags = ("scan" if doc.scanned else "clean") + (
             " hand" if doc.golden["generator"]["handwritten_fields"] else ""
         )
+        roles = ",".join(p["role"] for p in doc.golden["pages"])
         typer.echo(
             f"  {doc.id}  {doc.template:<17} {flags:<11} tests={len(doc.golden['tests']):>2}"
+            f"  pages={doc.page_count} [{roles}]"
         )
 
     typer.echo(f"Generating {len(indices)} document(s) with seed {seed} into {out_dir}")
@@ -115,6 +117,10 @@ def _summary(manifest: dict, out_dir: Path) -> None:
     typer.echo("  templates : " + ", ".join(f"{k}={v}" for k, v in sorted(by_template.items())))
     typer.echo(f"  scanned   : {scanned}/{len(docs)}")
     typer.echo(f"  handwriting: {handwritten}/{len(docs)}")
+    by_pages = Counter(d["pages"] for d in docs)
+    typer.echo("  pages     : " + ", ".join(f"{k}p={v}" for k, v in sorted(by_pages.items())))
+    request_first = sum(1 for d in docs if d["roles"][0] == "request")
+    typer.echo(f"  request on page 1: {request_first}/{len(docs)}")
 
     null_counts: Counter[str] = Counter()
     for d in docs:

@@ -1,4 +1,9 @@
-"""Page layouts. Each template is ``render(rec, data, rng)`` and draws one whole document."""
+"""Page layouts.
+
+``TEMPLATES`` render the main request form (``render(rec, data, rng)``, possibly over several
+pages). ``SHEETS`` render companion sheets (``render(rec, data, rng, total_pages)``) that
+accompany the request in a multipage scan.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +13,7 @@ from collections.abc import Callable
 from ..model import DocData
 from ..recorder import Recorder
 from . import hospital_compact, insurer_form, lab_classic
+from .sheets import SHEETS
 
 Template = Callable[[Recorder, DocData, random.Random], None]
 
@@ -30,3 +36,5 @@ HANDWRITING_CANDIDATES: dict[str, tuple[str, ...]] = {
     ),
     "hospital-compact": ("Telefono", "NumeroAutorizacion"),
 }
+
+__all__ = ["HANDWRITING_CANDIDATES", "SHEETS", "TEMPLATES", "Template"]

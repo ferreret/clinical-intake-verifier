@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://clinical-intake-verifier/schema/golden.schema.json",
   "title": "Golden sample for one synthetic lab request",
-  "description": "Ground truth emitted by the synthetic generator alongside each PDF. Field keys mirror schema/fields.json.",
+  "description": "Ground truth emitted by the synthetic generator alongside each PDF. Field keys mirror schema/fields.json. Documents are usually multipage; any field may live on any page.",
   "type": "object",
   "additionalProperties": false,
   "required": ["golden_version", "id", "file", "sha256", "generator", "pages", "fields", "tests", "context"],
@@ -19,26 +19,44 @@
         "version": { "type": "string" },
         "seed": { "type": "integer", "minimum": 0 },
         "index": { "type": "integer", "minimum": 0 },
-        "template": { "type": "string" },
+        "template": { "type": "string", "description": "Template of the main request sheet." },
         "scan": {
           "oneOf": [
             { "type": "null" },
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["dpi", "rotation_deg", "blur", "noise", "jpeg_quality", "grayscale"],
+              "required": ["dpi", "blur", "noise", "jpeg_quality", "grayscale", "pages"],
               "properties": {
                 "dpi": { "type": "integer", "minimum": 72 },
-                "rotation_deg": { "type": "number" },
                 "blur": { "type": "number", "minimum": 0 },
                 "noise": { "type": "number", "minimum": 0 },
                 "jpeg_quality": { "type": "integer", "minimum": 1, "maximum": 100 },
-                "grayscale": { "type": "boolean" }
+                "grayscale": { "type": "boolean" },
+                "pages": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["number", "rotation_deg", "offset_px"],
+                    "properties": {
+                      "number": { "type": "integer", "minimum": 1 },
+                      "rotation_deg": { "type": "number" },
+                      "offset_px": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 }
+                    }
+                  }
+                }
               }
             }
           ]
         },
-        "handwritten_fields": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+        "handwritten_fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true,
+          "description": "Fields whose primary occurrence is handwritten."
+        }
       }
     },
     "pages": {
@@ -47,11 +65,16 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["number", "width_pt", "height_pt"],
+        "required": ["number", "width_pt", "height_pt", "role"],
         "properties": {
           "number": { "type": "integer", "minimum": 1 },
           "width_pt": { "type": "number", "exclusiveMinimum": 0 },
-          "height_pt": { "type": "number", "exclusiveMinimum": 0 }
+          "height_pt": { "type": "number", "exclusiveMinimum": 0 },
+          "role": {
+            "type": "string",
+            "enum": ["request", "authorization", "id-copy", "consent", "fax-cover", "blank", "duplicate"],
+            "description": "What the sheet is. 'request' pages carry the main form (possibly continued); the rest are companion sheets that repeat some values or add distractors."
+          }
         }
       }
     },
@@ -85,7 +108,7 @@
     },
     "context": {
       "type": "object",
-      "description": "Other content printed on the page that is not a v1 field (dates, centre, distractors). Informational only.",
+      "description": "Other content printed on the pages that is not a v1 field (dates, centre, diagnosis, distractors). Informational only.",
       "additionalProperties": true
     }
   },
@@ -104,11 +127,13 @@
     },
     "location": {
       "type": "object",
+      "description": "A further occurrence of the same value. Its printed form may differ (another date format, a card that prints F for mujer); the value is the same.",
       "additionalProperties": false,
-      "required": ["page", "bbox"],
+      "required": ["page", "bbox", "printed"],
       "properties": {
         "page": { "type": "integer", "minimum": 1 },
-        "bbox": { "$ref": "#/$defs/bbox" }
+        "bbox": { "$ref": "#/$defs/bbox" },
+        "printed": { "type": "string", "minLength": 1 }
       }
     },
     "style": { "type": "string", "enum": ["printed", "handwritten"] },
@@ -118,7 +143,7 @@
       "required": ["value", "printed", "page", "bbox", "style", "also_at"],
       "properties": {
         "value": { "type": "string", "minLength": 1, "description": "Expected extractor output, normalized per schema/fields.json." },
-        "printed": { "type": "string", "minLength": 1, "description": "Verbatim string drawn on the page." },
+        "printed": { "type": "string", "minLength": 1, "description": "Verbatim string drawn at the primary location." },
         "page": { "type": "integer", "minimum": 1 },
         "bbox": { "$ref": "#/$defs/bbox" },
         "style": { "$ref": "#/$defs/style" },
@@ -131,13 +156,14 @@
     "testItem": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["value", "printed", "page", "bbox", "style"],
+      "required": ["value", "printed", "page", "bbox", "style", "also_at"],
       "properties": {
         "value": { "type": "string", "minLength": 1 },
         "printed": { "type": "string", "minLength": 1 },
         "page": { "type": "integer", "minimum": 1 },
         "bbox": { "$ref": "#/$defs/bbox" },
-        "style": { "$ref": "#/$defs/style" }
+        "style": { "$ref": "#/$defs/style" },
+        "also_at": { "type": "array", "items": { "$ref": "#/$defs/location" } }
       }
     }
   }

@@ -40,6 +40,10 @@ INK_COLORS = (
     colors.HexColor("#263238"),
 )
 
+STAMP_GREEN = colors.HexColor("#2E7D32")
+
+PAGE_ROLES = ("request", "authorization", "id-copy", "consent", "fax-cover", "blank", "duplicate")
+
 BBoxPt = tuple[float, float, float, float]  # x0, y0, x1, y1 in points, origin top-left
 
 
@@ -80,6 +84,13 @@ class Drawn:
 
 
 @dataclass(frozen=True)
+class PageInfo:
+    width: float
+    height: float
+    role: str
+
+
+@dataclass(frozen=True)
 class HandwritingPlan:
     fields: frozenset[str] = frozenset()
     font: str = "Caveat"
@@ -93,6 +104,8 @@ class Recorder:
         pagesize: tuple[float, float],
         rng: random.Random,
         handwriting: HandwritingPlan | None = None,
+        *,
+        role: str = "request",
     ) -> None:
         register_fonts()
         self.buf = io.BytesIO()
@@ -105,8 +118,14 @@ class Recorder:
         self.rng = rng
         self.hw = handwriting or HandwritingPlan()
         self.page = 1
-        self.pages: list[tuple[float, float]] = [(self.W, self.H)]
+        self.pages: list[PageInfo] = [PageInfo(self.W, self.H, self._check_role(role))]
         self.items: list[Drawn] = []
+
+    @staticmethod
+    def _check_role(role: str) -> str:
+        if role not in PAGE_ROLES:
+            raise ValueError(f"unknown page role {role!r}; add it to PAGE_ROLES and the schema")
+        return role
 
     # ------------------------------------------------------------------ coordinates
 
@@ -118,10 +137,10 @@ class Recorder:
         ys = [self.H - p[1] for p in corners_rl]
         return (min(xs), min(ys), max(xs), max(ys))
 
-    def new_page(self) -> None:
+    def new_page(self, role: str = "request") -> None:
         self.c.showPage()
         self.page += 1
-        self.pages.append((self.W, self.H))
+        self.pages.append(PageInfo(self.W, self.H, self._check_role(role)))
 
     # ------------------------------------------------------------------ text
 
@@ -187,6 +206,34 @@ class Recorder:
     ) -> BBoxPt:
         """Plain text (labels, decoration). Not recorded."""
         return self._draw_string(x, y, s, font, size, color, align, 0.0)
+
+    def paragraph(
+        self,
+        x: float,
+        y: float,
+        text: str,
+        width: float,
+        *,
+        font: str = "Helvetica",
+        size: float = 8,
+        color: colors.Color = BLACK,
+        leading: float | None = None,
+    ) -> float:
+        """Word-wrapped plain text. Not recorded. Returns the baseline after the last line."""
+        leading = leading or size * 1.35
+        line = ""
+        for word in text.split():
+            trial = f"{line} {word}".strip()
+            if line and pdfmetrics.stringWidth(trial, font, size) > width:
+                self.text(x, y, line, font=font, size=size, color=color)
+                y += leading
+                line = word
+            else:
+                line = trial
+        if line:
+            self.text(x, y, line, font=font, size=size, color=color)
+            y += leading
+        return y
 
     def field_text(
         self,
@@ -260,9 +307,10 @@ class Recorder:
         size: float = 9,
         font: str = "Helvetica",
         color: colors.Color = BLACK,
+        primary: bool = True,
     ) -> BBoxPt:
         box = self._draw_string(x, y, printed, font, size, color, "left", 0.0)
-        self.items.append(Drawn("test", None, printed, printed, self.page, box, "printed", True))
+        self.items.append(Drawn("test", None, printed, printed, self.page, box, "printed", primary))
         return box
 
     def scribble(
@@ -271,6 +319,32 @@ class Recorder:
         """Decorative handwriting (signatures, notes). Never recorded."""
         rotation = self.rng.uniform(-max_rotation, max_rotation)
         self._draw_string(x, y, s, self.hw.font, size, self.hw.ink, "left", rotation)
+
+    def stamp(
+        self,
+        cx: float,
+        cy: float,
+        text: str,
+        *,
+        color: colors.Color = STAMP_GREEN,
+        size: float = 14,
+        rotation: float = -8.0,
+        pad: float = 8,
+    ) -> None:
+        """Rubber-stamp look: rotated bold text inside a rounded frame. Never recorded."""
+        w = pdfmetrics.stringWidth(text, "Helvetica-Bold", size) + 2 * pad
+        h = size + 2 * pad
+        c = self.c
+        c.saveState()
+        c.translate(*self._rl(cx, cy))
+        c.rotate(rotation)
+        c.setStrokeColor(color)
+        c.setFillColor(color)
+        c.setLineWidth(1.5)
+        c.roundRect(-w / 2, -h / 2, w, h, 4, stroke=1, fill=0)
+        c.setFont("Helvetica-Bold", size)
+        c.drawCentredString(0, -size * 0.35, text)
+        c.restoreState()
 
     # ------------------------------------------------------------------ shapes
 
