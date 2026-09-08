@@ -1,0 +1,168 @@
+{
+  "$comment": "Single source of truth for the intake fields. Read by the Python generator/evaluator and by the Next.js app. Do not duplicate this configuration in prompts, backend or UI.",
+  "version": 1,
+  "compare_modes": {
+    "exact": "String equality after trimming whitespace.",
+    "casefold": "Case-insensitive, accent-insensitive, whitespace-collapsed equality.",
+    "digits": "Equality of the digit sequences only (separators and spaces ignored).",
+    "alnum_upper": "Equality of the alphanumeric characters only, upper-cased."
+  },
+  "fields": [
+    {
+      "name": "Paciente",
+      "label": "Patient name",
+      "group": "patient",
+      "type": "string",
+      "required": true,
+      "normalize": null,
+      "compare": "casefold",
+      "pattern": null,
+      "description": "Full name of the patient exactly as printed."
+    },
+    {
+      "name": "FechaNacimiento",
+      "label": "Date of birth",
+      "group": "patient",
+      "type": "date",
+      "required": true,
+      "normalize": "dd/mm/yyyy",
+      "compare": "exact",
+      "pattern": "^\\d{2}/\\d{2}/\\d{4}$",
+      "description": "Date of birth normalized to dd/mm/yyyy regardless of how it is printed."
+    },
+    {
+      "name": "Edad",
+      "label": "Age",
+      "group": "patient",
+      "type": "string",
+      "required": false,
+      "normalize": null,
+      "compare": "digits",
+      "pattern": null,
+      "description": "Age exactly as printed (may include a unit such as 'años')."
+    },
+    {
+      "name": "Sexo",
+      "label": "Sex",
+      "group": "patient",
+      "type": "enum",
+      "required": true,
+      "normalize": "H|M|U",
+      "enum": ["H", "M", "U"],
+      "compare": "exact",
+      "pattern": "^[HMU]$",
+      "description": "H = hombre, M = mujer, U = unknown/other. Normalized from any printed representation."
+    },
+    {
+      "name": "DocumentoIdentidad",
+      "label": "Identity document",
+      "group": "patient",
+      "type": "string",
+      "required": true,
+      "normalize": null,
+      "compare": "alnum_upper",
+      "pattern": null,
+      "description": "DNI, NIE or passport number exactly as printed."
+    },
+    {
+      "name": "Telefono",
+      "label": "Phone",
+      "group": "patient",
+      "type": "string",
+      "required": false,
+      "normalize": null,
+      "compare": "digits",
+      "pattern": null,
+      "description": "Patient contact phone exactly as printed."
+    },
+    {
+      "name": "NombreMedico",
+      "label": "Requesting physician",
+      "group": "physician",
+      "type": "string",
+      "required": true,
+      "normalize": null,
+      "compare": "casefold",
+      "pattern": null,
+      "description": "Name of the requesting physician exactly as printed."
+    },
+    {
+      "name": "NumeroColegiado",
+      "label": "Physician registration number",
+      "group": "physician",
+      "type": "string",
+      "required": false,
+      "normalize": null,
+      "compare": "digits",
+      "pattern": null,
+      "description": "Medical college registration number exactly as printed."
+    },
+    {
+      "name": "NumeroPeticion",
+      "label": "Request number",
+      "group": "request",
+      "type": "string",
+      "required": true,
+      "normalize": null,
+      "compare": "alnum_upper",
+      "pattern": null,
+      "unique": true,
+      "description": "Request identifier. May be printed more than once (header, barcode label); returned once."
+    },
+    {
+      "name": "NombreMutua",
+      "label": "Insurer name",
+      "group": "insurer",
+      "type": "string",
+      "required": false,
+      "normalize": null,
+      "compare": "casefold",
+      "pattern": null,
+      "description": "Insurance company / mutual name exactly as printed."
+    },
+    {
+      "name": "NumeroSolicitudMutua",
+      "label": "Insurer request number",
+      "group": "insurer",
+      "type": "string",
+      "required": false,
+      "normalize": null,
+      "compare": "alnum_upper",
+      "pattern": null,
+      "description": "Insurer-side request/solicitud number exactly as printed."
+    },
+    {
+      "name": "NumeroAutorizacion",
+      "label": "Authorization number",
+      "group": "insurer",
+      "type": "string",
+      "required": false,
+      "normalize": null,
+      "compare": "alnum_upper",
+      "pattern": null,
+      "description": "Insurer authorization number exactly as printed."
+    },
+    {
+      "name": "NumeroTarjeta",
+      "label": "Insurance card number",
+      "group": "insurer",
+      "type": "string",
+      "required": false,
+      "normalize": null,
+      "compare": "digits",
+      "pattern": null,
+      "description": "Insurance card number exactly as printed."
+    }
+  ],
+  "tests": {
+    "name": "tests",
+    "label": "Requested tests",
+    "group": "request",
+    "type": "array",
+    "item_type": "string",
+    "required": true,
+    "compare": "casefold",
+    "match": "set",
+    "description": "Each requested test is one independent entry. Visual grouping (boxes, tables, profile headings) must never be used to merge entries. Group headings are not tests."
+  }
+}
