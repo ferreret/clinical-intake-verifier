@@ -15,6 +15,7 @@ from jsonschema import Draft202012Validator
 
 FIELDS_FILE = "fields.json"
 GOLDEN_SCHEMA_FILE = "golden.schema.json"
+PREDICTION_SCHEMA_FILE = "prediction.schema.json"
 
 
 def schema_dir() -> Path:
@@ -63,17 +64,40 @@ def load_golden_schema() -> dict:
 
 
 @lru_cache(maxsize=1)
-def golden_validator() -> Draft202012Validator:
-    schema = load_golden_schema()
+def load_prediction_schema() -> dict:
+    with open(schema_dir() / PREDICTION_SCHEMA_FILE, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _validator(schema: dict) -> Draft202012Validator:
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema)
 
 
-def validate_golden(doc: dict) -> list[str]:
-    """Return a list of human-readable validation errors (empty when valid)."""
-    errors = sorted(golden_validator().iter_errors(doc), key=lambda e: list(e.absolute_path))
+@lru_cache(maxsize=1)
+def golden_validator() -> Draft202012Validator:
+    return _validator(load_golden_schema())
+
+
+@lru_cache(maxsize=1)
+def prediction_validator() -> Draft202012Validator:
+    return _validator(load_prediction_schema())
+
+
+def _errors(validator: Draft202012Validator, doc: dict) -> list[str]:
+    errors = sorted(validator.iter_errors(doc), key=lambda e: list(e.absolute_path))
     out = []
     for e in errors:
         path = "/".join(str(p) for p in e.absolute_path) or "<root>"
         out.append(f"{path}: {e.message}")
     return out
+
+
+def validate_golden(doc: dict) -> list[str]:
+    """Return a list of human-readable validation errors (empty when valid)."""
+    return _errors(golden_validator(), doc)
+
+
+def validate_prediction(doc: dict) -> list[str]:
+    """Validate an extractor prediction against schema/prediction.schema.json."""
+    return _errors(prediction_validator(), doc)

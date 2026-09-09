@@ -13,7 +13,7 @@ import typer
 from . import __version__
 from .generate import catalog
 from .generate.pipeline import MANIFEST_NAME, GenerateOptions, generate_batch
-from .schema import field_names, repo_root, validate_golden
+from .schema import field_names, repo_root, validate_golden, validate_prediction
 
 app = typer.Typer(
     help="Synthetic lab-request generator and evaluation harness for clinical-intake-verifier.",
@@ -144,11 +144,19 @@ def debug_boxes(
         typer.Option(help="Output directory for the PNGs. Default: next to the golden."),
     ] = None,
     dpi: Annotated[int, typer.Option(min=50)] = 110,
+    prediction: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            help="A .pred.json to paint on top of the golden (green=field, purple=test).",
+        ),
+    ] = None,
 ) -> None:
     """Render a document with its golden boxes painted on top (red=field, orange=also_at, blue=test)."""
     from .debug import draw_boxes
 
-    for p in draw_boxes(golden, out, dpi=dpi):
+    for p in draw_boxes(golden, out, dpi=dpi, prediction_path=prediction):
         typer.echo(str(p))
 
 
@@ -158,30 +166,37 @@ def validate(
         Path, typer.Argument(exists=True, help="A golden .json or a directory of them.")
     ],
 ) -> None:
-    """Validate golden files against schema/golden.schema.json and check PDF hashes."""
-    files = sorted(path.glob("synth-*.json")) if path.is_dir() else [path]
+    """Validate golden files (and PDF hashes) or extractor predictions against their schemas.
+
+    Files named *.pred.json are checked against schema/prediction.schema.json; anything else
+    against schema/golden.schema.json.
+    """
+    files = sorted(path.glob("*.json")) if path.is_dir() else [path]
+    files = [f for f in files if f.name != "manifest.json" and f.name != "run.json"]
     if not files:
-        typer.echo("no golden files found", err=True)
+        typer.echo("no golden or prediction files found", err=True)
         raise typer.Exit(code=1)
     names = set(field_names())
     failures = 0
     for f in files:
         with open(f, encoding="utf-8") as fh:
-            g = json.load(fh)
-        errors = validate_golden(g)
-        if set(g.get("fields", {})) != names:
+            doc = json.load(fh)
+        is_prediction = f.name.endswith(".pred.json")
+        errors = validate_prediction(doc) if is_prediction else validate_golden(doc)
+        if set(doc.get("fields", {})) != names:
             errors.append("fields: keys do not match schema/fields.json")
-        pdf = f.parent / g.get("file", "")
-        if not pdf.exists():
-            errors.append(f"file: {pdf.name} missing")
-        elif hashlib.sha256(pdf.read_bytes()).hexdigest() != g.get("sha256"):
-            errors.append("sha256: PDF does not match golden")
+        if not is_prediction:
+            pdf = f.parent / doc.get("file", "")
+            if not pdf.exists():
+                errors.append(f"file: {pdf.name} missing")
+            elif hashlib.sha256(pdf.read_bytes()).hexdigest() != doc.get("sha256"):
+                errors.append("sha256: PDF does not match golden")
         if errors:
             failures += 1
             typer.echo(f"FAIL {f.name}")
             for e in errors:
                 typer.echo(f"     {e}")
-    typer.echo(f"{len(files) - failures}/{len(files)} golden files valid")
+    typer.echo(f"{len(files) - failures}/{len(files)} files valid")
     if failures:
         raise typer.Exit(code=1)
 

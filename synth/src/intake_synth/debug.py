@@ -1,4 +1,8 @@
-"""Visual check of a golden: render the PDF and paint every recorded box on top of it."""
+"""Visual check of a golden: render the PDF and paint every recorded box on top of it.
+
+With a prediction alongside, the extractor's boxes are painted on the same images so that
+golden and prediction can be compared page by page.
+"""
 
 from __future__ import annotations
 
@@ -11,9 +15,16 @@ from PIL import Image, ImageDraw, ImageFont
 FIELD_COLOR = (220, 30, 30)
 ALSO_AT_COLOR = (245, 140, 0)
 TEST_COLOR = (30, 90, 220)
+PRED_FIELD_COLOR = (30, 160, 70)
+PRED_TEST_COLOR = (160, 40, 180)
 
 
-def draw_boxes(golden_path: Path, out_dir: Path | None = None, dpi: int = 110) -> list[Path]:
+def draw_boxes(
+    golden_path: Path,
+    out_dir: Path | None = None,
+    dpi: int = 110,
+    prediction_path: Path | None = None,
+) -> list[Path]:
     with open(golden_path, encoding="utf-8") as fh:
         golden = json.load(fh)
     pdf_path = golden_path.parent / golden["file"]
@@ -32,14 +43,19 @@ def draw_boxes(golden_path: Path, out_dir: Path | None = None, dpi: int = 110) -
     except TypeError:  # very old Pillow
         font = ImageFont.load_default()
 
-    def paint(page_no: int, bbox: dict, color: tuple[int, int, int], label: str) -> None:
+    def paint(
+        page_no: int, bbox: dict, color: tuple[int, int, int], label: str, below: bool = False
+    ) -> None:
+        if not 1 <= page_no <= len(images):
+            return
         img = images[page_no - 1]
         w, h = img.size
         d = ImageDraw.Draw(img)
         x0, y0, x1, y1 = bbox["x0"] * w, bbox["y0"] * h, bbox["x1"] * w, bbox["y1"] * h
         d.rectangle([x0, y0, x1, y1], outline=color, width=2)
         if label:
-            d.text((x0, max(0, y0 - 12)), label, fill=color, font=font)
+            y_text = y1 + 2 if below else max(0, y0 - 12)
+            d.text((x0, y_text), label, fill=color, font=font)
 
     for name, f in golden["fields"].items():
         if f is None:
@@ -53,9 +69,27 @@ def draw_boxes(golden_path: Path, out_dir: Path | None = None, dpi: int = 110) -
         for loc in t["also_at"]:
             paint(loc["page"], loc["bbox"], ALSO_AT_COLOR, f"test {i} (also)")
 
+    suffix = "boxes"
+    if prediction_path is not None:
+        with open(prediction_path, encoding="utf-8") as fh:
+            pred = json.load(fh)
+        if pred.get("sha256") != golden["sha256"]:
+            raise ValueError(
+                f"{prediction_path.name} was made from a different PDF than {golden_path.name}"
+            )
+        for name, f in pred["fields"].items():
+            if f is None or f["page"] is None or f["bbox"] is None:
+                continue
+            paint(f["page"], f["bbox"], PRED_FIELD_COLOR, f"P:{name}", below=True)
+        for i, t in enumerate(pred["tests"], start=1):
+            if t["page"] is None or t["bbox"] is None:
+                continue
+            paint(t["page"], t["bbox"], PRED_TEST_COLOR, f"P:test {i}", below=True)
+        suffix = "compare"
+
     outputs = []
     for i, img in enumerate(images, start=1):
-        p = out_dir / f"{golden['id']}-p{i}.boxes.png"
+        p = out_dir / f"{golden['id']}-p{i}.{suffix}.png"
         img.save(p)
         outputs.append(p)
     return outputs
