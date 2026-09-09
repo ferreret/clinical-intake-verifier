@@ -22,8 +22,8 @@ uncertainty.
 | Phase | Scope | State |
 |---|---|---|
 | F1 | Synthetic request generator with golden ground truth | **done** |
-| F2 | Extractor (Gemini Flash, structured output + boxes) | next |
-| F3 | Evaluation harness against the golden sample | |
+| F2 | Extractor (Gemini Flash, structured output + boxes) | **done** |
+| F3 | Evaluation harness against the golden sample | next |
 | F4 | Mock LIS + fusion engine (traffic light per field) | |
 | F5 | Verification UI | |
 | F6 | Public demo on Vercel | |
@@ -34,11 +34,12 @@ prompt change helped or hurt, and that is exactly what this project wants to sho
 ## Repository layout
 
 ```
-schema/            single source of truth: field configuration + golden JSON Schema
-synth/             Python package (uv): generator (F1) and evaluation harness (F3)
-web/               Next.js app: extractor, mock LIS, fusion engine, verification UI (F2+)
-docs/              design notes and the golden format specification
+schema/            single source of truth: field configuration, golden and prediction JSON Schemas
+synth/             Python package (uv): generator (F1), evaluation harness (F3)
+web/               Next.js app: extractor (F2), mock LIS, fusion engine, verification UI
+docs/              design notes: golden format, extractor contract
 data/synth/        generated documents (git-ignored, regenerate with one command)
+data/runs/         extractor runs, one directory per run (git-ignored)
 ```
 
 Real development documents never live inside the repository tree. `.gitignore` excludes
@@ -78,6 +79,60 @@ Run the tests:
 uv run pytest
 ```
 
+## Quick start: run the extractor
+
+Requirements: Node 22 and a Gemini API key.
+
+```bash
+cd web
+npm install
+cp .env.example .env.local        # then put your key in GEMINI_API_KEY
+npm run dev
+```
+
+`POST /api/extract` takes a multipart form with a `file` field and returns a prediction:
+
+```bash
+curl -F "file=@../data/synth/seed-42/synth-000003.pdf" http://localhost:3000/api/extract
+```
+
+To run it over a whole batch without the server:
+
+```bash
+npm run extract -- --in ../data/synth/seed-42 --limit 20
+```
+
+This writes one `<id>.pred.json` per document and a `run.json` into `data/runs/<run-id>/`,
+reading only the PDFs. Running it again on the same directory skips documents already
+predicted with the same model and prompt version, so a prompt change costs only what changed.
+
+Compare a prediction with its golden visually, or validate a run directory:
+
+```bash
+cd ../synth
+uv run intake-synth debug-boxes ../data/synth/seed-42/synth-000003.json --prediction ../data/runs/<run-id>/synth-000003.pred.json
+uv run intake-synth validate ../data/runs/<run-id>
+```
+
+Tests, types and lint:
+
+```bash
+npm test && npm run typecheck && npm run lint
+```
+
+## How the extractor works
+
+**Two layers and a boundary.** The model is asked for a flat JSON in its own conventions
+(boxes as `[ymin, xmin, ymax, xmax]` on a 0–1000 scale), with the field list and the prompt
+generated from `schema/fields.json`. A boundary converts that into the prediction the rest of
+the system consumes, with the same field keys and the same box shape as the golden, so that
+evaluation needs no adapters. The boundary validates and annotates but never repairs: a date
+that does not match its pattern stays as the model wrote it, flagged with a warning, for the
+fusion engine and the operator to decide. Every prediction records model, prompt version and
+input mode, so two runs are only compared when they were produced the same way. The contract
+is specified in [docs/extractor-contract.md](docs/extractor-contract.md) and enforced by
+[`schema/prediction.schema.json`](schema/prediction.schema.json) on both sides.
+
 ## What the generator produces
 
 **Multipage scans, the way they really arrive.** Most documents have several pages: the
@@ -113,8 +168,10 @@ Names, types, whether a field is mandatory and how it is compared are defined on
 
 ## Configuration
 
-The repository runs without credentials except a Gemini API key for the extractor (from F2 on).
-See [`.env.example`](.env.example).
+The repository runs without credentials except a Gemini API key for the extractor. See
+[`web/.env.example`](web/.env.example) for that key and the optional model settings. The Python
+package needs none; `INTAKE_SCHEMA_DIR` and `INTAKE_FONTS_DIR` can override where it looks for
+the shared schema and the handwriting fonts.
 
 ## Licence
 
