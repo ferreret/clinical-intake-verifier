@@ -36,23 +36,42 @@ export function stripTitle(value: string): string {
   return stripped === "" ? value : stripped;
 }
 
+/** What a value is, for the garbled-text checks: a free-text name, a test name, or anything else. */
+export type TextKind = "name" | "test" | "other";
+
+/** Ordinary punctuation next to a letter: "Seguros & Salud", "D'Angelo", "Ruiz-Peña", "(HbA1c)". */
+const SYMBOL = String.raw`[^\p{L}\p{N}\s.,'’\-/()+&]`;
+
 /**
  * The forms in which the model has been seen to corrupt accented letters, intermittently and
  * across a whole document: a control character ("Est\tevez"), an HTML entity ("Ferr&#225;ndiz"),
- * a "!" in place of a letter ("M!rmol", "!cido") and, in names, a digit between letters ("P0a").
- * No printed value contains any of them. Digits are checked in names only, because test names
- * legitimately have them ("HbA1c", "Vitamina B12").
+ * a symbol in place of a letter ("M!rmol", "Ur%a"), a Cyrillic look-alike ("ТТРА" for TTPA) and,
+ * in names, a digit between letters ("P0a"). No golden value contains any of them.
+ *
+ * Each check has the narrowest scope that catches what was seen. Symbols are checked in text
+ * only, not in identifiers. Digits and Greek letters are checked in names only, because test
+ * names legitimately have them ("HbA1c", "Vitamina B12", "γ-GT").
  */
-const GARBLED: readonly { pattern: RegExp; reason: string; namesOnly: boolean }[] = [
-  { pattern: /\p{Cc}/u, reason: "control character", namesOnly: false },
-  { pattern: /&(?:#\d+|#x[0-9a-f]+|[a-z]+);/iu, reason: "HTML entity", namesOnly: false },
-  { pattern: /!(?=\p{L})|(?<=\p{L})!/u, reason: "'!' next to a letter", namesOnly: false },
-  { pattern: /\p{L}\d+\p{L}/u, reason: "digit between letters", namesOnly: true },
+const GARBLED: readonly { pattern: RegExp; reason: string; kinds: readonly TextKind[] }[] = [
+  { pattern: /\p{Cc}/u, reason: "control character", kinds: ["name", "test", "other"] },
+  {
+    pattern: /&(?:#\d+|#x[0-9a-f]+|[a-z]+);/iu,
+    reason: "HTML entity",
+    kinds: ["name", "test", "other"],
+  },
+  { pattern: /\p{Script=Cyrillic}/u, reason: "Cyrillic letter", kinds: ["name", "test", "other"] },
+  {
+    pattern: new RegExp(`(?<=\\p{L})${SYMBOL}|${SYMBOL}(?=\\p{L})`, "u"),
+    reason: "symbol next to a letter",
+    kinds: ["name", "test"],
+  },
+  { pattern: /\p{Script=Greek}/u, reason: "Greek letter", kinds: ["name"] },
+  { pattern: /\p{L}\d+\p{L}/u, reason: "digit between letters", kinds: ["name"] },
 ];
 
-/** Why `value` looks like corrupted text, or null. `isName` enables the name-only checks. */
-export function garbledReason(value: string, isName: boolean): string | null {
-  const hit = GARBLED.find((g) => (isName || !g.namesOnly) && g.pattern.test(value));
+/** Why `value` looks like corrupted text, or null. */
+export function garbledReason(value: string, kind: TextKind): string | null {
+  const hit = GARBLED.find((g) => g.kinds.includes(kind) && g.pattern.test(value));
   return hit ? hit.reason : null;
 }
 
@@ -66,7 +85,7 @@ function normaliseItem(
   field: string,
   pattern: string | null,
   normalize: string | null,
-  isName: boolean,
+  kind: TextKind,
   pageCount: number,
   warnings: PredictionWarning[],
 ): PredictedField | null {
@@ -76,7 +95,7 @@ function normaliseItem(
     warnings.push({ code: "empty_value", field, detail: "empty string treated as null" });
     return null;
   }
-  const garbled = garbledReason(value, isName);
+  const garbled = garbledReason(value, kind);
   if (garbled) {
     // Flagged, never repaired: guessing which letter was meant would be the model quietly
     // winning. The extractor retries the document instead (see index.ts).
@@ -133,7 +152,7 @@ export function normaliseExtraction(raw: RawExtraction, pageCount: number): Norm
       spec.name,
       spec.pattern,
       spec.normalize,
-      spec.compare === "casefold", // the free-text fields: patient, physician, insurer
+      spec.compare === "casefold" ? "name" : "other", // casefold: patient, physician, insurer
       pageCount,
       warnings,
     );
@@ -142,7 +161,7 @@ export function normaliseExtraction(raw: RawExtraction, pageCount: number): Norm
   const tests: PredictedField[] = [];
   const seen = new Set<string>();
   for (const item of raw.tests ?? []) {
-    const test = normaliseItem(item, "tests", null, null, false, pageCount, warnings);
+    const test = normaliseItem(item, "tests", null, null, "test", pageCount, warnings);
     if (test === null) continue;
     const key = compareKey(test.value, TESTS.compare);
     if (seen.has(key)) {

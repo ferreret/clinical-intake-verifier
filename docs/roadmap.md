@@ -106,7 +106,9 @@ measured with `--baseline` against the run above.
   all three clean on the second. The two systematic mistakes remain (`synth-000027`,
   `synth-000108`).
 
-- **Proposed, not approved: widen the garbled-text detector.** Two more checks, both checked
+- **Approved on 2026-10-22 and implemented: widen the garbled-text detector.** It flags no
+  golden value and catches both documents the v3 run let through. The proposal: two more
+  checks, both checked
   first against every golden value, which contain no `%` and no non-Latin letter:
   - any character that is not a letter, digit, space or ordinary punctuation
     (`. , ' - / ( ) + &`) next to a letter, generalising the `!` check (`Ur%a`, `M!rmol`);

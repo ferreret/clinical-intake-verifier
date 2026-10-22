@@ -141,31 +141,6 @@ describe("normaliseExtraction", () => {
     );
     expect(out.warnings).toEqual([]);
   });
-});
-
-describe("garbledReason", () => {
-  it("recognises every form of corruption seen in the full runs", () => {
-    expect(garbledReason("Est\tevez", true)).toBe("control character");
-    expect(garbledReason("Hayd\u0000\u0000\u0000\u0000", true)).toBe("control character");
-    expect(garbledReason("Ferr&#225;ndiz", true)).toBe("HTML entity");
-    expect(garbledReason("Triglic&eacute;ridos", false)).toBe("HTML entity");
-    expect(garbledReason("Odalys M!rmol Vives", true)).toBe("'!' next to a letter");
-    expect(garbledReason("!cido !rico", false)).toBe("'!' next to a letter");
-    expect(garbledReason("P0a Martinez Carmona", true)).toBe("digit between letters");
-  });
-
-  it("allows digits between letters outside names, where tests have them", () => {
-    expect(garbledReason("Hemoglobina glicosilada (HbA1c)", false)).toBeNull();
-    expect(garbledReason("Vitamina B12", false)).toBeNull();
-    expect(garbledReason("HbA1c", true)).toBe("digit between letters");
-  });
-
-  it("leaves ordinary text alone", () => {
-    for (const v of ["Ibáñez Ruiz, Begoña", "Ácido úrico", "Seguros & Salud", "45 años", "12345678-Z"]) {
-      expect(garbledReason(v, true), v).toBeNull();
-    }
-  });
-
   it("treats an empty value as absent", () => {
     const out = normaliseExtraction(raw({ Telefono: { value: "   ", page: 1, box_2d: [1, 1, 2, 2] } }), 1);
     expect(out.fields.Telefono).toBeNull();
@@ -207,5 +182,49 @@ describe("garbledReason", () => {
       { code: "duplicate_test", field: "tests", detail: "Hemógrama completo" },
       { code: "empty_value", field: "tests", detail: "empty string treated as null" },
     ]);
+  });
+});
+
+describe("garbledReason", () => {
+  it("recognises every form of corruption seen in the full runs", () => {
+    expect(garbledReason("Est\tevez", "name")).toBe("control character");
+    expect(garbledReason("Hayd\u0000\u0000\u0000\u0000", "name")).toBe("control character");
+    expect(garbledReason("8 a\u0000os", "other")).toBe("control character");
+    expect(garbledReason("Ferr&#225;ndiz", "name")).toBe("HTML entity");
+    expect(garbledReason("Triglic&eacute;ridos", "test")).toBe("HTML entity");
+    expect(garbledReason("ТТРА", "test")).toBe("Cyrillic letter");
+    expect(garbledReason("Odalys M!rmol Vives", "name")).toBe("symbol next to a letter");
+    expect(garbledReason("!cido !rico", "test")).toBe("symbol next to a letter");
+    expect(garbledReason("Haroldo Gonzalo Ur%a", "name")).toBe("symbol next to a letter");
+    expect(garbledReason("P0a Martinez Carmona", "name")).toBe("digit between letters");
+  });
+
+  it("allows in test names what they legitimately contain", () => {
+    expect(garbledReason("Hemoglobina glicosilada (HbA1c)", "test")).toBeNull();
+    expect(garbledReason("Vitamina B12", "test")).toBeNull();
+    expect(garbledReason("γ-GT", "test")).toBeNull();
+    expect(garbledReason("Saturación de transferrina (%)", "test")).toBeNull();
+    expect(garbledReason("HbA1c", "name")).toBe("digit between letters");
+    expect(garbledReason("γ-GT", "name")).toBe("Greek letter");
+  });
+
+  it("does not look for symbols in identifiers", () => {
+    expect(garbledReason("AUT#001", "other")).toBeNull();
+    expect(garbledReason("AUT#001", "name")).toBe("symbol next to a letter");
+  });
+
+  it("leaves ordinary text alone", () => {
+    const ordinary = [
+      "Ibáñez Ruiz, Begoña",
+      "Ácido úrico",
+      "Seguros & Salud",
+      "D'Angelo Ruiz-Peña",
+      "ZARAGOZA APARICIO, ROSENDO",
+      "45 años",
+    ];
+    for (const v of ordinary) expect(garbledReason(v, "name"), v).toBeNull();
+    for (const v of ["12345678-Z", "PET-2026/000123", "+34 612 345 678"]) {
+      expect(garbledReason(v, "other"), v).toBeNull();
+    }
   });
 });
