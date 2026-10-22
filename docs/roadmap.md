@@ -65,7 +65,17 @@ nvm is loaded at the end of `~/.bashrc`, which returns early in non-interactive 
 `node` and `npm` are not on the PATH of scripted commands until `source ~/.nvm/nvm.sh`. The same
 applies to the preview server in `.claude/launch.json`, which runs `npm` directly.
 
-`npm audit` reports 6 advisories, all in `next` 16.3.4. Whether to upgrade is undecided.
+**`npm audit`.** `next` and `eslint-config-next` moved from 16.3.4 to 16.3.8 on 2026-10-22,
+which fixes the seven Next.js advisories, among them a critical one in `next/og`. None of them
+reached features this app uses, but the demo will be public. Five high advisories remain, all
+one issue: `braces` 3.0.3, a denial of service through deeply nested glob patterns, pulled in
+by `@next/eslint-plugin-next` through `fast-glob` 3.3.1. No fixed `braces` has been published,
+and 16.4.2 pins the same `fast-glob`; the fix npm suggests is a downgrade to
+`eslint-config-next` 14. Accepted: it only runs when linting, never in the deployed app.
+Re-check when Next.js updates that dependency. 16.4.x is a minor upgrade, left for later.
+
+The preview in `.claude/launch.json` fails here with `npm` not found, because of the nvm PATH
+issue above. Not fixed yet.
 
 **Resolved: rolldown native binding.** The old lockfile listed rolldown's platform bindings as
 optional dependencies but had no entry for any of them, a known npm bug, so vitest failed to
