@@ -23,7 +23,7 @@ uncertainty.
 |---|---|---|
 | F1 | Synthetic request generator with golden ground truth | **done** |
 | F2 | Extractor (Gemini Flash, structured output + boxes) | **done** |
-| F3 | Evaluation harness against the golden sample | **done**; first full 200-document run pending |
+| F3 | Evaluation harness against the golden sample | **done** |
 | F4 | Mock LIS + fusion engine (traffic light per field) | |
 | F5 | Verification UI | |
 | F6 | Public demo on Vercel | |

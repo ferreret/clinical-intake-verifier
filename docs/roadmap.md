@@ -12,7 +12,7 @@ Last updated: 2026-10-22.
 |---|---|---|
 | F1 | Synthetic request generator with golden ground truth | done |
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
-| F3 | Evaluation harness | **done**; first full 200-document run pending |
+| F3 | Evaluation harness | done, first full run measured (below) |
 | F4 | Mock LIS and fusion engine | not started |
 | F5 | Verification UI | not started |
 | F6 | Public demo on Vercel | not started |
@@ -41,6 +41,53 @@ What the live call settled:
 - the model id `gemini-3.8-flash` is valid;
 - `responseJsonSchema` accepts the layer-1 schema with nullable fields, with no warnings;
 - `thinkingLevel: MINIMAL` is rejected with `400 INVALID_ARGUMENT`, so the default is now `low`.
+
+### First full run
+
+All 200 documents of seed 42, `gemini-3.8-flash`, prompt v2, thinking level `low`, scored by
+the harness on 2026-10-22 (`intake-synth evaluate`; run `20261022-172951-gemini-3.8-flash-p2`).
+
+| Measure | Result |
+|---|---|
+| Documents | 200 evaluated, 0 failed, 0 rejected |
+| Fields | 2035 correct, 4 wrong, 0 missed; precision and recall 99.8% |
+| Invented values | **0 of 561** golden nulls |
+| Requested tests | P 99.9%, R 99.8%; exact list in 198 of 200 documents |
+| Boxes located at IoU ≥ 0.5 | 3535 of 3564 (99.2%), median IoU 0.76 |
+| Handwritten values | 104, all correct |
+| Cost | 8.6 s per document; 454k input and 210k output tokens in total, about 1.1 USD |
+
+The six documents with a mistake, and what they point to:
+
+1. **Control characters where an accented letter should be** (`synth-000082`, `synth-000174`,
+   both scanned). "Estévez" came back as `Est\tevez`, "años" as `a\tnos`, "Fibrinógeno" as
+   `Fibrin\x03ogeno`: the accent replaced by a tab or U+0003 in front of the base letter. Five
+   values in two documents; 324 golden values have non-ASCII letters and the rest were fine.
+   Two field mismatches and two test mismatches. Whether the model or the response decoding
+   produces it is not known yet: the prediction does not keep the raw response.
+2. **Sex from an identity card** (`synth-000147`). The only evidence is the card's bare `M`,
+   which on a Spanish identity card means male; the model returned `M` (female). The prompt's
+   rule speaks of "a card whose other option is F", but a card prints only one letter. Two
+   documents depend on this and the model got one right.
+3. **Day and month swapped** (`synth-000027`, scanned): `07/08/2009` printed, `08/07/2009`
+   returned. Isolated.
+4. **One test dropped** (`synth-000108`, clean): Fibrinógeno missing from a list of seven.
+
+Boxes: 29 below the threshold, none on a wrong page; the most frequent are tests (17) and
+`Sexo` (5), whose targets are a single letter or a checkbox.
+
+### Proposed after the first full run
+
+**Status: proposed on 2026-10-22, not approved, not implemented.** Each change would be
+measured with `--baseline` against the run above.
+
+- **Boundary:** flag values containing control characters with a new `control_character`
+  warning, without repairing them, so the fusion engine and the operator see them. First,
+  keep the raw model response of one affected document to learn where the characters appear.
+- **Prompt v3:** state that on an identity or insurance card a bare `M` means male and `F`
+  female, replacing the "other option" wording for cards.
+- **Repeat the full run** once with the same prompt, as a baseline of itself, to measure how
+  much the results vary between identical runs. Any other difference has to beat that noise.
 
 ## Next steps, in order
 
