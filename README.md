@@ -168,7 +168,9 @@ the system consumes, with the same field keys and the same box shape as the gold
 evaluation needs no adapters. The boundary validates and annotates but never repairs: a date
 that does not match its pattern stays as the model wrote it, flagged with a warning, for the
 fusion engine and the operator to decide. Its one rewrite is mechanical and flagged too: a
-title the model left in front of the physician's name is removed. Every prediction records
+title the model left in front of the physician's name is removed. Text the model garbled
+(accented letters come back, now and then, as `Est\tevez` or `Ferr&#225;ndiz`) is detected,
+flagged and the document is asked for again; it is never patched. Every prediction records
 model, prompt version and input mode, so two runs are only compared when they were produced
 the same way. The contract
 is specified in [docs/extractor-contract.md](docs/extractor-contract.md) and enforced by

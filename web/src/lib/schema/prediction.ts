@@ -33,7 +33,10 @@ export type WarningCode =
   | "duplicate_test"
   | "unexpected_key"
   | "title_removed"
-  | "control_character";
+  /** Superseded by garbled_text; still found in predictions made before it existed. */
+  | "control_character"
+  | "garbled_text"
+  | "retried_garbled_text";
 
 export interface PredictionWarning {
   code: WarningCode;

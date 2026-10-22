@@ -36,14 +36,37 @@ export function stripTitle(value: string): string {
   return stripped === "" ? value : stripped;
 }
 
-/** Any Unicode control character (tab, U+0003, …): no printed value contains one. */
-const CONTROL_CHARACTER = /\p{Cc}/u;
+/**
+ * The forms in which the model has been seen to corrupt accented letters, intermittently and
+ * across a whole document: a control character ("Est\tevez"), an HTML entity ("Ferr&#225;ndiz"),
+ * a "!" in place of a letter ("M!rmol", "!cido") and, in names, a digit between letters ("P0a").
+ * No printed value contains any of them. Digits are checked in names only, because test names
+ * legitimately have them ("HbA1c", "Vitamina B12").
+ */
+const GARBLED: readonly { pattern: RegExp; reason: string; namesOnly: boolean }[] = [
+  { pattern: /\p{Cc}/u, reason: "control character", namesOnly: false },
+  { pattern: /&(?:#\d+|#x[0-9a-f]+|[a-z]+);/iu, reason: "HTML entity", namesOnly: false },
+  { pattern: /!(?=\p{L})|(?<=\p{L})!/u, reason: "'!' next to a letter", namesOnly: false },
+  { pattern: /\p{L}\d+\p{L}/u, reason: "digit between letters", namesOnly: true },
+];
+
+/** Why `value` looks like corrupted text, or null. `isName` enables the name-only checks. */
+export function garbledReason(value: string, isName: boolean): string | null {
+  const hit = GARBLED.find((g) => (isName || !g.namesOnly) && g.pattern.test(value));
+  return hit ? hit.reason : null;
+}
+
+/** How many values of an extraction were flagged as corrupted text. */
+export function garbledCount(extraction: NormalisedExtraction): number {
+  return extraction.warnings.filter((w) => w.code === "garbled_text").length;
+}
 
 function normaliseItem(
   item: RawItem | null | undefined,
   field: string,
   pattern: string | null,
   normalize: string | null,
+  isName: boolean,
   pageCount: number,
   warnings: PredictionWarning[],
 ): PredictedField | null {
@@ -53,10 +76,11 @@ function normaliseItem(
     warnings.push({ code: "empty_value", field, detail: "empty string treated as null" });
     return null;
   }
-  if (CONTROL_CHARACTER.test(value)) {
-    // Seen intermittently in place of an accented letter ("Est\tevez"). Flagged, never repaired:
-    // guessing which letter was meant would be the model quietly winning.
-    warnings.push({ code: "control_character", field, detail: JSON.stringify(value) });
+  const garbled = garbledReason(value, isName);
+  if (garbled) {
+    // Flagged, never repaired: guessing which letter was meant would be the model quietly
+    // winning. The extractor retries the document instead (see index.ts).
+    warnings.push({ code: "garbled_text", field, detail: `${garbled}: ${JSON.stringify(value)}` });
   }
   if (normalize === "no-title") {
     const stripped = stripTitle(value);
@@ -109,6 +133,7 @@ export function normaliseExtraction(raw: RawExtraction, pageCount: number): Norm
       spec.name,
       spec.pattern,
       spec.normalize,
+      spec.compare === "casefold", // the free-text fields: patient, physician, insurer
       pageCount,
       warnings,
     );
@@ -117,7 +142,7 @@ export function normaliseExtraction(raw: RawExtraction, pageCount: number): Norm
   const tests: PredictedField[] = [];
   const seen = new Set<string>();
   for (const item of raw.tests ?? []) {
-    const test = normaliseItem(item, "tests", null, null, pageCount, warnings);
+    const test = normaliseItem(item, "tests", null, null, false, pageCount, warnings);
     if (test === null) continue;
     const key = compareKey(test.value, TESTS.compare);
     if (seen.has(key)) {

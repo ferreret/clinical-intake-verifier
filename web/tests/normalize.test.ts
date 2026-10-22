@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normaliseExtraction, stripTitle, toBBox } from "@/lib/extractor/normalize";
+import { garbledCount, garbledReason, normaliseExtraction, stripTitle, toBBox } from "@/lib/extractor/normalize";
 import type { RawExtraction, RawItem } from "@/lib/extractor/response-schema";
 import { FIELD_NAMES } from "@/lib/schema/fields";
 
@@ -117,7 +117,7 @@ describe("normaliseExtraction", () => {
     expect(out.warnings).toEqual([]);
   });
 
-  it("flags control characters in a value without repairing it", () => {
+  it("flags garbled text in a value without repairing it", () => {
     const out = normaliseExtraction(
       raw(
         { Paciente: { value: "Jose Luis Est\tevez Samper", page: 1, box_2d: [1, 1, 2, 2] } },
@@ -128,9 +128,10 @@ describe("normaliseExtraction", () => {
     expect(out.fields.Paciente?.value).toBe("Jose Luis Est\tevez Samper");
     expect(out.tests.map((t) => t.value)).toEqual(["Fibrin\u0003ogeno"]);
     expect(out.warnings).toEqual([
-      { code: "control_character", field: "Paciente", detail: '"Jose Luis Est\\tevez Samper"' },
-      { code: "control_character", field: "tests", detail: '"Fibrin\\u0003ogeno"' },
+      { code: "garbled_text", field: "Paciente", detail: 'control character: "Jose Luis Est\\tevez Samper"' },
+      { code: "garbled_text", field: "tests", detail: 'control character: "Fibrin\\u0003ogeno"' },
     ]);
+    expect(garbledCount(out)).toBe(2);
   });
 
   it("does not flag accented letters", () => {
@@ -139,6 +140,30 @@ describe("normaliseExtraction", () => {
       1,
     );
     expect(out.warnings).toEqual([]);
+  });
+});
+
+describe("garbledReason", () => {
+  it("recognises every form of corruption seen in the full runs", () => {
+    expect(garbledReason("Est\tevez", true)).toBe("control character");
+    expect(garbledReason("Hayd\u0000\u0000\u0000\u0000", true)).toBe("control character");
+    expect(garbledReason("Ferr&#225;ndiz", true)).toBe("HTML entity");
+    expect(garbledReason("Triglic&eacute;ridos", false)).toBe("HTML entity");
+    expect(garbledReason("Odalys M!rmol Vives", true)).toBe("'!' next to a letter");
+    expect(garbledReason("!cido !rico", false)).toBe("'!' next to a letter");
+    expect(garbledReason("P0a Martinez Carmona", true)).toBe("digit between letters");
+  });
+
+  it("allows digits between letters outside names, where tests have them", () => {
+    expect(garbledReason("Hemoglobina glicosilada (HbA1c)", false)).toBeNull();
+    expect(garbledReason("Vitamina B12", false)).toBeNull();
+    expect(garbledReason("HbA1c", true)).toBe("digit between letters");
+  });
+
+  it("leaves ordinary text alone", () => {
+    for (const v of ["Ibáñez Ruiz, Begoña", "Ácido úrico", "Seguros & Salud", "45 años", "12345678-Z"]) {
+      expect(garbledReason(v, true), v).toBeNull();
+    }
   });
 
   it("treats an empty value as absent", () => {

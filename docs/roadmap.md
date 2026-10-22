@@ -112,7 +112,11 @@ measured with `--baseline` against the run above.
   the date of `synth-000027`, wrong both times but differently (`08/07/2009`, then
   `08/08/2009`). Without the corruption the model is very stable between runs.
 
-- **Proposed, not approved: treat corrupted accents as a model output error.** Detect them at
+- **Approved on 2026-10-22 and implemented: treat corrupted accents as a model output
+  error.** Done as described below, with the `garbled_text` and `retried_garbled_text`
+  warnings. The detector flags no value in any of the 200 goldens (5,610 values) and catches
+  all six corrupted documents of the two full runs. The full run that measures the retry is
+  next. The proposal as made: detect them at
   the boundary (control characters, HTML numeric entities, and a `!` or a digit between two
   letters in fields compared with `casefold`), and retry the document once, as the extractor
   already does for invalid JSON. The corruption is intermittent, so a retry should clear most

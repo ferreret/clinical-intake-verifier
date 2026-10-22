@@ -95,6 +95,48 @@ describe("extract", () => {
     expect(p.tests).toEqual([]);
   });
 
+  it("retries a reply with garbled text and keeps the clean one", async () => {
+    const garbled = goodJson().replace("RUIZ ORTEGA, MARIA", "RUIZ ORT&#201;GA, MARIA");
+    mockedCall.mockResolvedValueOnce(reply(garbled)).mockResolvedValueOnce(reply(goodJson()));
+    const p = await extract(await samplePdf(), opts);
+    expect(p.extractor.attempts).toBe(2);
+    expect(p.fields.Paciente?.value).toBe("RUIZ ORTEGA, MARIA");
+    expect(p.warnings).toEqual([
+      {
+        code: "retried_garbled_text",
+        field: null,
+        detail: "first reply had 1 garbled value(s); kept reply has 0",
+      },
+    ]);
+    expect(validatePrediction(p)).toEqual([]);
+  });
+
+  it("keeps the less garbled reply, flagged, when the retry is no better", async () => {
+    const once = goodJson().replace("RUIZ ORTEGA, MARIA", "RUIZ ORT\\tEGA, MARIA"); // a JSON escape
+    const twice = once.replace('"Urea"', '"!rea"');
+    mockedCall.mockResolvedValueOnce(reply(once)).mockResolvedValueOnce(reply(twice));
+    const p = await extract(await samplePdf(), opts);
+    expect(p.extractor.attempts).toBe(2);
+    expect(p.tests.map((t) => t.value)).toEqual(["Urea"]);
+    expect(p.warnings.map((w) => w.code)).toEqual(["garbled_text", "retried_garbled_text"]);
+  });
+
+  it("keeps a garbled first reply when the retry fails", async () => {
+    const garbled = goodJson().replace("RUIZ ORTEGA, MARIA", "RUIZ ORT\\u0003EGA, MARIA");
+    mockedCall.mockResolvedValueOnce(reply(garbled)).mockRejectedValueOnce(new GeminiApiError("quota", 429));
+    const p = await extract(await samplePdf(), opts);
+    expect(p.extractor.attempts).toBe(2);
+    expect(p.extractor.error).toBeNull();
+    expect(p.fields.Paciente?.value).toBe("RUIZ ORT\u0003EGA, MARIA");
+  });
+
+  it("does not retry a clean reply", async () => {
+    mockedCall.mockResolvedValueOnce(reply(goodJson()));
+    const p = await extract(await samplePdf(), opts);
+    expect(p.extractor.attempts).toBe(1);
+    expect(mockedCall).toHaveBeenCalledTimes(1);
+  });
+
   it("does not retry client errors from the API", async () => {
     mockedCall.mockRejectedValueOnce(new GeminiApiError("bad request", 400));
     const p = await extract(await samplePdf(), opts);

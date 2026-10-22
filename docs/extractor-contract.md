@@ -105,11 +105,12 @@ in the golden.
 | `page` outside `1..pages.length` | `page: null` and `bbox: null`, value kept, warning `page_out_of_range`. |
 | Value that fails the field's `pattern` in `fields.json` | **Kept as is**, warning `pattern_mismatch`. Correcting it silently, or discarding it, would be the model quietly winning. The fusion engine and the operator decide. |
 | Title left in front of a name whose field has the `no-title` rule (`Dr.`, `Dra.`, `Doctor`, `Doctora`, `Prof.`, with or without the full stop) | Removed, warning `title_removed` with the value as returned. The only rewrite the boundary makes: the rule is mechanical, and the warning shows how often the model ignores it. The box is kept as returned. |
-| Value containing a control character (tab, U+0003, …) | **Kept as is**, warning `control_character` with the value JSON-encoded so the character is visible. Seen intermittently in place of an accented letter (`Est\tevez` for Estévez); guessing the letter would be a repair. |
+| Garbled text: a control character, an HTML entity, a `!` next to a letter, or, in the free-text fields compared with `casefold` (patient, physician, insurer), a digit between letters | **Kept as is**, warning `garbled_text` with the reason and the value JSON-encoded. These are the forms in which the model intermittently corrupts accented letters (`Est\tevez`, `Ferr&#225;ndiz`, `M!rmol`, `P0a`); guessing the letter would be a repair. Digits are not checked in tests, whose names have them (`HbA1c`). The earlier `control_character` code, used for the first form alone, remains valid in older predictions. |
 | Empty or whitespace-only value | Treated as `null`, warning `empty_value`. |
 | Test repeated (case-, accent- and whitespace-insensitive) | First occurrence kept, warning `duplicate_test`. |
 | Key that is not a configured field | Dropped, warning `unexpected_key`. |
 | Response that is not JSON, or JSON that does not match the layer-1 schema | One retry. If the retry fails too, a prediction is still produced: every field `null`, `tests` empty, `extractor.error` set. |
+| Response with garbled text | One retry, since the corruption is intermittent. The reply with fewer garbled values is kept, and a retry that fails never discards a usable first reply. A warning `retried_garbled_text` (field `null`) records how many garbled values each reply had; whatever is still garbled keeps its `garbled_text` warning. |
 
 Warnings are part of the contract. Their codes are an enum in the schema so that consumers
 can count them; the harness reports them separately from extraction errors.

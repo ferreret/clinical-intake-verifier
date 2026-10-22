@@ -15,7 +15,7 @@ import {
 } from "@/lib/schema/prediction";
 import { callGemini, GeminiApiError } from "./gemini";
 import type { NormalisedExtraction } from "./normalize";
-import { normaliseExtraction } from "./normalize";
+import { garbledCount, normaliseExtraction } from "./normalize";
 import { looksLikePdf, readPages, sha256Hex } from "./pdf";
 import { buildSystemInstruction, PROMPT_VERSION, USER_MESSAGE } from "./prompt";
 import { buildResponseSchema, validateRawExtraction, type RawExtraction } from "./response-schema";
@@ -161,19 +161,34 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
   let modelVersion: string | null = null;
   let usage: Usage = { input_tokens: null, output_tokens: null, thinking_tokens: null };
 
-  while (result === null && attempts < maxAttempts) {
+  // A reply with garbled text (accented letters corrupted, which the model does intermittently)
+  // is also worth another try. The best reply so far is kept: fewer garbled values wins, and a
+  // later failed attempt never discards a usable earlier one.
+  let garbledFirst = 0;
+  while (attempts < maxAttempts) {
     attempts += 1;
     try {
       const reply = await callGemini(request);
       modelVersion = reply.modelVersion ?? modelVersion;
       usage = addUsage(usage, reply.usage);
-      result = normaliseExtraction(parseRaw(reply.text), pages.length);
+      const candidate = normaliseExtraction(parseRaw(reply.text), pages.length);
+      if (result === null) garbledFirst = garbledCount(candidate);
+      if (result === null || garbledCount(candidate) < garbledCount(result)) result = candidate;
       error = null;
+      if (garbledCount(result) === 0) break;
     } catch (err) {
+      if (result !== null) break;
       error = toExtractorError(err);
       if (!isRetryable(err) || attempts >= maxAttempts) break;
       if (retryDelayMs > 0) await sleep(retryDelayMs * attempts);
     }
+  }
+  if (result !== null && garbledFirst > 0 && attempts > 1) {
+    result.warnings.push({
+      code: "retried_garbled_text",
+      field: null,
+      detail: `first reply had ${garbledFirst} garbled value(s); kept reply has ${garbledCount(result)}`,
+    });
   }
 
   const prediction: Prediction = {
