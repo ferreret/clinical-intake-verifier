@@ -88,9 +88,37 @@ measured with `--baseline` against the run above.
   decoding fault on our side, so they can be detected but not prevented.
 - **Prompt v3:** state that on an identity or insurance card a bare `M` means male and `F`
   female, replacing the "other option" wording for cards.
-- **Repeat the full run** once with the same prompt, as a baseline of itself, to measure how
-  much the results vary between identical runs. Any other difference has to beat that noise.
-  It goes before prompt v3, which would otherwise leave no v2 run to repeat.
+- **Repeat the full run: done.** Same prompt, same model, run `20261022-175122-gemini-3.8-flash-p2`
+  against the first one as its baseline. Fields 99.6% (8 wrong), tests F1 99.8%, still no
+  invented value. Between the two identical runs **21 results flipped**: 7 fixed, 13 broken,
+  1 changed while still wrong. This is the noise any later change has to beat.
+
+  **19 of the 21 are one problem: accented letters corrupted in the output.** It hits whole
+  documents, about 2 to 3% of them per run, and different ones each time (082 and 174 in the
+  first run, 019, 038, 078 and 162 in the second). The corruption takes several forms, and
+  only some are control characters:
+
+  | Printed | Returned |
+  |---|---|
+  | Estévez, Fibrinógeno | `Est\tevez`, `Fibrin\x03ogeno` |
+  | Haydée, años | `Hayd\x00\x00\x00\x00`, `a\x00os` |
+  | Mármol, Ácido úrico | `M!rmol`, `!cido !rico` |
+  | Pía Martínez | `P0a Mart\x00nez` |
+  | Ferrándiz, Héctor | `Ferr&#225;ndiz`, `H&#233;ctor` (HTML entities) |
+
+  The `control_character` warning caught 5 values in two documents; the `!`, digit and
+  HTML-entity forms pass it unflagged. The remaining two flips are the identity-card sex letter
+  of `synth-000147`, right this time (a coin flip, as expected from the ambiguous rule), and
+  the date of `synth-000027`, wrong both times but differently (`08/07/2009`, then
+  `08/08/2009`). Without the corruption the model is very stable between runs.
+
+- **Proposed, not approved: treat corrupted accents as a model output error.** Detect them at
+  the boundary (control characters, HTML numeric entities, and a `!` or a digit between two
+  letters in fields compared with `casefold`), and retry the document once, as the extractor
+  already does for invalid JSON. The corruption is intermittent, so a retry should clear most
+  of it; whatever survives keeps a warning for the operator. Measured with `--baseline`
+  against both v2 full runs. It affects 2 to 3% of documents, against one document for the
+  prompt v3 rule below, so it should go first.
 
 ## Next steps, in order
 
