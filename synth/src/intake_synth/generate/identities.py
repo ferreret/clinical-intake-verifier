@@ -222,6 +222,7 @@ def make_doc_data(
         honorific = "Dra. "
     physician = Physician(
         name=f"{honorific}{doc_first} {doc_last1} {doc_last2}",
+        full_name=f"{doc_first} {doc_last1} {doc_last2}",
         colegiado=None if rng.random() < 0.15 else make_colegiado(rng),
         signature=f"{doc_first[0]}. {doc_last1}",
     )

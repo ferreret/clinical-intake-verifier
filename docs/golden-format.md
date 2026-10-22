@@ -79,9 +79,12 @@ introduces a conflicting value, so the golden stays unambiguous.
 ## Rules
 
 **`value` is what the extractor must return.** It is already normalised per
-`schema/fields.json`: `FechaNacimiento` as `dd/mm/yyyy`, `Sexo` as `H`/`M`/`U`, everything
-else verbatim. `printed` is the exact string drawn at the primary location. The two differ
-only for those two fields; for `Sexo` drawn as checkboxes, `printed` is `[X] <label>`.
+`schema/fields.json`: `FechaNacimiento` as `dd/mm/yyyy`, `Sexo` as `H`/`M`/`U`,
+`NombreMedico` as name and surnames without the title, everything else verbatim. `printed` is
+the exact string drawn at the primary location. The two differ only for those three fields;
+for `Sexo` drawn as checkboxes, `printed` is `[X] <label>`, and for a titled physician
+`printed` keeps the title (`Dra. Pepita Conde Tirado`, value `Pepita Conde Tirado`). The box
+always covers what was printed, title included.
 
 **An absent field is `null` at the field level**, exactly the shape the extractor returns for
 a field it cannot find. Golden and prediction are compared key by key with no adapters.

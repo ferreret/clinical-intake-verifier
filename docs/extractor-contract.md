@@ -37,7 +37,7 @@ boxes. Pages are numbered from 1 in document order.
 The instruction given with it carries the extraction rules inherited from the pilot: JSON
 only; `null` when a field is not clearly present, never a guess; text exactly as printed except
 the fields with a `normalize` rule in `fields.json` (date of birth as `dd/mm/yyyy`, sex as
-`H`/`M`/`U`); one entry per requested test, never merged by visual grouping; a request number
+`H`/`M`/`U`, the physician's name and surnames without any title); one entry per requested test, never merged by visual grouping; a request number
 printed more than once returned once. The prompt is versioned (`prompt_version`) and every
 prediction records the version that produced it.
 
@@ -104,6 +104,7 @@ in the golden.
 | Degenerate box (zero or negative extent after clamping) | `bbox: null`, value kept, warning `bbox_invalid`. |
 | `page` outside `1..pages.length` | `page: null` and `bbox: null`, value kept, warning `page_out_of_range`. |
 | Value that fails the field's `pattern` in `fields.json` | **Kept as is**, warning `pattern_mismatch`. Correcting it silently, or discarding it, would be the model quietly winning. The fusion engine and the operator decide. |
+| Title left in front of a name whose field has the `no-title` rule (`Dr.`, `Dra.`, `Doctor`, `Doctora`, `Prof.`, with or without the full stop) | Removed, warning `title_removed` with the value as returned. The only rewrite the boundary makes: the rule is mechanical, and the warning shows how often the model ignores it. The box is kept as returned. |
 | Empty or whitespace-only value | Treated as `null`, warning `empty_value`. |
 | Test repeated (case-, accent- and whitespace-insensitive) | First occurrence kept, warning `duplicate_test`. |
 | Key that is not a configured field | Dropped, warning `unexpected_key`. |

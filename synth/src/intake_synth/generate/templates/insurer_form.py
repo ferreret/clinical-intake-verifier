@@ -128,7 +128,17 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
     cell(rec, m, y, wn, h, "CENTRO", None, d.center.name)
     cell(rec, m + wn, y, full - wn, h, "Nº PETICIÓN DEL CENTRO", "NumeroPeticion", d.request_number)
     y += h
-    cell(rec, m, y, wn, h, "MÉDICO PRESCRIPTOR", "NombreMedico", d.physician.name)
+    cell(
+        rec,
+        m,
+        y,
+        wn,
+        h,
+        "MÉDICO PRESCRIPTOR",
+        "NombreMedico",
+        d.physician.name,
+        d.physician.full_name,
+    )
     cell(rec, m + wn, y, full - wn, h, "Nº COLEGIADO", "NumeroColegiado", d.physician.colegiado)
     y += h
     cell(rec, m, y, wn, h, "SERVICIO", None, d.service)

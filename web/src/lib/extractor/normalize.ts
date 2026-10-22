@@ -3,7 +3,8 @@
  *
  * Converts boxes, checks pages and patterns, deduplicates tests, and records a warning for
  * everything it had to touch. It never repairs a value: a date that does not match its pattern
- * stays as the model wrote it, flagged, for the fusion engine and the operator to decide.
+ * stays as the model wrote it, flagged, for the fusion engine and the operator to decide. The one
+ * rewrite it makes is the `no-title` rule of fields.json, which is mechanical and also flagged.
  */
 import { FIELDS, isFieldName } from "@/lib/schema/fields";
 import type { BBox, PredictedField, PredictionWarning } from "@/lib/schema/prediction";
@@ -35,18 +36,35 @@ export function foldKey(s: string): string {
     .trim();
 }
 
+/** Titles in front of a name, possibly several ("Prof. Dr."), with or without the full stop. */
+const LEADING_TITLES = /^(?:(?:doctora|doctor|dra|dr|profesora|profesor|profa|prof)(?:\.\s*|\s+))+/i;
+
+/** The `no-title` rule: drops leading titles; a value that is nothing but a title is kept. */
+export function stripTitle(value: string): string {
+  const stripped = value.replace(LEADING_TITLES, "").trim();
+  return stripped === "" ? value : stripped;
+}
+
 function normaliseItem(
   item: RawItem | null | undefined,
   field: string,
   pattern: string | null,
+  normalize: string | null,
   pageCount: number,
   warnings: PredictionWarning[],
 ): PredictedField | null {
   if (item == null || item.value == null) return null;
-  const value = String(item.value).trim();
+  let value = String(item.value).trim();
   if (value === "") {
     warnings.push({ code: "empty_value", field, detail: "empty string treated as null" });
     return null;
+  }
+  if (normalize === "no-title") {
+    const stripped = stripTitle(value);
+    if (stripped !== value) {
+      warnings.push({ code: "title_removed", field, detail: value });
+      value = stripped;
+    }
   }
 
   let page: number | null = null;
@@ -87,13 +105,20 @@ export function normaliseExtraction(raw: RawExtraction, pageCount: number): Norm
 
   const fields: Record<string, PredictedField | null> = {};
   for (const spec of FIELDS) {
-    fields[spec.name] = normaliseItem(raw.fields?.[spec.name], spec.name, spec.pattern, pageCount, warnings);
+    fields[spec.name] = normaliseItem(
+      raw.fields?.[spec.name],
+      spec.name,
+      spec.pattern,
+      spec.normalize,
+      pageCount,
+      warnings,
+    );
   }
 
   const tests: PredictedField[] = [];
   const seen = new Set<string>();
   for (const item of raw.tests ?? []) {
-    const test = normaliseItem(item, "tests", null, pageCount, warnings);
+    const test = normaliseItem(item, "tests", null, null, pageCount, warnings);
     if (test === null) continue;
     const key = foldKey(test.value);
     if (seen.has(key)) {

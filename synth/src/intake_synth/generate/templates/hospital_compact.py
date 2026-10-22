@@ -130,7 +130,9 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
         rec.text(x, y, "Normal", font=body_font, size=9.5)
     y += 18
     x = label(m, y, "Médico solicitante:")
-    rec.field_text(x, y, "NombreMedico", d.physician.name, size=10, font=body_font)
+    rec.field_text(
+        x, y, "NombreMedico", d.physician.name, d.physician.full_name, size=10, font=body_font
+    )
     x = label(m + 330, y, "Nº Col.:")
     rec.field_text(x, y, "NumeroColegiado", d.physician.colegiado, size=10, font=body_font)
     y += 18

@@ -1,6 +1,6 @@
 [project]
 name = "intake-synth"
-version = "0.1.0"
+version = "0.2.0"
 description = "Synthetic clinical lab-request generator and evaluation harness for clinical-intake-verifier"
 authors = [{ name = "Nicolás Barceló" }]
 license = { text = "MIT" }

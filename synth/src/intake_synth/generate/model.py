@@ -28,6 +28,7 @@ class Patient:
 @dataclass(frozen=True)
 class Physician:
     name: str  # exactly as printed, honorific included when present
+    full_name: str  # name and surnames without the honorific: the golden value
     colegiado: str | None
     signature: str  # decorative scribble text, never recorded
 

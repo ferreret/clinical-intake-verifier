@@ -12,7 +12,7 @@ import pytest
 from intake_synth.generate import catalog
 from intake_synth.generate.pipeline import GenerateOptions, generate_batch, generate_document
 from intake_synth.generate.recorder import PAGE_ROLES
-from intake_synth.schema import field_names, validate_golden
+from intake_synth.schema import field_names, field_spec, validate_golden
 
 SEED = 7
 N = 24
@@ -146,8 +146,19 @@ def test_always_present_fields_and_normalisation(batch):
             b = v["bbox"]
             assert 0 <= b["x0"] < b["x1"] <= 1, (doc.id, name, b)
             assert 0 <= b["y0"] < b["y1"] <= 1, (doc.id, name, b)
-            if name not in ("FechaNacimiento", "Sexo"):
+            if field_spec(name)["normalize"] is None:
                 assert v["value"] == v["printed"], (doc.id, name)
+
+
+def test_physician_value_has_no_title(batch):
+    _, _, docs = batch
+    titled = 0
+    for doc in docs:
+        v = doc.golden["fields"]["NombreMedico"]
+        assert not re.match(r"(?i)(dra?|doctora?|prof)\b", v["value"]), (doc.id, v["value"])
+        assert v["printed"].endswith(v["value"]), (doc.id, v)
+        titled += v["printed"] != v["value"]
+    assert titled, "no titled physician in the batch: the rule is not exercised"
 
 
 def test_handwritten_fields_match_primary_styles(batch):

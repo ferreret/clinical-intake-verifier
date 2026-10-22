@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foldKey, normaliseExtraction, toBBox } from "@/lib/extractor/normalize";
+import { foldKey, normaliseExtraction, stripTitle, toBBox } from "@/lib/extractor/normalize";
 import type { RawExtraction, RawItem } from "@/lib/extractor/response-schema";
 import { FIELD_NAMES } from "@/lib/schema/fields";
 
@@ -31,6 +31,22 @@ describe("toBBox", () => {
 describe("foldKey", () => {
   it("ignores case, accents and whitespace", () => {
     expect(foldKey("  Hemógrama   COMPLETO ")).toBe("hemograma completo");
+  });
+});
+
+describe("stripTitle", () => {
+  it("drops leading titles, with or without the full stop, in any case", () => {
+    expect(stripTitle("Dra. Pepita Conde Tirado")).toBe("Pepita Conde Tirado");
+    expect(stripTitle("Dr Luis Gil Mora")).toBe("Luis Gil Mora");
+    expect(stripTitle("DR.LUIS GIL MORA")).toBe("LUIS GIL MORA");
+    expect(stripTitle("Doctora Ana Ruiz Peña")).toBe("Ana Ruiz Peña");
+    expect(stripTitle("Prof. Dr. Juan Sanz Vidal")).toBe("Juan Sanz Vidal");
+  });
+
+  it("leaves names that only start like a title, and a bare title, untouched", () => {
+    expect(stripTitle("Dragomir Petrov Ivanov")).toBe("Dragomir Petrov Ivanov");
+    expect(stripTitle("Pepita Conde Tirado")).toBe("Pepita Conde Tirado");
+    expect(stripTitle("Dra.")).toBe("Dra.");
   });
 });
 
@@ -80,6 +96,30 @@ describe("normaliseExtraction", () => {
       }),
       1,
     );
+    expect(out.warnings).toEqual([]);
+  });
+
+  it("removes a title the model kept on the physician's name and flags it", () => {
+    const out = normaliseExtraction(
+      raw({ NombreMedico: { value: "Dra. Pepita Conde Tirado", page: 1, box_2d: [1, 1, 2, 2] } }),
+      1,
+    );
+    expect(out.fields.NombreMedico?.value).toBe("Pepita Conde Tirado");
+    expect(out.warnings).toEqual([
+      { code: "title_removed", field: "NombreMedico", detail: "Dra. Pepita Conde Tirado" },
+    ]);
+  });
+
+  it("applies the title rule only to fields that declare it", () => {
+    const out = normaliseExtraction(
+      raw({
+        NombreMedico: { value: "Pepita Conde Tirado", page: 1, box_2d: [1, 1, 2, 2] },
+        Paciente: { value: "Dr. Smith", page: 1, box_2d: [1, 1, 2, 2] },
+      }),
+      1,
+    );
+    expect(out.fields.NombreMedico?.value).toBe("Pepita Conde Tirado");
+    expect(out.fields.Paciente?.value).toBe("Dr. Smith");
     expect(out.warnings).toEqual([]);
   });
 

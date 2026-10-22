@@ -130,7 +130,8 @@ generated from `schema/fields.json`. A boundary converts that into the predictio
 the system consumes, with the same field keys and the same box shape as the golden, so that
 evaluation needs no adapters. The boundary validates and annotates but never repairs: a date
 that does not match its pattern stays as the model wrote it, flagged with a warning, for the
-fusion engine and the operator to decide. Every prediction records model, prompt version and
+fusion engine and the operator to decide. Its one rewrite is mechanical and flagged too: a
+title the model left in front of the physician's name is removed. Every prediction records model, prompt version and
 input mode, so two runs are only compared when they were produced the same way. The contract
 is specified in [docs/extractor-contract.md](docs/extractor-contract.md) and enforced by
 [`schema/prediction.schema.json`](schema/prediction.schema.json) on both sides.

@@ -1,6 +1,6 @@
 {
   "$comment": "Single source of truth for the intake fields. Read by the Python generator/evaluator and by the Next.js app. Do not duplicate this configuration in prompts, backend or UI.",
-  "version": 1,
+  "version": 2,
   "compare_modes": {
     "exact": "String equality after trimming whitespace.",
     "casefold": "Case-insensitive, accent-insensitive, whitespace-collapsed equality.",
@@ -81,10 +81,10 @@
       "group": "physician",
       "type": "string",
       "required": true,
-      "normalize": null,
+      "normalize": "no-title",
       "compare": "casefold",
       "pattern": null,
-      "description": "Name of the requesting physician exactly as printed."
+      "description": "Name and surnames of the requesting physician as printed, without any title or honorific."
     },
     {
       "name": "NumeroColegiado",

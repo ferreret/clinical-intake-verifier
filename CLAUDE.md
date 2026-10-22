@@ -94,7 +94,7 @@ Reglas de extracción heredadas del piloto, que funcionaron:
 
 - **Solo JSON.** Nada de texto fuera del objeto.
 - **Sin alucinar**: si un campo no está claramente presente → `null`. Nunca inventar.
-- **Texto exacto**: no normalizar valores extraídos, salvo fecha de nacimiento (`dd/mm/yyyy`) y sexo (`H`/`M`/`U`).
+- **Texto exacto**: no normalizar valores extraídos, salvo fecha de nacimiento (`dd/mm/yyyy`), sexo (`H`/`M`/`U`) y nombre del médico (solo nombre y apellidos, sin Dr./Dra. ni otros títulos; decisión del 22/10).
 - **Cada prueba, una entrada independiente** en `tests[]`. **Nunca** inferir agrupación a partir de cajas, bordes o tablas del documento.
 - Números de petición repetidos → devolver una sola vez.
 

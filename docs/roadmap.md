@@ -32,7 +32,9 @@ thinking level `low`. Checked with an ad-hoc script, not the harness: treat it a
 | Cost per document | about 8 s, 2.4k input and 0.9k output tokens |
 
 The one miss: `NombreMedico` in `synth-000000` came back without the honorific, as
-"Pepita Conde Tirado" instead of "Dra. Pepita Conde Tirado".
+"Pepita Conde Tirado" instead of "Dra. Pepita Conde Tirado". Repeated on Ubuntu on 2026-10-22
+with `@google/genai` 2.30.0: identical figures, same miss. That miss is no longer one: since
+prompt v2 the title is meant to be dropped (open decision 1 below).
 
 What the live call settled:
 
@@ -56,8 +58,8 @@ Nothing is copied from the previous machine: synthetic data is regenerated and r
 
 **Status on 2026-10-22.** Steps 1, 2 and 4 are done on Ubuntu: Python 3.12.15 through uv, Node
 22.23.4 and npm 10.9.9 through nvm 0.40.8. 28 Python tests, Ruff, 27 web tests, the type check,
-lint and `next build` pass. Step 3 and the five-document run are pending. The dataset is
-regenerated, but its fingerprint differs (below).
+lint and `next build` pass. Step 3 and the five-document run are done too (results above).
+The dataset is regenerated, but its fingerprint differs (below).
 
 nvm is loaded at the end of `~/.bashrc`, which returns early in non-interactive shells, so
 `node` and `npm` are not on the PATH of scripted commands until `source ~/.nvm/nvm.sh`. The same
@@ -197,9 +199,11 @@ version, seed, generator version, `fields.json` version and IoU threshold.
 
 **Open decisions**, with the recommendation:
 
-1. **A dropped honorific counts as wrong.** The contract asks for text exactly as printed, and
-   compare modes exist for formatting differences, not content. Keep the metric strict; if the
-   miss is frequent across 200 documents, fix it in the prompt and measure.
+1. ~~A dropped honorific counts as wrong.~~ **Settled on 2026-10-22 the other way, as a product
+   decision:** what matters is the physician's name and surnames, not the title. `NombreMedico`
+   now has the `no-title` normalisation rule (fields.json v2): the golden value drops the title,
+   the prompt (v2) asks for it to be dropped, and the boundary removes any title left, with a
+   `title_removed` warning. The metric stays strict on the name itself.
 2. **Failures stay out of the quality metrics.** This means amending one sentence of
    `docs/extractor-contract.md`, which currently says a failed prediction scores as all-missing.
 3. **A shared `schema/compare-cases.json`**, run by both pytest and vitest, so that the Python

@@ -158,7 +158,15 @@ def authorization(rec: Recorder, d: DocData, rng: random.Random, total_pages: in
     y += 22
     _kv(rec, m, y, "Centro concertado:", d.center.name)
     y += 18
-    _kv(rec, m, y, "Médico prescriptor:", d.physician.name, field="NombreMedico")
+    _kv(
+        rec,
+        m,
+        y,
+        "Médico prescriptor:",
+        d.physician.name,
+        field="NombreMedico",
+        golden_value=d.physician.full_name,
+    )
     y += 18
     if rng.random() < 0.5:
         _kv(rec, m, y, "Nº petición centro:", d.request_number, field="NumeroPeticion")
@@ -361,7 +369,14 @@ def consent(rec: Recorder, d: DocData, rng: random.Random, total_pages: int) -> 
     y += 10
     rec.text(m, y, "Médico responsable:", size=9.5, color=GREY)
     rec.field_text(
-        m + 100, y, "NombreMedico", d.physician.name, size=10, primary=False, hand_ok=False
+        m + 100,
+        y,
+        "NombreMedico",
+        d.physician.name,
+        d.physician.full_name,
+        size=10,
+        primary=False,
+        hand_ok=False,
     )
     y += 30
     rec.text(

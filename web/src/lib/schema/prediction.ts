@@ -31,7 +31,8 @@ export type WarningCode =
   | "pattern_mismatch"
   | "empty_value"
   | "duplicate_test"
-  | "unexpected_key";
+  | "unexpected_key"
+  | "title_removed";
 
 export interface PredictionWarning {
   code: WarningCode;

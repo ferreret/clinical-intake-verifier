@@ -125,7 +125,7 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
 
     # ---- physician
     y = section(rec, m, y + 30, W - 2 * m, "MÉDICO SOLICITANTE", color=band)
-    kv(rec, m, y, "Médico:", "NombreMedico", d.physician.name, label_w=62)
+    kv(rec, m, y, "Médico:", "NombreMedico", d.physician.name, d.physician.full_name, label_w=62)
     kv(rec, col2, y, "Nº Colegiado:", "NumeroColegiado", d.physician.colegiado, label_w=70)
     y += 19
     rec.text(m, y, "Diagnóstico / motivo:", font="Helvetica-Bold", size=8, color=GREY)
