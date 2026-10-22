@@ -125,8 +125,9 @@ of:
 | `invalid_json` | the model returned something that does not parse as JSON |
 | `schema_mismatch` | the JSON does not match the layer-1 schema |
 
-A failed prediction scores as all-missing in evaluation and is counted as a failure, not as an
-extraction error.
+A failed prediction is left out of the quality metrics (precision, recall, invention rate,
+boxes) and counted by error code instead, so that a quota outage does not look like a worse
+model. One end-to-end line of the evaluation report counts its fields as missed.
 
 ## Input mode and model
 

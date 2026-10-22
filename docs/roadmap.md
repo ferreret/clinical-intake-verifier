@@ -12,7 +12,7 @@ Last updated: 2026-10-22.
 |---|---|---|
 | F1 | Synthetic request generator with golden ground truth | done |
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
-| F3 | Evaluation harness | design **proposed**, see below |
+| F3 | Evaluation harness | design **approved**, block A next, see below |
 | F4 | Mock LIS and fusion engine | not started |
 | F5 | Verification UI | not started |
 | F6 | Public demo on Vercel | not started |
@@ -128,9 +128,10 @@ Whatever the cause, the goldens stay valid, because boxes come from geometry and
 Still to do: the README and `docs/golden-format.md` should say that byte-identical output holds
 per platform, not across platforms.
 
-### 2. F3: evaluation harness (proposed)
+### 2. F3: evaluation harness (approved)
 
-**Status: proposed on 2026-10-22, awaiting approval. Nothing implemented.**
+**Status: proposed and approved on 2026-10-22, with every open decision settled (below).
+Nothing implemented yet.**
 
 A new `evaluate` subcommand of the Python package, in `synth/src/intake_synth/evaluate/`. It
 reads the compare modes from `schema/fields.json` and hard-codes no field names.
@@ -207,21 +208,21 @@ document; it is what `--baseline` reads. `report.md` holds the tables and ends w
 list of mismatches: document, field, expected value, predicted value. Both record the harness
 version, seed, generator version, `fields.json` version and IoU threshold.
 
-**Open decisions**, with the recommendation:
+**Decisions**, all settled on 2026-10-22:
 
 1. ~~A dropped honorific counts as wrong.~~ **Settled on 2026-10-22 the other way, as a product
    decision:** what matters is the physician's name and surnames, not the title. `NombreMedico`
    now has the `no-title` normalisation rule (fields.json v2): the golden value drops the title,
    the prompt (v2) asks for it to be dropped, and the boundary removes any title left, with a
    `title_removed` warning. The metric stays strict on the name itself.
-2. **Failures stay out of the quality metrics.** This means amending one sentence of
-   `docs/extractor-contract.md`, which currently says a failed prediction scores as all-missing.
+2. **Failures stay out of the quality metrics.** Approved as recommended;
+   `docs/extractor-contract.md` is amended accordingly.
 3. **A shared `schema/compare-cases.json`**, run by both pytest and vitest, so that the Python
    and TypeScript implementations of the compare modes cannot drift apart. The fusion engine
-   in F4 reuses it.
-4. **Two blocks.** (a) Scoring, reports and `docs/evaluation.md` with the metric definitions.
-   (b) Baseline comparison and a full 200-document run. Running the evaluation in CI on every
-   commit needs a Gemini key in CI and is deferred to F6.
+   in F4 reuses it. Approved as recommended.
+4. **Two blocks.** Approved as recommended. (a) Scoring, reports and `docs/evaluation.md` with
+   the metric definitions. (b) Baseline comparison and a full 200-document run. Running the
+   evaluation in CI on every commit needs a Gemini key in CI and is deferred to F6.
 
 ### 3. Local open-weight vision models (proposed)
 
