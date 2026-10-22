@@ -36,6 +36,9 @@ export function stripTitle(value: string): string {
   return stripped === "" ? value : stripped;
 }
 
+/** Any Unicode control character (tab, U+0003, …): no printed value contains one. */
+const CONTROL_CHARACTER = /\p{Cc}/u;
+
 function normaliseItem(
   item: RawItem | null | undefined,
   field: string,
@@ -49,6 +52,11 @@ function normaliseItem(
   if (value === "") {
     warnings.push({ code: "empty_value", field, detail: "empty string treated as null" });
     return null;
+  }
+  if (CONTROL_CHARACTER.test(value)) {
+    // Seen intermittently in place of an accented letter ("Est\tevez"). Flagged, never repaired:
+    // guessing which letter was meant would be the model quietly winning.
+    warnings.push({ code: "control_character", field, detail: JSON.stringify(value) });
   }
   if (normalize === "no-title") {
     const stripped = stripTitle(value);

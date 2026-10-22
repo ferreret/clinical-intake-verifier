@@ -117,6 +117,30 @@ describe("normaliseExtraction", () => {
     expect(out.warnings).toEqual([]);
   });
 
+  it("flags control characters in a value without repairing it", () => {
+    const out = normaliseExtraction(
+      raw(
+        { Paciente: { value: "Jose Luis Est\tevez Samper", page: 1, box_2d: [1, 1, 2, 2] } },
+        [{ value: "Fibrin\u0003ogeno", page: 1, box_2d: [3, 1, 4, 2] }],
+      ),
+      1,
+    );
+    expect(out.fields.Paciente?.value).toBe("Jose Luis Est\tevez Samper");
+    expect(out.tests.map((t) => t.value)).toEqual(["Fibrin\u0003ogeno"]);
+    expect(out.warnings).toEqual([
+      { code: "control_character", field: "Paciente", detail: '"Jose Luis Est\\tevez Samper"' },
+      { code: "control_character", field: "tests", detail: '"Fibrin\\u0003ogeno"' },
+    ]);
+  });
+
+  it("does not flag accented letters", () => {
+    const out = normaliseExtraction(
+      raw({ Paciente: { value: "Jose Luis Estévez Samper", page: 1, box_2d: [1, 1, 2, 2] } }),
+      1,
+    );
+    expect(out.warnings).toEqual([]);
+  });
+
   it("treats an empty value as absent", () => {
     const out = normaliseExtraction(raw({ Telefono: { value: "   ", page: 1, box_2d: [1, 1, 2, 2] } }), 1);
     expect(out.fields.Telefono).toBeNull();

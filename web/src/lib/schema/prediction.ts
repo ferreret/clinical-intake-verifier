@@ -32,7 +32,8 @@ export type WarningCode =
   | "empty_value"
   | "duplicate_test"
   | "unexpected_key"
-  | "title_removed";
+  | "title_removed"
+  | "control_character";
 
 export interface PredictionWarning {
   code: WarningCode;

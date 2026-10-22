@@ -105,6 +105,7 @@ in the golden.
 | `page` outside `1..pages.length` | `page: null` and `bbox: null`, value kept, warning `page_out_of_range`. |
 | Value that fails the field's `pattern` in `fields.json` | **Kept as is**, warning `pattern_mismatch`. Correcting it silently, or discarding it, would be the model quietly winning. The fusion engine and the operator decide. |
 | Title left in front of a name whose field has the `no-title` rule (`Dr.`, `Dra.`, `Doctor`, `Doctora`, `Prof.`, with or without the full stop) | Removed, warning `title_removed` with the value as returned. The only rewrite the boundary makes: the rule is mechanical, and the warning shows how often the model ignores it. The box is kept as returned. |
+| Value containing a control character (tab, U+0003, …) | **Kept as is**, warning `control_character` with the value JSON-encoded so the character is visible. Seen intermittently in place of an accented letter (`Est\tevez` for Estévez); guessing the letter would be a repair. |
 | Empty or whitespace-only value | Treated as `null`, warning `empty_value`. |
 | Test repeated (case-, accent- and whitespace-insensitive) | First occurrence kept, warning `duplicate_test`. |
 | Key that is not a configured field | Dropped, warning `unexpected_key`. |

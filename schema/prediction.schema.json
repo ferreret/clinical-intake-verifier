@@ -103,7 +103,7 @@
         "properties": {
           "code": {
             "type": "string",
-            "enum": ["bbox_invalid", "page_out_of_range", "pattern_mismatch", "empty_value", "duplicate_test", "unexpected_key", "title_removed"]
+            "enum": ["bbox_invalid", "page_out_of_range", "pattern_mismatch", "empty_value", "duplicate_test", "unexpected_key", "title_removed", "control_character"]
           },
           "field": { "type": ["string", "null"], "description": "Field name, 'tests' for the test list, or null." },
           "detail": { "type": "string" }

@@ -78,16 +78,19 @@ Boxes: 29 below the threshold, none on a wrong page; the most frequent are tests
 
 ### Proposed after the first full run
 
-**Status: proposed on 2026-10-22, not approved, not implemented.** Each change would be
+**Status: proposed and approved on 2026-10-22; being done in this order.** Each change is
 measured with `--baseline` against the run above.
 
-- **Boundary:** flag values containing control characters with a new `control_character`
-  warning, without repairing them, so the fusion engine and the operator see them. First,
-  keep the raw model response of one affected document to learn where the characters appear.
+- **Boundary: done.** Values containing a control character get a `control_character` warning
+  and are kept as they are. Before adding it, both affected documents were sent again twice
+  each and every raw response came back clean ("Estévez", "Fibrinógeno"), with no control
+  character and no escape for one: the characters are intermittent model output, not a
+  decoding fault on our side, so they can be detected but not prevented.
 - **Prompt v3:** state that on an identity or insurance card a bare `M` means male and `F`
   female, replacing the "other option" wording for cards.
 - **Repeat the full run** once with the same prompt, as a baseline of itself, to measure how
   much the results vary between identical runs. Any other difference has to beat that noise.
+  It goes before prompt v3, which would otherwise leave no v2 run to repeat.
 
 ## Next steps, in order
 
