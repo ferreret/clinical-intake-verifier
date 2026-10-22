@@ -115,8 +115,28 @@ measured with `--baseline` against the run above.
 - **Approved on 2026-10-22 and implemented: treat corrupted accents as a model output
   error.** Done as described below, with the `garbled_text` and `retried_garbled_text`
   warnings. The detector flags no value in any of the 200 goldens (5,610 values) and catches
-  all six corrupted documents of the two full runs. The full run that measures the retry is
-  next. The proposal as made: detect them at
+  all six corrupted documents of the two full runs.
+
+  **Measured** on a third full run (`20261022-180853-gemini-3.8-flash-p2`, same prompt v2):
+
+  | | Run 1 | Run 2 | With retry |
+  |---|---|---|---|
+  | Fields wrong | 4 | 8 | **1** |
+  | Field precision and recall | 99.8% | 99.6% | **100.0%** (2038 of 2039) |
+  | Exact test lists | 198 | 196 | **199** of 200 |
+  | Boxes located | 99.2% | 98.8% | 99.3% |
+  | Invented values | 0 | 0 | 0 |
+  | Input tokens | 454k | 454k | 459k (+1%) |
+
+  Three documents came back garbled on the first reply (034, 082, 121, with 2 to 4 values
+  each) and clean on the retry; none was left garbled. Against run 2 as baseline: 13 fixed,
+  0 broken; against run 1: 7 fixed, 0 broken. The retry cost five thousand input tokens.
+
+  What is left wrong is the same in all three runs, so it is systematic, not noise: the
+  swapped date of `synth-000027` (scanned) and Fibrinógeno missing from `synth-000108`
+  (clean). The identity-card sex of `synth-000147` was right in runs 2 and 3, wrong in run 1.
+
+  The proposal as made: detect them at
   the boundary (control characters, HTML numeric entities, and a `!` or a digit between two
   letters in fields compared with `casefold`), and retry the document once, as the extractor
   already does for invalid JSON. The corruption is intermittent, so a retry should clear most
