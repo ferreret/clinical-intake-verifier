@@ -161,6 +161,48 @@ def debug_boxes(
 
 
 @app.command()
+def evaluate(
+    run_dir: Annotated[
+        Path, typer.Argument(exists=True, file_okay=False, help="A run directory of *.pred.json.")
+    ],
+    golden: Annotated[
+        Path | None,
+        typer.Option(help="Golden directory. Default: the source recorded in run.json."),
+    ] = None,
+    iou: Annotated[
+        float, typer.Option(min=0.0, max=1.0, help="IoU at which a box counts as located.")
+    ] = 0.5,
+    only: Annotated[
+        str | None, typer.Option(help="Comma-separated document ids to evaluate.")
+    ] = None,
+    out: Annotated[
+        Path | None, typer.Option(help="Output directory. Default: RUN_DIR/eval.")
+    ] = None,
+) -> None:
+    """Score a run against the golden sample and write report.json and report.md.
+
+    Exits with status 1 when any prediction was rejected (wrong PDF hash, unsupported format,
+    no golden) and so could not be scored.
+    """
+    from .evaluate import evaluate_run, write_report
+    from .evaluate.load import LoadError, default_golden_dir
+    from .evaluate.report import console_summary
+
+    ids = {s.strip() for s in only.split(",") if s.strip()} if only else None
+    try:
+        golden_dir = golden or default_golden_dir(run_dir)
+        report = evaluate_run(run_dir, golden_dir, iou, ids)
+    except LoadError as e:
+        raise typer.BadParameter(str(e)) from None
+    _, md_path = write_report(report, out or run_dir / "eval")
+    for line in console_summary(report):
+        typer.echo(line)
+    typer.echo(f"  report    : {md_path}")
+    if report["documents"]["rejected"]:
+        raise typer.Exit(code=1)
+
+
+@app.command()
 def validate(
     path: Annotated[
         Path, typer.Argument(exists=True, help="A golden .json or a directory of them.")

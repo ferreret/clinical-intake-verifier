@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from intake_synth.evaluate.compare import MODES, compare_key, values_match
+from intake_synth.evaluate.compare import MODES, compare_key, match_key, values_match
 from intake_synth.schema import load_compare_cases, load_fields
 
 CASES = load_compare_cases()
@@ -27,6 +27,12 @@ def test_every_configured_mode_is_implemented_and_covered():
         assert mode in covered, f"no shared case for {mode}"
         assert any(c["match"] for c in CASES if c["mode"] == mode)
         assert any(not c["match"] for c in CASES if c["mode"] == mode)
+
+
+@pytest.mark.parametrize("case", CASES)
+def test_match_key_agrees_with_values_match(case):
+    same = match_key(case["a"], case["mode"]) == match_key(case["b"], case["mode"])
+    assert same is case["match"]
 
 
 def test_unknown_mode_is_an_error():

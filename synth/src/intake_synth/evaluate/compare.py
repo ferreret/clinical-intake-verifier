@@ -49,3 +49,13 @@ def values_match(a: str, b: str, mode: str) -> bool:
     if ka == "" or kb == "":
         return a.strip() == b.strip()
     return ka == kb
+
+
+def match_key(value: str, mode: str) -> str:
+    """A hashable key with ``values_match(a, b) == (match_key(a) == match_key(b))``.
+
+    Used to match lists as sets. Keys that normalise to nothing fall back to the trimmed value,
+    behind a prefix no normalised key can produce.
+    """
+    key = compare_key(value, mode)
+    return key if key else "\0" + value.strip()
