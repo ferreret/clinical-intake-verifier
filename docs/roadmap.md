@@ -54,21 +54,25 @@ Nothing is copied from the previous machine: synthetic data is regenerated and r
 4. Run the Python tests, the web tests, the type check and lint.
 5. Regenerate the dataset, check its fingerprint (below) and repeat the five-document run.
 
-**Known issue: rolldown native binding.** `web/package-lock.json` declares rolldown's platform
-bindings as optional dependencies but contains no entry for any of them, a known npm
-optional-dependency bug. On a clean Linux install vitest fails to start because
-`@rolldown/binding-linux-x64-gnu` is missing. Quick workaround:
+**Status on 2026-10-22.** Steps 1, 2 and 4 are done on Ubuntu: Python 3.12.15 through uv, Node
+22.23.4 and npm 10.9.9 through nvm 0.40.8. 28 Python tests, Ruff, 27 web tests, the type check,
+lint and `next build` pass. Step 3 and the five-document run are pending. The dataset is
+regenerated, but its fingerprint differs (below).
 
-```bash
-npm --prefix web install --no-save @rolldown/binding-linux-x64-gnu@1.2.8
-```
+nvm is loaded at the end of `~/.bashrc`, which returns early in non-interactive shells, so
+`node` and `npm` are not on the PATH of scripted commands until `source ~/.nvm/nvm.sh`. The same
+applies to the preview server in `.claude/launch.json`, which runs `npm` directly.
 
-The proper fix is to regenerate the lockfile from a clean tree, without `node_modules`, and
-commit it on its own. That also fixes fresh clones of this repository on any platform.
+`npm audit` reports 6 advisories, all in `next` 16.3.4. Whether to upgrade is undecided.
+
+**Resolved: rolldown native binding.** The old lockfile listed rolldown's platform bindings as
+optional dependencies but had no entry for any of them, a known npm bug, so vitest failed to
+start on a clean Linux install. Regenerating the lockfile from a clean tree (`06bba85`) fixed it:
+`npm ci` now installs the right binding on every platform, with no workaround.
 
 **Cross-platform reproducibility check.** The README promises "same seed, same bytes". That
 holds on the machine that produced the dataset (re-verified on 2026-10-22 by regenerating five
-documents, clean and scanned), but it has never been checked across operating systems.
+documents, clean and scanned). Across operating systems it does **not** hold (see below).
 Regenerate, then fingerprint:
 
 ```bash
@@ -89,18 +93,28 @@ print("scanned", fp([d for d in docs if d["scanned"]]))
 PY
 ```
 
-Expected, from the Windows machine that produced the original dataset:
+Results with `generate --n 200 --seed 42`:
 
-| Subset | Documents | Fingerprint |
-|---|---|---|
-| all | 200 | `a482364f2f14e150` |
-| clean | 96 | `13cf85c55b90bede` |
-| scanned | 104 | `9c645b902cebb1fc` |
+| Subset | Documents | Windows (original dataset) | Ubuntu (2026-10-22) |
+|---|---|---|---|
+| all | 200 | `a482364f2f14e150` | `84a918ce8b427746` |
+| clean | 96 | `13cf85c55b90bede` | `f815510e11df692d` |
+| scanned | 104 | `9c645b902cebb1fc` | `2488db358c89e71a` |
 
-If only the scanned subset differs, the scanner simulation (blur, grain, JPEG encoding) depends
-on the platform. The goldens stay valid, because boxes come from geometry and not from pixels;
-the README and `docs/golden-format.md` should then say that byte-identical output holds per
-platform. If clean documents differ too, look at PDF rendering first.
+All three subsets differ. Document counts, page counts and absent fields match, so the generated
+content is the same; only the bytes differ. Because clean documents differ too, the cause is not
+only the scanner simulation (blur, grain, JPEG encoding) but something in PDF output.
+
+Ruled out: file paths embedded in the PDFs, creation dates and the document `/ID` (the generator
+already writes PDFs with `invariant=1`), and line endings.
+
+Main suspect, not proven: image compression. Pillow and zlib may encode the same pixels to
+different bytes depending on the platform or the library build. Confirming it needs a PDF from
+the Windows machine to compare object by object; no Windows machine is in use any more.
+
+Whatever the cause, the goldens stay valid, because boxes come from geometry and not from pixels.
+Still to do: the README and `docs/golden-format.md` should say that byte-identical output holds
+per platform, not across platforms.
 
 ### 2. F3: evaluation harness (proposed)
 
@@ -236,7 +250,13 @@ layout, not fields; a two-stage pipeline built on one of them is a later experim
 evaluation. Adding a provider changes the stack described in `CLAUDE.md`, which is updated only
 once this is approved.
 
-**Open:** the exact GPU model and memory of the workstation.
+**Workstation, as found on 2026-10-22.** The GPU is a Radeon 890M, an APU with 2 GB of dedicated
+VRAM and about 30 GiB of GTT (system memory the GPU can map). ROCm and Ollama are not installed.
+What is installed is LM Studio, which runs llama.cpp with Vulkan, with Qwen3.6-35B-A3B loaded: a
+mixture-of-experts model with about 3 billion active parameters and vision support. Its server
+on `127.0.0.1:1234` speaks the OpenAI API and returns JSON constrained to a schema; whether that
+still holds with an image in the prompt is the manual check above. This changes the runtime
+assumed above (Ollama on ROCm) and should be settled when the track is approved.
 
 ### 4. F4 to F6
 
