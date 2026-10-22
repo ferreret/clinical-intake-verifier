@@ -12,7 +12,7 @@ Last updated: 2026-10-22.
 |---|---|---|
 | F1 | Synthetic request generator with golden ground truth | done |
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
-| F3 | Evaluation harness | design **approved**, block A next, see below |
+| F3 | Evaluation harness | block A (scoring) **done**, block B (baseline) next |
 | F4 | Mock LIS and fusion engine | not started |
 | F5 | Verification UI | not started |
 | F6 | Public demo on Vercel | not started |
@@ -131,7 +131,11 @@ per platform, not across platforms.
 ### 2. F3: evaluation harness (approved)
 
 **Status: proposed and approved on 2026-10-22, with every open decision settled (below).
-Nothing implemented yet.**
+Block A is implemented: shared compare modes (`schema/compare-cases.json`), the `evaluate`
+command with both reports, and [docs/evaluation.md](evaluation.md), which is now the reference
+for the metric definitions. Block B (`--baseline` and a full 200-document run) is next.** The
+design below is kept as approved; where it and `docs/evaluation.md` differ in detail, the
+latter describes what was built.
 
 A new `evaluate` subcommand of the Python package, in `synth/src/intake_synth/evaluate/`. It
 reads the compare modes from `schema/fields.json` and hard-codes no field names.

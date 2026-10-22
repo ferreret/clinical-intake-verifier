@@ -23,7 +23,7 @@ uncertainty.
 |---|---|---|
 | F1 | Synthetic request generator with golden ground truth | **done** |
 | F2 | Extractor (Gemini Flash, structured output + boxes) | **done** |
-| F3 | Evaluation harness against the golden sample | next |
+| F3 | Evaluation harness against the golden sample | **scoring done**, baseline comparison next |
 | F4 | Mock LIS + fusion engine (traffic light per field) | |
 | F5 | Verification UI | |
 | F6 | Public demo on Vercel | |
@@ -39,7 +39,7 @@ Current state, open proposals and next steps are tracked in [docs/roadmap.md](do
 schema/            single source of truth: field configuration, golden and prediction JSON Schemas
 synth/             Python package (uv): generator (F1), evaluation harness (F3)
 web/               Next.js app: extractor (F2), mock LIS, fusion engine, verification UI
-docs/              design notes: golden format, extractor contract, roadmap
+docs/              design notes: golden format, extractor contract, evaluation, roadmap
 data/synth/        generated documents (git-ignored, regenerate with one command)
 data/runs/         extractor runs, one directory per run (git-ignored)
 ```
@@ -122,6 +122,34 @@ Tests, types and lint:
 npm test && npm run typecheck && npm run lint
 ```
 
+## Quick start: evaluate a run
+
+```bash
+cd synth
+uv run intake-synth evaluate ../data/runs/<run-id>
+```
+
+This scores every prediction of the run against its golden and writes `report.json` and
+`report.md` into `data/runs/<run-id>/eval/`:
+
+```
+eval 20261022-140331-gemini-3.8-flash-p2 vs data/synth/seed-42
+  documents : 5 evaluated, 0 failed, 0 rejected, 195 of the source not in this run
+  fields    : precision 100.0%  recall 100.0%  invented 0/19   46 correct, 0 wrong, 0 missed
+  tests     : P 100.0%  R 100.0%  F1 100.0%  exact list 5/5
+  boxes     : located 92/93 at IoU>=0.5, median 0.74
+  warnings  : 0
+  cost      : 8.8 s/doc, 2479 in / 1044 out tokens per doc
+  worst     : none
+```
+
+Every field of every document is correct, wrong, missed, a correct null or **invented**, and the
+report gives precision, recall and invention rate per field, test-list metrics, box
+localisation, warnings, failures by error code, and the same metrics sliced by scan, template,
+page count and handwriting, ending with the full list of mismatches. A failed API call is
+counted as a failure, not as a worse model. Definitions are in
+[docs/evaluation.md](docs/evaluation.md).
+
 ## How the extractor works
 
 **Two layers and a boundary.** The model is asked for a flat JSON in its own conventions
@@ -131,8 +159,9 @@ the system consumes, with the same field keys and the same box shape as the gold
 evaluation needs no adapters. The boundary validates and annotates but never repairs: a date
 that does not match its pattern stays as the model wrote it, flagged with a warning, for the
 fusion engine and the operator to decide. Its one rewrite is mechanical and flagged too: a
-title the model left in front of the physician's name is removed. Every prediction records model, prompt version and
-input mode, so two runs are only compared when they were produced the same way. The contract
+title the model left in front of the physician's name is removed. Every prediction records
+model, prompt version and input mode, so two runs are only compared when they were produced
+the same way. The contract
 is specified in [docs/extractor-contract.md](docs/extractor-contract.md) and enforced by
 [`schema/prediction.schema.json`](schema/prediction.schema.json) on both sides.
 
