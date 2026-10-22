@@ -86,8 +86,34 @@ measured with `--baseline` against the run above.
   each and every raw response came back clean ("Estévez", "Fibrinógeno"), with no control
   character and no escape for one: the characters are intermittent model output, not a
   decoding fault on our side, so they can be detected but not prevented.
-- **Prompt v3:** state that on an identity or insurance card a bare `M` means male and `F`
-  female, replacing the "other option" wording for cards.
+- **Prompt v3: done.** The sex rule now depends on the sheet, not on an "other option" an
+  identity card never prints: on the request form and its companion sheets `M` means female,
+  on a photocopied identity card `M` means male and `F` female. Full run
+  `20261022-193329-gemini-3.8-flash-p3` against the run with retry as baseline: `Sexo` 179 of
+  179 correct (the card of `synth-000147` included), fields 99.9% (3 wrong), exact test lists
+  198 of 200, no invented value, 10% fewer output tokens. The rule cannot be judged on more
+  than that one document, but nothing that depends on it broke.
+
+  The comparison shows 4 broken, 0 fixed, and none of the four is about sex: they are two
+  forms of corrupted text the detector does not know yet, in two documents.
+
+  | Printed | Returned | Form |
+  |---|---|---|
+  | Uría, Atlántida | `Ur%a`, `Atl%ntida` | `%` in place of the letter |
+  | TTPA | `ТТРА` | Cyrillic letters that look Latin |
+
+  The retry did its job on the forms it knows: three documents garbled on the first reply,
+  all three clean on the second. The two systematic mistakes remain (`synth-000027`,
+  `synth-000108`).
+
+- **Proposed, not approved: widen the garbled-text detector.** Two more checks, both checked
+  first against every golden value, which contain no `%` and no non-Latin letter:
+  - any character that is not a letter, digit, space or ordinary punctuation
+    (`. , ' - / ( ) + &`) next to a letter, generalising the `!` check (`Ur%a`, `M!rmol`);
+  - Cyrillic letters anywhere, and Greek letters in names (Greek stays allowed in test names,
+    where `γ-GT` or `β-HCG` are legitimate).
+
+  Measured like the retry, with a full run against the v3 run as baseline.
 - **Repeat the full run: done.** Same prompt, same model, run `20261022-175122-gemini-3.8-flash-p2`
   against the first one as its baseline. Fields 99.6% (8 wrong), tests F1 99.8%, still no
   invented value. Between the two identical runs **21 results flipped**: 7 fixed, 13 broken,
