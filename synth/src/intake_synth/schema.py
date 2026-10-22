@@ -16,6 +16,7 @@ from jsonschema import Draft202012Validator
 FIELDS_FILE = "fields.json"
 GOLDEN_SCHEMA_FILE = "golden.schema.json"
 PREDICTION_SCHEMA_FILE = "prediction.schema.json"
+COMPARE_CASES_FILE = "compare-cases.json"
 
 
 def schema_dir() -> Path:
@@ -55,6 +56,12 @@ def field_spec(name: str) -> dict:
 
 def required_field_names() -> list[str]:
     return [f["name"] for f in load_fields()["fields"] if f["required"]]
+
+
+@lru_cache(maxsize=1)
+def load_compare_cases() -> list[dict]:
+    with open(schema_dir() / COMPARE_CASES_FILE, encoding="utf-8") as fh:
+        return json.load(fh)["cases"]
 
 
 @lru_cache(maxsize=1)

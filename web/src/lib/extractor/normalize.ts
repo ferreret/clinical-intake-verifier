@@ -6,7 +6,8 @@
  * stays as the model wrote it, flagged, for the fusion engine and the operator to decide. The one
  * rewrite it makes is the `no-title` rule of fields.json, which is mechanical and also flagged.
  */
-import { FIELDS, isFieldName } from "@/lib/schema/fields";
+import { compareKey } from "@/lib/schema/compare";
+import { FIELDS, isFieldName, TESTS } from "@/lib/schema/fields";
 import type { BBox, PredictedField, PredictionWarning } from "@/lib/schema/prediction";
 import type { RawExtraction, RawItem } from "./response-schema";
 
@@ -24,16 +25,6 @@ export function toBBox(box: unknown): BBox | null {
   if (xmax <= xmin || ymax <= ymin) return null;
   const scale = (n: number) => Math.round(n * 10) / 10000;
   return { x0: scale(xmin), y0: scale(ymin), x1: scale(xmax), y1: scale(ymax) };
-}
-
-/** Case-, accent- and whitespace-insensitive key, the `casefold` compare mode of fields.json. */
-export function foldKey(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 /** Titles in front of a name, possibly several ("Prof. Dr."), with or without the full stop. */
@@ -120,7 +111,7 @@ export function normaliseExtraction(raw: RawExtraction, pageCount: number): Norm
   for (const item of raw.tests ?? []) {
     const test = normaliseItem(item, "tests", null, null, pageCount, warnings);
     if (test === null) continue;
-    const key = foldKey(test.value);
+    const key = compareKey(test.value, TESTS.compare);
     if (seen.has(key)) {
       warnings.push({ code: "duplicate_test", field: "tests", detail: test.value });
       continue;

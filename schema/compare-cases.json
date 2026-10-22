@@ -1,0 +1,38 @@
+{
+  "$comment": "Shared cases for the compare modes of schema/fields.json. Run by pytest (synth/tests/test_compare.py) and vitest (web/tests/compare.test.ts) so that the Python and TypeScript implementations cannot drift apart. Each case states whether two non-null values match under one mode.",
+  "version": 1,
+  "cases": [
+    { "mode": "exact", "a": "12/03/1978", "b": "12/03/1978", "match": true },
+    { "mode": "exact", "a": " 12/03/1978 ", "b": "12/03/1978", "match": true, "note": "surrounding whitespace is trimmed" },
+    { "mode": "exact", "a": "12/03/1978", "b": "12/3/1978", "match": false },
+    { "mode": "exact", "a": "M", "b": "m", "match": false, "note": "case matters" },
+    { "mode": "exact", "a": "H", "b": "M", "match": false },
+
+    { "mode": "casefold", "a": "Hemograma completo", "b": "HEMOGRAMA COMPLETO", "match": true },
+    { "mode": "casefold", "a": "Hemógrama   completo", "b": "hemograma completo", "match": true, "note": "accents and repeated spaces are ignored" },
+    { "mode": "casefold", "a": " ZARAGOZA APARICIO, ROSENDO ", "b": "Zaragoza Aparicio, Rosendo", "match": true },
+    { "mode": "casefold", "a": "Peña", "b": "Pena", "match": true, "note": "ñ decomposes to n plus a combining tilde, which is dropped" },
+    { "mode": "casefold", "a": "Ibáñez Ruiz", "b": "IBANEZ RUIZ", "match": true, "note": "a no-break space counts as whitespace" },
+    { "mode": "casefold", "a": "Glucosa\tbasal", "b": "glucosa basal", "match": true },
+    { "mode": "casefold", "a": "ZARAGOZA APARICIO, ROSENDO", "b": "ZARAGOZA APARICIO ROSENDO", "match": false, "note": "punctuation is kept" },
+    { "mode": "casefold", "a": "Pepita Conde Tirado", "b": "Dra. Pepita Conde Tirado", "match": false, "note": "titles are removed by the no-title rule, not by the compare mode" },
+    { "mode": "casefold", "a": "Urea", "b": "Úrea sérica", "match": false },
+
+    { "mode": "digits", "a": "45 años", "b": "45", "match": true },
+    { "mode": "digits", "a": "45 a.", "b": "45", "match": true },
+    { "mode": "digits", "a": "612 34 56 78", "b": "612-345-678", "match": true },
+    { "mode": "digits", "a": "+34 612 345 678", "b": "612 345 678", "match": false, "note": "a country prefix is a different digit sequence" },
+    { "mode": "digits", "a": "28/12345", "b": "2812345", "match": true },
+    { "mode": "digits", "a": "45", "b": "54", "match": false },
+    { "mode": "digits", "a": "sí", "b": "no", "match": false, "note": "values with no digits at all only match when identical after trimming" },
+    { "mode": "digits", "a": " — ", "b": "—", "match": true },
+    { "mode": "digits", "a": "45", "b": "٤٥", "match": false, "note": "only ASCII digits count" },
+
+    { "mode": "alnum_upper", "a": "12345678-Z", "b": "12345678z", "match": true },
+    { "mode": "alnum_upper", "a": "X-1234567-L", "b": "x 1234567 l", "match": true },
+    { "mode": "alnum_upper", "a": "PET-2026/000123", "b": "PET2026000123", "match": true },
+    { "mode": "alnum_upper", "a": "12345678Z", "b": "12345678Y", "match": false },
+    { "mode": "alnum_upper", "a": "AUT0001", "b": "AUTO001", "match": false, "note": "a zero is not the letter O" },
+    { "mode": "alnum_upper", "a": "--", "b": "//", "match": false, "note": "values with no alphanumerics only match when identical after trimming" }
+  ]
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foldKey, normaliseExtraction, stripTitle, toBBox } from "@/lib/extractor/normalize";
+import { normaliseExtraction, stripTitle, toBBox } from "@/lib/extractor/normalize";
 import type { RawExtraction, RawItem } from "@/lib/extractor/response-schema";
 import { FIELD_NAMES } from "@/lib/schema/fields";
 
@@ -25,12 +25,6 @@ describe("toBBox", () => {
     expect(toBBox([1, 2, 3])).toBeNull();
     expect(toBBox(["a", 2, 3, 4])).toBeNull();
     expect(toBBox(null)).toBeNull();
-  });
-});
-
-describe("foldKey", () => {
-  it("ignores case, accents and whitespace", () => {
-    expect(foldKey("  Hemógrama   COMPLETO ")).toBe("hemograma completo");
   });
 });
 
