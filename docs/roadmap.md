@@ -116,6 +116,35 @@ measured with `--baseline` against the run above.
     where `γ-GT` or `β-HCG` are legitimate).
 
   Measured like the retry, with a full run against the v3 run as baseline.
+
+  **Measured** on run `20261022-194344-gemini-3.8-flash-p3`: fields 100.0% (2038 of 2039),
+  exact test lists 196 of 200, no invented value. Four documents were garbled on the first
+  reply and clean on the retry (060, 084, 138, 172). Against the v3 run: 5 fixed, 6 broken,
+  which is the size of the run-to-run noise measured earlier, so the detector itself is not
+  what moved. What the six broken results are:
+
+  - **`&` in place of an accented letter** (`Ferr&ndiz`, `synth-000045`): `&` is allowed as
+    ordinary punctuation for "Seguros & Salud", so it passes. A `&` with letters on both sides
+    would be a narrower rule. Not done: every new run so far has shown a new form, and
+    chasing them one by one has a limit.
+  - **`lones` for Iones** (`synth-000004`, `synth-000184`): a capital I read as a lowercase l.
+    In the sans-serif fonts of the templates the two are almost identical, so this is a
+    reading error, not corrupted output, and no character check can see it.
+  - **Perfil renal dropped** (`synth-000109`): the catalog has profile names that are printed
+    both as group headings (not tests) and as requested items (tests). The prompt says
+    headings are not tests; here the model took a requested profile for a heading. Iones is
+    the same kind of name.
+
+  The swapped date of `synth-000027` was right this time, for the first time in four runs.
+  Fibrinógeno in `synth-000108` is still missed, as in every run.
+
+  Output tokens rose to 253k from 188k in the v3 run with the same prompt; latency rose too
+  (11.9 s per document). Nothing in the extractor changed that explains it, and retries
+  account for about 5k; it looks like variance in the API. To watch on the next runs.
+
+  **Where this leaves the extractor:** at about 99.9% of fields, no invented value in five
+  full runs (2,805 golden nulls), and a run-to-run noise of a handful of results. Further
+  gains on these documents are within that noise; the next phase is F4.
 - **Repeat the full run: done.** Same prompt, same model, run `20261022-175122-gemini-3.8-flash-p2`
   against the first one as its baseline. Fields 99.6% (8 wrong), tests F1 99.8%, still no
   invented value. Between the two identical runs **21 results flipped**: 7 fixed, 13 broken,
