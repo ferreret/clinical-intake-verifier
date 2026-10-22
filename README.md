@@ -31,13 +31,15 @@ uncertainty.
 F3 comes before the UI on purpose: without per-field metrics there is no way to know whether a
 prompt change helped or hurt, and that is exactly what this project wants to show.
 
+Current state, open proposals and next steps are tracked in [docs/roadmap.md](docs/roadmap.md).
+
 ## Repository layout
 
 ```
 schema/            single source of truth: field configuration, golden and prediction JSON Schemas
 synth/             Python package (uv): generator (F1), evaluation harness (F3)
 web/               Next.js app: extractor (F2), mock LIS, fusion engine, verification UI
-docs/              design notes: golden format, extractor contract
+docs/              design notes: golden format, extractor contract, roadmap
 data/synth/        generated documents (git-ignored, regenerate with one command)
 data/runs/         extractor runs, one directory per run (git-ignored)
 ```

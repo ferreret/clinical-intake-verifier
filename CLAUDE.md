@@ -102,6 +102,8 @@ Reglas de extracción heredadas del piloto, que funcionaron:
 
 Pensadas para bloques de 90 minutos, no para semanas.
 
+**Estado actual, propuestas pendientes y siguiente paso: [`docs/roadmap.md`](docs/roadmap.md).** Léelo al empezar cada sesión. Lo marcado como *proposed* no está aprobado: no se implementa sin visto bueno.
+
 - **F1 · Generador sintético.** PDFs de volante realistas con sus datos de referencia en JSON. Sin esto no hay demo pública ni evaluación.
 - **F2 · Extractor.** Llamada a Gemini con salida estructurada y bboxes. Contra los sintéticos primero.
 - **F3 · Harness de evaluación.** Métricas por campo contra el golden sample. **Antes que la UI** — así cada cambio posterior se mide.
