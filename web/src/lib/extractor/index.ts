@@ -21,7 +21,7 @@ import { buildSystemInstruction, PROMPT_VERSION, USER_MESSAGE } from "./prompt";
 import { buildResponseSchema, validateRawExtraction, type RawExtraction } from "./response-schema";
 
 export const DEFAULT_MODEL = "gemini-3.8-flash";
-export const DEFAULT_THINKING_LEVEL = "minimal";
+export const DEFAULT_THINKING_LEVEL = "low";
 export const INPUT_MODE = "pdf-inline" as const;
 
 export { PROMPT_VERSION } from "./prompt";

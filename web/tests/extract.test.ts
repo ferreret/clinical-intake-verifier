@@ -34,7 +34,7 @@ function goodJson(): string {
   return JSON.stringify({ fields, tests: [{ value: "Urea", page: 3, box_2d: [515, 96, 526, 129] }] });
 }
 
-const opts = { apiKey: "test-key", model: "test-model", retryDelayMs: 0, thinkingLevel: "minimal" };
+const opts = { apiKey: "test-key", model: "test-model", retryDelayMs: 0, thinkingLevel: "low" };
 
 beforeEach(() => {
   mockedCall.mockReset();
@@ -56,7 +56,7 @@ describe("extract", () => {
       prompt_version: expect.any(String),
       input_mode: "pdf-inline",
       temperature: 0,
-      thinking_level: "minimal",
+      thinking_level: "low",
       attempts: 1,
       error: null,
     });

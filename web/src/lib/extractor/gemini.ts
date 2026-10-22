@@ -16,7 +16,7 @@ export interface GeminiRequest {
   userMessage: string;
   responseSchema: Record<string, unknown>;
   temperature: number;
-  /** minimal, low, medium, high; null to leave the model default. */
+  /** low, medium, high (minimal where the model supports it); null to leave the model default. */
   thinkingLevel: string | null;
 }
 

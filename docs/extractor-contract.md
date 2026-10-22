@@ -59,7 +59,7 @@ object, same `tests` sibling.
     "prompt_version": "1",
     "input_mode": "pdf-inline",
     "temperature": 0,
-    "thinking_level": "minimal",
+    "thinking_level": "low",
     "attempts": 1,
     "latency_ms": 4312,
     "usage": { "input_tokens": 1180, "output_tokens": 640, "thinking_tokens": 0 },
@@ -136,7 +136,7 @@ one part per page) can be added and **measured** by the harness rather than argu
 
 The model id comes from `GEMINI_MODEL` (default: the current Flash). Generation is
 deterministic within the limits of the API: `temperature: 0`, JSON mode with the layer-1 schema
-as `responseJsonSchema`, minimal thinking.
+as `responseJsonSchema`, low thinking (the current Flash rejects `minimal` with a 400).
 
 ## Batch runs
 
