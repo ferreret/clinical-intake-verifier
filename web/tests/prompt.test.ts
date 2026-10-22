@@ -19,6 +19,7 @@ describe("system instruction", () => {
     expect(text).toContain("return null");
     expect(text).toContain("dd/mm/yyyy");
     expect(text).toContain("H (male), M (female) or U");
+    expect(text).toContain("on a photocopied identity card");
     expect(text).toContain("return only the name and surnames");
   });
 });

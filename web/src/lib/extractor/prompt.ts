@@ -6,7 +6,7 @@
  */
 import { FIELDS, TESTS, type FieldSpec } from "@/lib/schema/fields";
 
-export const PROMPT_VERSION = "2";
+export const PROMPT_VERSION = "3";
 
 /** How each `normalize` rule in fields.json is explained to the model. */
 const NORMALISATION_TEXT: Record<string, string> = {
@@ -15,8 +15,10 @@ const NORMALISATION_TEXT: Record<string, string> = {
     "all become 12/03/1978).",
   "H|M|U":
     "Normalise to H (male), M (female) or U (unknown or other). Printed forms vary: Hombre, " +
-    "Varón, V and H mean male; Mujer and F mean female; a bare M means female on a form whose " +
-    "other option is H or V, and male on a card whose other option is F.",
+    "Varón, Masculino, V and H mean male; Mujer, Femenino and F mean female. A bare M depends " +
+    "on the sheet it is printed on: on the request form and its companion sheets it means " +
+    "female (male is written H or V there); on a photocopied identity card, which prints a " +
+    "single letter, M means male (masculino) and F female.",
   "no-title":
     "Drop any title or honorific in front of the name (Dr., Dra., Doctor, Doctora, Prof.) and " +
     "return only the name and surnames, otherwise exactly as printed. The box still covers the " +
