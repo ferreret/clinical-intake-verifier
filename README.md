@@ -23,7 +23,7 @@ uncertainty.
 |---|---|---|
 | F1 | Synthetic request generator with golden ground truth | **done** |
 | F2 | Extractor (Gemini Flash, structured output + boxes) | **done** |
-| F3 | Evaluation harness against the golden sample | **scoring done**, baseline comparison next |
+| F3 | Evaluation harness against the golden sample | **done**; first full 200-document run pending |
 | F4 | Mock LIS + fusion engine (traffic light per field) | |
 | F5 | Verification UI | |
 | F6 | Public demo on Vercel | |
@@ -149,6 +149,15 @@ localisation, warnings, failures by error code, and the same metrics sliced by s
 page count and handwriting, ending with the full list of mismatches. A failed API call is
 counted as a failure, not as a worse model. Definitions are in
 [docs/evaluation.md](docs/evaluation.md).
+
+To see what a change did, compare the new run with an older one over the same goldens:
+
+```bash
+uv run intake-synth evaluate ../data/runs/<new-run> --baseline ../data/runs/<old-run>
+```
+
+The report then adds the change in every metric and the list of fields that were fixed and,
+more importantly, the ones that broke.
 
 ## How the extractor works
 

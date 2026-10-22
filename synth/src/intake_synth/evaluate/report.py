@@ -307,6 +307,10 @@ def console_summary(r: dict) -> list[str]:
         )
     worst = ", ".join(f"{w['field']} {w['right']}/{w['of']}" for w in r["worst"]) or "none"
     lines.append(f"  worst     : {worst}")
+    if "baseline" in r:
+        from .baseline import console_lines
+
+        lines += console_lines(r["baseline"])
     if d["failed"]:
         codes = ", ".join(f"{k}={v}" for k, v in r["failures"]["by_code"].items())
         lines.append(f"  failures  : {codes}")
@@ -381,6 +385,10 @@ def markdown(r: dict) -> str:
     lines += _table(["", ""], [[k, v] for k, v in meta])
 
     lines += ["## Summary", "", "```", *console_summary(r), "```", ""]
+    if "baseline" in r:
+        from .baseline import markdown_lines
+
+        lines += markdown_lines(r["baseline"])
 
     lines += ["## Fields", ""]
     rows = [_field_row(name, s) for name, s in r["fields"]["by_field"].items()]

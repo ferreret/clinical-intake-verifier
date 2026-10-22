@@ -12,7 +12,7 @@ Last updated: 2026-10-22.
 |---|---|---|
 | F1 | Synthetic request generator with golden ground truth | done |
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
-| F3 | Evaluation harness | block A (scoring) **done**, block B (baseline) next |
+| F3 | Evaluation harness | **done**; first full 200-document run pending |
 | F4 | Mock LIS and fusion engine | not started |
 | F5 | Verification UI | not started |
 | F6 | Public demo on Vercel | not started |
@@ -133,7 +133,9 @@ per platform, not across platforms.
 **Status: proposed and approved on 2026-10-22, with every open decision settled (below).
 Block A is implemented: shared compare modes (`schema/compare-cases.json`), the `evaluate`
 command with both reports, and [docs/evaluation.md](evaluation.md), which is now the reference
-for the metric definitions. Block B (`--baseline` and a full 200-document run) is next.** The
+for the metric definitions. Block B's `--baseline` is implemented too, re-scoring the
+baseline rather than reading its old report (see `docs/evaluation.md`). What remains is the
+first full 200-document run with Gemini.** The
 design below is kept as approved; where it and `docs/evaluation.md` differ in detail, the
 latter describes what was built.
 

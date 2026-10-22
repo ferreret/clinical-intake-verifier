@@ -9,7 +9,8 @@ import pytest
 from typer.testing import CliRunner
 
 from intake_synth.cli import app
-from intake_synth.evaluate import evaluate_run
+from intake_synth.evaluate import evaluate_against, evaluate_run
+from intake_synth.evaluate.load import LoadError
 from intake_synth.evaluate.score import (
     CORRECT,
     CORRECT_NULL,
@@ -226,3 +227,80 @@ def test_check_box(page, bbox, status):
     got, iou = check_box({"page": page, "bbox": bbox}, GOLDEN_LOC, 0.5)
     assert got == status
     assert (iou is None) == (status in (WRONG_PAGE, NO_BOX))
+
+
+# --------------------------------------------------------------------------- baseline
+
+
+def _spoil(pred: dict) -> tuple[str, str]:
+    """Make one present field wrong and drop one test; return what was touched."""
+    name = next(k for k, v in pred["fields"].items() if v is not None)
+    pred["fields"][name]["value"] = "ZZZ 999 not the value"
+    return name, pred["tests"].pop(0)["value"]
+
+
+def test_baseline_lists_what_broke(tmp_path, golden_dir, goldens):
+    base = write_run(tmp_path / "base", [perfect(g) for g in goldens])
+    preds = [perfect(g) for g in goldens]
+    name, test = _spoil(preds[0])
+    run = write_run(tmp_path / "run", preds)
+
+    b = evaluate_against(run, base, golden_dir)["baseline"]
+    assert b["documents"]["common"] == N
+    assert b["flips"]["fixed"] == []
+    broken = {(e["id"], e["field"], e["before"], e["after"]) for e in b["flips"]["broken"]}
+    assert broken == {
+        (goldens[0]["id"], name, CORRECT, WRONG),
+        (goldens[0]["id"], "tests", "matched", "missed"),
+    }
+    assert b["fields"]["by_field"][name]["correct"]["delta"] == -1
+    assert b["fields"]["total"]["precision"]["delta"] < 0
+    assert b["tests"]["exact_lists"]["delta"] == -1
+    assert [e["expected"] for e in b["flips"]["broken"] if e["field"] == "tests"] == [test]
+
+
+def test_baseline_lists_what_was_fixed(tmp_path, golden_dir, goldens):
+    preds = [perfect(g) for g in goldens]
+    name, test = _spoil(preds[0])
+    base = write_run(tmp_path / "base", preds)
+    run = write_run(tmp_path / "run", [perfect(g) for g in goldens])
+
+    b = evaluate_against(run, base, golden_dir)["baseline"]
+    assert b["flips"]["broken"] == []
+    fixed = {(e["field"], e["expected"]) for e in b["flips"]["fixed"]}
+    assert ("tests", test) in fixed
+    assert name in {f for f, _ in fixed}
+
+
+def test_baseline_compares_only_documents_in_both(tmp_path, golden_dir, goldens):
+    base = write_run(tmp_path / "base", [perfect(g) for g in goldens[:3]])
+    preds = [perfect(g) for g in goldens[1:]]
+    preds[-1]["extractor"]["error"] = {"code": "invalid_json", "message": "x"}
+    preds[-1]["fields"] = {k: None for k in preds[-1]["fields"]}
+    preds[-1]["tests"] = []
+    run = write_run(tmp_path / "run", preds)
+
+    r = evaluate_against(run, base, golden_dir)
+    assert r["documents"]["evaluated"] == N - 2  # the full run is still reported in full
+    d = r["baseline"]["documents"]
+    assert (d["common"], d["only_in_run"], d["only_in_baseline"]) == (2, 0, 1)
+    assert r["baseline"]["flips"] == {"fixed": [], "broken": [], "changed": []}
+
+
+def test_baseline_refuses_the_run_itself(tmp_path, golden_dir, goldens):
+    run = write_run(tmp_path / "run", [perfect(g) for g in goldens])
+    with pytest.raises(LoadError, match="itself"):
+        evaluate_against(run, run, golden_dir)
+
+
+def test_cli_with_baseline(tmp_path, golden_dir, goldens):
+    base = write_run(tmp_path / "base", [perfect(g) for g in goldens])
+    preds = [perfect(g) for g in goldens]
+    _spoil(preds[0])
+    run = write_run(tmp_path / "run", preds)
+    args = ["evaluate", str(run), "--golden", str(golden_dir), "--baseline", str(base)]
+    result = CliRunner().invoke(app, args)
+    assert result.exit_code == 0, result.output
+    assert "0 fixed, 2 broken" in result.output
+    md = (run / "eval" / "report.md").read_text(encoding="utf-8")
+    assert "## Against baseline" in md and "### Broken (2)" in md

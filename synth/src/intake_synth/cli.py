@@ -175,30 +175,43 @@ def evaluate(
     only: Annotated[
         str | None, typer.Option(help="Comma-separated document ids to evaluate.")
     ] = None,
+    baseline: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            file_okay=False,
+            help="Another run over the same goldens: metric changes and flipped fields.",
+        ),
+    ] = None,
     out: Annotated[
         Path | None, typer.Option(help="Output directory. Default: RUN_DIR/eval.")
     ] = None,
 ) -> None:
     """Score a run against the golden sample and write report.json and report.md.
 
-    Exits with status 1 when any prediction was rejected (wrong PDF hash, unsupported format,
-    no golden) and so could not be scored.
+    Exits with status 1 when any prediction, of the run or of the baseline, was rejected (wrong
+    PDF hash, unsupported format, no golden) and so could not be scored.
     """
-    from .evaluate import evaluate_run, write_report
+    from .evaluate import evaluate_against, evaluate_run, write_report
     from .evaluate.load import LoadError, default_golden_dir
     from .evaluate.report import console_summary
 
     ids = {s.strip() for s in only.split(",") if s.strip()} if only else None
     try:
         golden_dir = golden or default_golden_dir(run_dir)
-        report = evaluate_run(run_dir, golden_dir, iou, ids)
+        if baseline is None:
+            report = evaluate_run(run_dir, golden_dir, iou, ids)
+        else:
+            report = evaluate_against(run_dir, baseline, golden_dir, iou, ids)
     except LoadError as e:
         raise typer.BadParameter(str(e)) from None
     _, md_path = write_report(report, out or run_dir / "eval")
     for line in console_summary(report):
         typer.echo(line)
     typer.echo(f"  report    : {md_path}")
-    if report["documents"]["rejected"]:
+    if report["documents"]["rejected"] or report.get("baseline", {}).get("documents", {}).get(
+        "rejected"
+    ):
         raise typer.Exit(code=1)
 
 

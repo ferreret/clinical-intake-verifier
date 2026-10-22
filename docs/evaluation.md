@@ -19,6 +19,7 @@ intake-synth evaluate RUN_DIR
     --golden DIR      default: the source recorded in RUN_DIR/run.json
     --iou 0.5         IoU at which a box counts as located
     --only ID,ID      evaluate a subset of the run
+    --baseline DIR    another run over the same goldens: metric changes and flipped fields
     --out DIR         default: RUN_DIR/eval/
 ```
 
@@ -35,7 +36,8 @@ eval 20261022-140331-gemini-3.8-flash-p2 vs data/synth/seed-42
   worst     : none
 ```
 
-The exit status is 1 when any prediction was rejected (see below), 0 otherwise. A run in which
+The exit status is 1 when any prediction, of the run or of the baseline, was rejected (see
+below), 0 otherwise. A run in which
 the model made mistakes still exits 0: the harness measures, it does not pass or fail a model.
 
 ## What gets scored
@@ -163,8 +165,7 @@ count, for instance, means the model ignores the no-title rule more often.
 ## Outputs
 
 `report.json` holds everything, including the outcome of every field and every test in every
-document, with expected and predicted values and box status. It is what a baseline comparison
-will read. `report.md` holds the same as tables, and ends with the full list of mismatches:
+document, with expected and predicted values and box status. `report.md` holds the same as tables, and ends with the full list of mismatches:
 document, field, outcome, expected value, predicted value.
 
 Both record what is needed to tell whether two reports are comparable: run id and directory,
@@ -173,8 +174,49 @@ generator versions, `fields.json` version, IoU threshold and harness version. Tw
 only comparable when they were scored against goldens from the same generator version and the
 same `fields.json`.
 
+## Comparing with a baseline
+
+```bash
+uv run intake-synth evaluate ../data/runs/<new-run> --baseline ../data/runs/<old-run>
+```
+
+adds to both reports, and to the summary, how the new run differs from the old one:
+
+```
+  baseline  : 20261022-135208-gemini-3.8-flash-p1, 5 documents in common (0 only here, 0 only there)
+  delta     : fields precision +6.5 pp  recall +6.5 pp  invented +0   tests F1 +0.0 pp   boxes located -1.1 pp
+  flipped   : 3 fixed, 0 broken, 0 changed while still wrong
+```
+
+**The baseline is scored again, not read from its old report.** Both runs are scored by the same
+harness, against the same golden directory, with the same IoU threshold. An old report may have
+been made against goldens that have changed since (the physician's title was dropped from the
+goldens after the first runs, for instance), and comparing against it would credit the new
+run with a change in the answer key.
+
+**Only documents evaluated in both runs are compared.** A document missing from either run, or
+failed in either, is left out of the comparison and counted as "only here" or "only there". The
+report of the run itself still covers all of its documents.
+
+What the comparison gives:
+
+- **Metric changes**: for every field and for all fields together, the five counts and the three
+  rates before and after, with the change in percentage points; the same for test-list metrics,
+  box localisation and median IoU.
+- **Flips**, document by document:
+  - *fixed*: a field that was wrong, missed or invented and is now correct or a correct null; a
+    test that was missed and is now found; an extra test that is gone;
+  - *broken*: the reverse;
+  - *changed while still wrong*: a field wrong in both runs, but with a different outcome or a
+    different predicted value.
+
+The list of broken fields is the point. A prompt change rarely only helps: the total can go up
+while a few documents that were right go wrong, and those are invisible in a single number.
+
+Comparing two runs made the same way (same model, same prompt) is legitimate too: it measures
+how much the model varies from one run to the next, which is the noise any other difference
+has to beat.
+
 ## Not yet
 
-- `--baseline DIR`: deltas against another run over the same source and the list of fields
-  that flipped. Block B of F3.
 - Running the evaluation in CI on every commit, which needs a Gemini key in CI. Deferred to F6.
