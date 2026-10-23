@@ -160,6 +160,40 @@ def debug_boxes(
         typer.echo(str(p))
 
 
+@app.command("evaluate-fusion")
+def evaluate_fusion_cmd(
+    fusion_dir: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, help="A fusion directory (fusion.json)."),
+    ],
+    golden: Annotated[
+        Path | None,
+        typer.Option(help="Golden directory. Default: the source recorded in fusion.json."),
+    ] = None,
+    out: Annotated[
+        Path | None, typer.Option(help="Output directory. Default: FUSION_DIR/eval.")
+    ] = None,
+) -> None:
+    """Score a fusion run against each document's LIS scenario.
+
+    Exits with status 1 when a document was linked to the wrong record or a wrong value came
+    out green: the two failures the traffic light must never have.
+    """
+    from .evaluate.fusion import console_summary, evaluate_fusion, write_fusion_report
+    from .evaluate.load import LoadError
+
+    try:
+        report = evaluate_fusion(fusion_dir, golden)
+    except LoadError as e:
+        raise typer.BadParameter(str(e)) from None
+    md_path = write_fusion_report(report, out or fusion_dir / "eval")
+    for line in console_summary(report):
+        typer.echo(line)
+    typer.echo(f"  report      : {md_path}")
+    if report["wrong_links"] or report["wrong_green"]:
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def evaluate(
     run_dir: Annotated[

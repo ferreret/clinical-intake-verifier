@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "extract": "tsx src/scripts/extract-batch.ts",
-    "seed-lis": "tsx src/scripts/seed-lis.ts"
+    "seed-lis": "tsx src/scripts/seed-lis.ts",
+    "fuse": "tsx src/scripts/fuse-batch.ts"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",
