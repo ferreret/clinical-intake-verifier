@@ -25,14 +25,17 @@ from reportlab.lib.pagesizes import A4
 
 from .. import __version__
 from . import catalog
+from .dialects import dialects
 from .golden import build_golden
 from .identities import make_doc_data
+from .labcatalog import CATALOG_VERSION, build_catalog
 from .model import DocData
 from .recorder import INK_COLORS, HandwritingPlan, Recorder
 from .scan import sample_scan_params, scan_pdf, transform_box_pt
 from .templates import HANDWRITING_CANDIDATES, SHEETS, TEMPLATES
 
 MANIFEST_NAME = "manifest.json"
+CATALOG_NAME = "catalog.json"
 
 # Companion sheets and their relative frequency. "duplicate" re-renders the request form
 # (the same sheet scanned twice) and is handled by the pipeline, not by SHEETS.
@@ -153,7 +156,7 @@ def generate_document(index: int, opts: GenerateOptions) -> GeneratedDoc:
 
     scan_roll = rng.random()
     template = rng.choice(list(opts.templates))
-    data = make_doc_data(rng, fake, index, template=template)
+    data = make_doc_data(rng, fake, index, template=template, dialects=dialects(opts.seed))
     plan = _plan_handwriting(rng, data, template, opts.handwriting_ratio)
     sheets = _plan_sheets(rng, data)
     layout_seed = rng.getrandbits(64)
@@ -196,6 +199,7 @@ def generate_document(index: int, opts: GenerateOptions) -> GeneratedDoc:
         "version": __version__,
         "seed": opts.seed,
         "index": index,
+        "catalog_version": CATALOG_VERSION,
         "template": template,
         "scan": scan_public,
         "handwritten_fields": [],  # filled in by build_golden from the primary styles
@@ -220,6 +224,7 @@ def generate_document(index: int, opts: GenerateOptions) -> GeneratedDoc:
         generator=generator,
         pages=pages,
         items=items,
+        test_codes=data.test_codes,
         context=context,
     )
     return GeneratedDoc(id_, pdf, golden, template, scan_public is not None)
@@ -244,6 +249,10 @@ def generate_batch(
 
     Returns the manifest.
     """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with open(out_dir / CATALOG_NAME, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(build_catalog().to_json(), fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
     docs_meta = []
     for i in indices:
         doc = generate_document(i, opts)
@@ -274,6 +283,8 @@ def generate_batch(
         "handwriting_ratio": opts.handwriting_ratio,
         "dpi": opts.dpi,
         "templates": list(opts.templates),
+        "catalog": CATALOG_NAME,
+        "catalog_version": CATALOG_VERSION,
         "count": len(docs_meta),
         "documents": docs_meta,
     }

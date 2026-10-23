@@ -13,10 +13,10 @@ from pathlib import Path
 
 from ..schema import field_names, repo_root, validate_golden, validate_prediction
 
-GOLDEN_VERSIONS = frozenset({1})
+GOLDEN_VERSIONS = frozenset({2})
 PREDICTION_VERSIONS = frozenset({1})
 PREDICTION_SUFFIX = ".pred.json"
-NOT_GOLDEN = frozenset({"manifest.json", "run.json"})
+NOT_GOLDEN = frozenset({"manifest.json", "run.json", "catalog.json"})
 
 
 class LoadError(Exception):

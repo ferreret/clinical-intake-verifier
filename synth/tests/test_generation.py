@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import unicodedata
 
@@ -98,6 +99,19 @@ def test_every_recorded_page_exists(batch):
 def test_batch_covers_the_variability_axes(batch):
     _, _, docs = batch
     assert {d.template for d in docs} == set(catalog.TEMPLATE_NAMES)
+
+
+def test_every_test_carries_catalog_codes(batch):
+    out, manifest, docs = batch
+    known = {t["code"] for t in json.loads((out / "catalog.json").read_text("utf-8"))["tests"]}
+    assert manifest["catalog"] == "catalog.json"
+    multi = 0
+    for doc in docs:
+        assert doc.golden["generator"]["catalog_version"] == manifest["catalog_version"]
+        for t in doc.golden["tests"]:
+            assert t["codes"] and set(t["codes"]) <= known, (doc.id, t["value"])
+            multi += len(t["codes"]) > 1
+    assert multi >= 1, "no profile requested as a single line in the batch"
     assert any(d.scanned for d in docs) and any(not d.scanned for d in docs)
     assert any(d.golden["generator"]["handwritten_fields"] for d in docs)
     assert any(f is None for d in docs for f in d.golden["fields"].values())

@@ -57,6 +57,7 @@ def build_golden(
     generator: dict,
     pages: list[PageInfo],
     items: list[Drawn],
+    test_codes: dict[str, tuple[str, ...]],
     context: dict,
 ) -> dict:
     names = field_names()
@@ -77,9 +78,13 @@ def build_golden(
     for d in items:
         if d.kind == "test":
             by_value.setdefault(d.value, []).append(d)
-    tests = [
-        _collapse(occurrences, pages, f"test {value!r}") for value, occurrences in by_value.items()
-    ]
+    tests = []
+    for value, occurrences in by_value.items():
+        if value not in test_codes:
+            raise GoldenError(f"test {value!r} was drawn but is not a requested line")
+        entry = _collapse(occurrences, pages, f"test {value!r}")
+        entry["codes"] = list(test_codes[value])
+        tests.append(entry)
 
     generator = dict(generator)
     generator["handwritten_fields"] = sorted(
@@ -87,7 +92,7 @@ def build_golden(
     )
 
     golden = {
-        "golden_version": 1,
+        "golden_version": 2,
         "id": doc_id,
         "file": file_name,
         "sha256": sha256,

@@ -7,11 +7,14 @@ pipeline seeds per document, so any document can be regenerated in isolation.
 from __future__ import annotations
 
 import random
+from collections.abc import Mapping
 from datetime import date, timedelta
 
 from faker import Faker
 
 from . import catalog
+from .dialects import GENERIC, Dialect
+from .labcatalog import Catalog, build_catalog
 from .model import DocData, Insurance, Patient, Physician, RequestedItem
 
 DNI_LETTERS = "TRWAGMYFPDXBNJZSQVHLCKE"
@@ -130,39 +133,65 @@ def format_birth(rng: random.Random, b: date) -> str:
 # --------------------------------------------------------------------------- tests
 
 
-def sample_items(rng: random.Random) -> list[RequestedItem]:
+# Share of single requested lines drawn from the common tests; the rest is the long tail.
+COMMON_SHARE = 0.85
+
+
+def _draw_line(rng: random.Random, cat: Catalog, tail: list[str]) -> str:
+    """A code or profile id for one requested line: common tests by rank, else the tail."""
+    if rng.random() < COMMON_SHARE:
+        weights = [1 / (rank + 6) for rank in range(len(cat.common))]
+        return rng.choices(cat.common, weights=weights, k=1)[0]
+    return rng.choice(tail)
+
+
+def sample_items(rng: random.Random, dialect: Dialect, cat: Catalog) -> list[RequestedItem]:
     items: list[RequestedItem] = []
-    seen: set[str] = set()
+    names: set[str] = set()
+    codes: set[str] = set()
 
-    def add(name: str, profile: str | None = None) -> None:
-        if name not in seen:
-            seen.add(name)
-            items.append(RequestedItem(name, profile))
+    def add(name: str, line_codes: tuple[str, ...], profile: str | None = None) -> bool:
+        if name in names or codes.issuperset(line_codes):
+            return False
+        names.add(name)
+        codes.update(line_codes)
+        items.append(RequestedItem(name, line_codes, profile))
+        return True
 
+    def add_line(ref: str) -> bool:
+        if ref in dialect.profiles:
+            p = dialect.profiles[ref]
+            return add(p.name, p.codes)
+        return add(dialect.name(ref), (ref,))
+
+    def expand(pid: str) -> None:
+        p = dialect.profiles[pid]
+        for code in p.codes:
+            add(dialect.name(code), (code,), p.name)
+
+    expandable = [p.id for p in cat.profiles if p.expandable]
     roll = rng.random()
     if roll < 0.45:
         # One profile expanded: heading + components (adversarial for grouping).
-        profile = rng.choice(list(catalog.PROFILES))
-        for comp in catalog.PROFILES[profile]:
-            add(comp, profile)
+        expand(rng.choice(expandable))
     elif roll < 0.60:
         # Profile requested as a single line item.
-        add(rng.choice(list(catalog.PROFILES)))
+        add_line(rng.choice(expandable))
 
     long_list = rng.random() < 0.20
     if long_list:
         # Extensive request: a second expanded profile plus many single tests. Templates
         # continue such lists on a further page.
-        profile = rng.choice(list(catalog.PROFILES))
-        for comp in catalog.PROFILES[profile]:
-            add(comp, profile)
+        expand(rng.choice(expandable))
         n_single = rng.randint(10, 16)
     else:
         n_single = rng.choices([1, 2, 3, 4, 5, 6, 8], weights=[2, 4, 5, 4, 3, 2, 1], k=1)[0]
-    pool = list(catalog.TESTS)
-    rng.shuffle(pool)
-    for name in pool[:n_single]:
-        add(name)
+    common = set(cat.common)
+    tail = [t.code for t in cat.tests if t.code not in common]
+    added = attempts = 0
+    while added < n_single and attempts < 10 * n_single:
+        attempts += 1
+        added += add_line(_draw_line(rng, cat, tail))
 
     return items[:28]
 
@@ -176,6 +205,7 @@ def make_doc_data(
     index: int,
     *,
     template: str,
+    dialects: Mapping[str, Dialect],
 ) -> DocData:
     issue = date(2026, 1, 1) + timedelta(days=rng.randint(0, 240))
 
@@ -233,6 +263,10 @@ def make_doc_data(
     else:
         insurance = None
 
+    cat = build_catalog()
+    dialect = dialects[insurance.name if insurance else GENERIC]
+    preprinted = tuple(dialect.name(c) for c in cat.common if c not in dialect.profiles)
+
     return DocData(
         index=index,
         center=center,
@@ -248,7 +282,8 @@ def make_doc_data(
         sex_printed=sex_printed,
         physician=physician,
         insurance=insurance,
-        items=sample_items(rng),
+        items=sample_items(rng, dialect, cat),
+        preprinted=preprinted,
         nhc=f"{rng.randint(1, 9_999_999):07d}",
         observations=rng.choice(catalog.OBSERVATIONS) if rng.random() < 0.30 else None,
         diagnosis=rng.choice(catalog.DIAGNOSES) if rng.random() < 0.70 else None,

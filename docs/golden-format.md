@@ -30,14 +30,15 @@ introduces a conflicting value, so the golden stays unambiguous.
 
 ```json
 {
-  "golden_version": 1,
+  "golden_version": 2,
   "id": "synth-000042",
   "file": "synth-000042.pdf",
   "sha256": "…",
   "generator": {
-    "version": "0.1.0",
+    "version": "0.3.0",
     "seed": 42,
     "index": 42,
+    "catalog_version": 1,
     "template": "lab-classic",
     "scan": {
       "dpi": 200, "blur": 0.6, "noise": 0.02, "jpeg_quality": 62, "grayscale": true,
@@ -70,7 +71,8 @@ introduces a conflicting value, so the golden stays unambiguous.
     "Telefono": null
   },
   "tests": [
-    { "value": "Hemograma completo", "printed": "Hemograma completo", "page": 2, "bbox": { "…": "…" }, "style": "printed", "also_at": [] }
+    { "value": "Hemograma completo", "printed": "Hemograma completo", "page": 2, "bbox": { "…": "…" }, "style": "printed", "also_at": [], "codes": ["HE9359"] },
+    { "value": "Iones Na, K, Cl", "printed": "Iones Na, K, Cl", "page": 2, "bbox": { "…": "…" }, "style": "printed", "also_at": [], "codes": ["BQ5212", "BQ1837", "BQ6057"] }
   ],
   "context": { "issue_date": "2026-03-14", "center": "Centro Diagnóstico Alborada", "sheets": ["fax-cover", "request"] }
 }
@@ -114,6 +116,11 @@ first appearance, with `also_at` for repeats on authorisation letters or duplica
 Profile headings that visually group tests are never entries. Pre-printed tests whose box is
 not ticked are not entries. Test matching is set-based.
 
+**`codes`** are the lab catalog codes the line means: one for a single test, several for a
+profile requested as one line ("Iones Na, K, Cl"). They are the ground truth for test mapping
+(F4); the extractor does not return them, and evaluating the extractor ignores them. A
+component printed under an expanded profile heading has its own single code.
+
 **Scanned documents.** When `generator.scan` is not `null` the PDF is image-only. Optics
 (blur, grain, JPEG, colour) are shared by the whole document; skew and shift are per page,
 listed in `scan.pages`. Boxes were transformed through their page's geometry, so they describe
@@ -133,6 +140,26 @@ diagnosis, record number, observations, the sheet sequence). Informational; neve
 
 The extractor is told to return text exactly as printed; comparison modes keep a difference
 in casing or separators from counting as an extraction error.
+
+## Lab catalog and insurer wording
+
+`catalog.json`, written next to `manifest.json`, is the lab's test catalog the codes refer
+to: about 730 tests in 13 sections, each with an invented code (section prefix and four
+digits), a canonical name, its analyte, synonyms, specimen and variant, plus the lab's
+profiles as named lists of codes. It is built by combination (an analyte in several
+specimens, an organism with several antibody classes, a culture per sample site), which
+produces the near-duplicates that make mapping hard. It is fixed for a catalog version and
+does not depend on the seed. Names are generic medical terminology; codes resemble no real
+system.
+
+Forms do not print the lab's names. Each insurer has its own **dialect**, derived from the
+seed: a style (abbreviations or full names, how the specimen is written or left out,
+capitals, truncated words such as "Colest.") and, within it, its own choice of name per
+test. Each insurer also names its profiles in its own way and may compose them differently
+from the lab, so the same profile name can mean different codes for two insurers.
+Documents without an insurer use a generic dialect close to the lab's names. Within one
+dialect every printed name is unique, so a line's codes are never ambiguous. Most lines
+come from about 80 common tests; 15% come from the rest of the catalog.
 
 ## Reproducibility
 

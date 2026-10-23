@@ -45,7 +45,7 @@ def test_field_names_are_unique_and_compare_modes_known():
 
 
 def test_validate_golden_reports_errors_for_garbage():
-    errors = validate_golden({"golden_version": 2})
+    errors = validate_golden({"golden_version": 3})
     assert errors
     assert any("golden_version" in e for e in errors)
 

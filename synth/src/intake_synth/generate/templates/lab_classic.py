@@ -13,7 +13,6 @@ import random
 
 from reportlab.lib import colors
 
-from .. import catalog
 from ..model import DocData
 from ..recorder import GREY, WHITE, Recorder
 from .common import disclaimer, kv, section
@@ -147,7 +146,7 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
     requested = list(d.tests)
     preprinted = rng.random() < 0.35
     if preprinted:
-        pool = [t for t in catalog.TESTS if t not in requested]
+        pool = [t for t in d.preprinted if t not in requested]
         rng.shuffle(pool)
         # Pre-printed catalogues come in several lengths; the long ones span two pages.
         target = max(rng.choice([26, 26, 44, 60]), len(requested) + 6)

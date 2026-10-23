@@ -10,6 +10,7 @@ import math
 import random
 
 from reportlab.lib import colors
+from reportlab.pdfbase.pdfmetrics import stringWidth
 
 from ..model import DocData
 from ..recorder import BLACK, GREY, Recorder
@@ -172,6 +173,10 @@ def render(rec: Recorder, d: DocData, rng: random.Random) -> None:
     # column, never part of the test text); they usually continue on a second page.
     long_list = len(names) > 12
     ncols = 1 if long_list else (3 if len(names) > 6 else 2)
+    # Fewer columns when the longest name would not fit in one.
+    widest = max(stringWidth(n, body_font, 8.5) for n in names)
+    while ncols > 1 and widest > (W - 2 * m) / ncols - 16:
+        ncols -= 1
     row_h = 21 if long_list else ROW_H
     col_w = (W - 2 * m) / ncols
     limit = H - NOTES_TOP - 40

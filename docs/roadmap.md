@@ -13,7 +13,7 @@ Last updated: 2026-10-23.
 | F1 | Synthetic request generator with golden ground truth | done |
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
-| F4 | Mock LIS, fusion engine and test mapping | design approved, not started (below) |
+| F4 | Mock LIS, fusion engine and test mapping | design approved; block 1 of 6 done (below) |
 | F5 | Verification UI | not started |
 | F6 | Public demo on Vercel | not started |
 
@@ -273,6 +273,10 @@ Results with `generate --n 200 --seed 42`:
 | clean | 96 | `13cf85c55b90bede` | `f815510e11df692d` |
 | scanned | 104 | `9c645b902cebb1fc` | `2488db358c89e71a` |
 
+These are the generator 0.2.0 dataset. F4 block 1 (generator 0.3.0, 2026-10-23) replaced it;
+on Ubuntu the new one fingerprints as all `36dba33a48840702`, clean `4103554aad5cb779`,
+scanned `691b90faaa2f5ca4`.
+
 All three subsets differ. Document counts, page counts and absent fields match, so the generated
 content is the same; only the bytes differ. Because clean documents differ too, the cause is not
 only the scanner simulation (blur, grain, JPEG encoding) but something in PDF output.
@@ -441,8 +445,8 @@ assumed above (Ollama on ROCm) and should be settled when the track is approved.
 
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
-**Status: proposed and approved on 2026-10-23, with every decision settled (at the end); not
-implemented. Next: block 1.**
+**Status: proposed and approved on 2026-10-23, with every decision settled (at the end).
+Block 1 is done (below); next: block 2.**
 
 F4 as described in `CLAUDE.md` covers the demographic fields: a synthetic LIS and the traffic
 light. This proposal adds a third part, at the product owner's request on 2026-10-23, and it
@@ -594,7 +598,18 @@ per document by a TypeScript batch script, like `extract-batch.ts`, and scored i
 
 #### Blocks
 
-1. Generator v2: catalog, dialects and `codes` in the golden.
+1. Generator v2: catalog, dialects and `codes` in the golden. **Done on 2026-10-23**
+   (generator 0.3.0, golden version 2, `catalog.json`; described in `docs/golden-format.md`).
+   One departure from A: the catalog has **726 tests**, not about 2,000. Built only from real
+   generic terminology (analytes by specimen, serology, autoimmunity, about 150 allergens,
+   cultures by site, drug levels, genetics), that is where it ends; reaching 2,000 would take
+   invented names, which would make the long tail unrealistic. 726 is still large enough that
+   sending the whole catalog with every document costs about 10k input tokens, so the
+   candidate search stays. The seed-42 dataset was regenerated: 1,577 test lines, 33 of them
+   profiles requested as one line (several codes) and 196 from the long tail. Every dialect
+   name of three seeds (7,406) passes the extractor's garbled-text check unflagged. With
+   about 20 documents per insurer, the learning curve of block 4 will need a larger dataset;
+   generating one costs no API call.
 2. Generator v2: LIS population and scenarios; Drizzle schema and seed script.
 3. Fusion engine with provenance, and its scoring.
 4. Mapping layers 1, 2 and 4, recall@k, and the learning-curve simulation without the model.

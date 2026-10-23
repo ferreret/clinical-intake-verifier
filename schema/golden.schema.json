@@ -7,18 +7,19 @@
   "additionalProperties": false,
   "required": ["golden_version", "id", "file", "sha256", "generator", "pages", "fields", "tests", "context"],
   "properties": {
-    "golden_version": { "const": 1 },
+    "golden_version": { "const": 2 },
     "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
     "file": { "type": "string", "pattern": "\\.pdf$" },
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "generator": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "seed", "index", "template", "scan", "handwritten_fields"],
+      "required": ["version", "seed", "index", "catalog_version", "template", "scan", "handwritten_fields"],
       "properties": {
         "version": { "type": "string" },
         "seed": { "type": "integer", "minimum": 0 },
         "index": { "type": "integer", "minimum": 0 },
+        "catalog_version": { "type": "integer", "minimum": 1, "description": "Version of the lab catalog the codes refer to (catalog.json next to the manifest)." },
         "template": { "type": "string", "description": "Template of the main request sheet." },
         "scan": {
           "oneOf": [
@@ -156,9 +157,16 @@
     "testItem": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["value", "printed", "page", "bbox", "style", "also_at"],
+      "required": ["value", "printed", "page", "bbox", "style", "also_at", "codes"],
       "properties": {
         "value": { "type": "string", "minLength": 1 },
+        "codes": {
+          "type": "array",
+          "description": "Lab catalog codes this line means: one for a single test, several for a profile requested as one line. Ground truth for test mapping; the extractor does not return it.",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z]{2}[0-9]{4}$" }
+        },
         "printed": { "type": "string", "minLength": 1 },
         "page": { "type": "integer", "minimum": 1 },
         "bbox": { "$ref": "#/$defs/bbox" },

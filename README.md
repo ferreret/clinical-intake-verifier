@@ -57,7 +57,8 @@ uv sync
 uv run intake-synth generate --n 50 --seed 42
 ```
 
-This writes 50 PDFs, 50 golden JSON files and a `manifest.json` into `data/synth/seed-42/`.
+This writes 50 PDFs, 50 golden JSON files, a `manifest.json` and the lab's test catalog
+(`catalog.json`) into `data/synth/seed-42/`.
 Same seed, same bytes on the same platform; on another operating system the content is the
 same but the PDF bytes may differ (see [docs/golden-format.md](docs/golden-format.md#reproducibility)).
 Useful options:

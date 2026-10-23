@@ -43,9 +43,12 @@ class Insurance:
 
 @dataclass(frozen=True)
 class RequestedItem:
-    """One requested test. ``profile`` is the group heading it is printed under, if any."""
+    """One requested line, as printed. ``profile`` is the group heading it is printed under,
+    if any; ``codes`` are the lab codes it means (several for a profile requested as one line).
+    """
 
     name: str
+    codes: tuple[str, ...]
     profile: str | None = None
 
 
@@ -66,6 +69,7 @@ class DocData:
     physician: Physician
     insurance: Insurance | None
     items: list[RequestedItem]
+    preprinted: tuple[str, ...]  # tests a pre-printed form may list, in this form's wording
     nhc: str  # hospital record number, a distractor
     observations: str | None
     diagnosis: str | None  # free-text reason, a distractor
@@ -75,3 +79,7 @@ class DocData:
     @property
     def tests(self) -> list[str]:
         return [i.name for i in self.items]
+
+    @property
+    def test_codes(self) -> dict[str, tuple[str, ...]]:
+        return {i.name: i.codes for i in self.items}
