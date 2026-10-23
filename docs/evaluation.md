@@ -303,7 +303,9 @@ line red under `all`). Replies are cached in `data/model-cache`, keyed by provid
 prompt version and request, so a rerun costs nothing. `evaluate-mapping` adds the model's
 calls (per 100 documents), lines sent, answered and right, tokens and latency per uncached
 call, and `precision_by_source` gains `model`. `local` needs LM Studio's server with the
-model loaded (`lms server start`; `lms load qwen/qwen3.6-35b-a3b`).
+model loaded (`lms server start`; `lms load qwen/qwen3.6-35b-a3b`). Outside the simulation
+the provider is `MAPPING_MODEL_PROVIDER`, local by default; the public demo sets it to
+`gemini`.
 
 ### Comparing searches
 

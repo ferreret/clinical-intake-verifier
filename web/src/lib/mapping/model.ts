@@ -191,9 +191,14 @@ export class LocalProvider implements Provider {
   }
 }
 
-/** The provider named by `name`, or by MAPPING_MODEL_PROVIDER. */
+/**
+ * The provider named by `name`, or by MAPPING_MODEL_PROVIDER. Local by default (decided on
+ * 2026-10-23): free, nothing leaves the machine, nearly as good as Gemini on the measured
+ * data. Gemini is the alternative, and the only option where no local model runs, such as
+ * the public demo.
+ */
 export function resolveProvider(name?: string): Provider {
-  const which = (name ?? process.env.MAPPING_MODEL_PROVIDER ?? "gemini").trim();
+  const which = (name ?? process.env.MAPPING_MODEL_PROVIDER ?? "local").trim();
   if (which === "local") return new LocalProvider();
   if (which === "gemini") {
     const key = process.env.GEMINI_API_KEY;

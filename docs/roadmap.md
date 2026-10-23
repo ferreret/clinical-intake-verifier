@@ -803,8 +803,9 @@ per document by a TypeScript batch script, like `extract-batch.ts`, and scored i
    lines only with local Qwen (Qwen chooses less precisely than the search where the search
    is confident). Gemini is slightly better than local Qwen (0.8% against 0.9%); local Qwen
    costs nothing, sends nothing out of the machine and is as fast on this APU. Both stay
-   selectable (`MAPPING_MODEL_PROVIDER`); which one is the default is the product owner's
-   call. The caveat of block 4 holds: synthetic dialects flatter the search, so on real
+   selectable (`MAPPING_MODEL_PROVIDER`). **Default, decided by the product owner on
+   2026-10-23: local Qwen**, with Gemini as the alternative and for the public demo on
+   Vercel, where no local model runs. The caveat of block 4 holds: synthetic dialects flatter the search, so on real
    wording the model may have more to do.
 
 6. Full run with Gemini on the new dataset.
