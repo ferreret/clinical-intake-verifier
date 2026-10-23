@@ -25,8 +25,9 @@ import { parseArgs } from "node:util";
 import { catalogFromFile, type CatalogFile } from "@/lib/mapping/catalog";
 import { Embedder, EmbeddingSearch, HybridSearch } from "@/lib/mapping/embeddings";
 import { InMemoryMemory, type ApprovalKind } from "@/lib/mapping/memory";
-import { consult, MAPPING_PROMPT_VERSION, resolveProvider, type ModelLine, type Provider } from "@/lib/mapping/model";
-import { CANDIDATES, GREEN_APPROVALS, LEXICAL_SETTINGS, propose, textKey } from "@/lib/mapping/propose";
+import { proposeDocument, type ModelPolicy } from "@/lib/mapping/document";
+import { MAPPING_PROMPT_VERSION, resolveProvider, type Provider } from "@/lib/mapping/model";
+import { CANDIDATES, GREEN_APPROVALS, LEXICAL_SETTINGS, textKey } from "@/lib/mapping/propose";
 import { CatalogIndex, type Searcher } from "@/lib/mapping/search";
 import { compareKey } from "@/lib/schema/compare";
 
@@ -85,7 +86,7 @@ async function main(): Promise<number> {
   const random = rng(seed);
   await loadDotEnv(path.resolve(process.cwd(), ".env.local"));
   const method = values.search ?? "lexical";
-  const policy = values.policy ?? "red";
+  const policy = (values.policy ?? "red") as ModelPolicy;
   if (policy !== "red" && policy !== "all") throw new Error(`unknown --policy ${policy}: use red or all`);
   const provider: Provider | null = values.model ? resolveProvider(values.model) : null;
   const cacheDir = path.resolve("..", "data", "model-cache");
@@ -128,39 +129,21 @@ async function main(): Promise<number> {
     seen.set(scope, k);
 
     const approvals: { text: string; codes: string[]; kind: ApprovalKind; corrected: string[] | null }[] = [];
-    const proposals = [];
-    for (const t of g.tests) proposals.push(await propose(t.value, scope, memory, index, settings));
-
-    // The model, once per document, for the lines the policy hands it.
-    const sent = new Map<number, string[] | null>();
-    if (provider) {
-      const needs = proposals
-        .map((p, i) => ({ p, i }))
-        .filter(({ p }) => (policy === "all" ? p.source === "search" || p.source === null : p.state === "red"));
-      if (needs.length > 0) {
-        const lines: ModelLine[] = needs.map(({ p, i }) => ({ id: `L${i + 1}`, text: g.tests[i].value, candidates: p.candidates }));
-        const answer = await consult(
-          { insurer, language: g.context.language ?? "es", formLines: g.tests.map((t) => t.value), lines },
-          catalog,
-          provider,
-          cacheDir,
-        );
-        modelStats.calls += 1;
-        modelStats.cached += answer.cached ? 1 : 0;
-        modelStats.linesSent += lines.length;
-        modelStats.inputTokens += answer.usage.inputTokens ?? 0;
-        modelStats.outputTokens += answer.usage.outputTokens ?? 0;
-        modelStats.latencyMs += answer.latencyMs;
-        for (const { p, i } of needs) {
-          const codes = answer.choices.get(`L${i + 1}`) ?? null;
-          sent.set(i, codes);
-          if (codes) {
-            proposals[i] = { ...p, state: "orange", codes, source: "model", reason: "chosen by the model among the candidates" };
-          } else if (policy === "all") {
-            proposals[i] = { ...p, state: "red", codes: null, source: null, reason: "the model found no candidate that fits" };
-          }
-        }
-      }
+    const { proposals, model: sent, consultation } = await proposeDocument(
+      g.tests.map((t) => t.value),
+      { scope, insurer, language: g.context.language ?? "es" },
+      memory,
+      index,
+      settings,
+      provider ? { provider, policy, catalog, cacheDir } : undefined,
+    );
+    if (consultation) {
+      modelStats.calls += 1;
+      modelStats.cached += consultation.cached ? 1 : 0;
+      modelStats.linesSent += sent.size;
+      modelStats.inputTokens += consultation.usage.inputTokens ?? 0;
+      modelStats.outputTokens += consultation.usage.outputTokens ?? 0;
+      modelStats.latencyMs += consultation.latencyMs;
     }
 
     for (const [i, t] of g.tests.entries()) {

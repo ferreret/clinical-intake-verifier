@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 
 import { openLis } from "@/lib/lis/db";
 import { loadCatalog, readCatalog, type Catalog, type CatalogFile } from "@/lib/mapping/catalog";
+import { proposeDocument } from "@/lib/mapping/document";
 import { DbMemory, InMemoryMemory, type MappingMemory } from "@/lib/mapping/memory";
+import { buildPrompt, type Provider } from "@/lib/mapping/model";
 import { GREEN_APPROVALS, propose, textKey } from "@/lib/mapping/propose";
 import { CatalogIndex } from "@/lib/mapping/search";
 
@@ -37,6 +39,10 @@ const CATALOG: Catalog = {
   profiles: FILE.profiles,
 };
 const INDEX = new CatalogIndex(CATALOG);
+const INDEX_SYNC_IONES = [
+  { kind: "profile" as const, ref: "PF07", codes: ["BQ0004", "BQ0005"], label: "Iones", score: 1 },
+  { kind: "test" as const, ref: "BQ0004", codes: ["BQ0004"], label: "Sodio, suero", score: 0.3 },
+];
 
 describe("catalog search", () => {
   it("reads a bare analyte as its usual specimen", async () => {
@@ -119,5 +125,66 @@ describe("stored catalog and memory", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+/** A provider that answers from a table, and records what it was asked. */
+function fakeProvider(answers: Record<string, string[]>): Provider & { asked: string[][] } {
+  const asked: string[][] = [];
+  return {
+    name: "local",
+    model: "fake",
+    asked,
+    async complete(_system, user, schema) {
+      const ids = Object.keys((schema as { properties: Record<string, unknown> }).properties);
+      asked.push(ids);
+      const lines = Object.fromEntries(ids.map((id) => [id, answers[user.match(new RegExp(`${id}: "([^"]*)"`))![1]] ?? []]));
+      return { text: JSON.stringify(lines), usage: { inputTokens: 10, outputTokens: 2 } };
+    },
+  };
+}
+
+describe("model layer", () => {
+  const ctx = { scope: "A01", insurer: "Garbí Salut Mútua", language: "ca" };
+  const lines = ["Colesterol total", "Zzz qwerty", "Urinocultiu"];
+
+  it("asks only about red lines under the red policy, once per document", async () => {
+    const provider = fakeProvider({ "Zzz qwerty": [], Urinocultiu: ["MI0001"] });
+    const out = await proposeDocument(lines, ctx, new InMemoryMemory(), INDEX, undefined, {
+      provider,
+      policy: "red",
+      catalog: CATALOG,
+      cacheDir: null,
+    });
+    expect(provider.asked).toHaveLength(1);
+    expect(out.proposals.map((p) => `${p.state}:${p.source}`)).toEqual(["orange:search", "red:null", "orange:model"]);
+    expect(out.proposals[2].codes).toEqual(["MI0001"]);
+  });
+
+  it("lets the model overrule the search under the all policy, and none means red", async () => {
+    const provider = fakeProvider({ "Colesterol total": [], Urinocultiu: ["MI0001"] });
+    const out = await proposeDocument(lines, ctx, new InMemoryMemory(), INDEX, undefined, {
+      provider,
+      policy: "all",
+      catalog: CATALOG,
+      cacheDir: null,
+    });
+    expect(out.proposals[0]).toMatchObject({ state: "red", codes: null });
+  });
+
+  it("offers a profile's components and lists only candidate codes in the schema", () => {
+    const prompt = buildPrompt(
+      {
+        insurer: null,
+        language: "es",
+        formLines: ["IONES"],
+        lines: [{ id: "L1", text: "IONES", candidates: INDEX_SYNC_IONES }],
+      },
+      CATALOG,
+    );
+    const enumOf = (prompt.schema.properties as Record<string, { items: { enum: string[] } }>).L1.items.enum;
+    expect(enumOf).toEqual(expect.arrayContaining(["BQ0004", "BQ0005"]));
+    expect(enumOf).not.toContain("PF07");
+    expect(prompt.user).toContain('lab profile "Iones" = BQ0004, BQ0005');
   });
 });
