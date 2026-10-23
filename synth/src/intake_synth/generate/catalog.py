@@ -15,11 +15,20 @@ INSURERS: tuple[str, ...] = (
     "Meridional Salud",
     "Ibérica Asistencial",
     "Cantábrica Seguros Médicos",
-    "Balear Salud Mutua",
+    "Garbí Salut Mútua",
     "Atlántida Seguros de Salud",
-    "Nova Salud Aseguradora",
-    "Unión Médica del Sur",
+    "Serralada Assegurances Mèdiques",
+    "Rosada Salut Assegurances",
 )
+
+# Language of each insurer's documents: "es" or "ca". Catalan insurers print everything in
+# Catalan, tests included; the lab's catalog stays in Spanish.
+CATALAN_INSURERS = frozenset(
+    {"Garbí Salut Mútua", "Serralada Assegurances Mèdiques", "Rosada Salut Assegurances"}
+)
+INSURER_LANGUAGE: dict[str, str] = {
+    name: "ca" if name in CATALAN_INSURERS else "es" for name in INSURERS
+}
 
 # Fictional centres.
 CENTERS: tuple[Center, ...] = (

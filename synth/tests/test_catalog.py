@@ -16,8 +16,10 @@ from intake_synth.generate.labcatalog import SECTIONS, build_catalog
 SEEDS = (0, 7, 42)
 
 # What a printed test name may contain: the extractor's garbled-text check flags any other
-# symbol next to a letter, and Cyrillic anywhere (docs/extractor-contract.md).
+# symbol next to a letter, and Cyrillic anywhere (docs/extractor-contract.md). The Catalan
+# middle dot is allowed between two l's only.
 ORDINARY = set(" .,'-/()+&")
+MIDDLE_DOT = re.compile(r"(?<=l)·(?=l)", re.IGNORECASE)
 
 
 def test_codes_and_names_are_unique():
@@ -73,7 +75,7 @@ def test_printed_names_fit_and_look_clean(seed):
     for issuer, d in dialects(seed).items():
         for name in [*d.names.values(), *(p.name for p in d.profiles.values())]:
             assert stringWidth(name, "Helvetica", 9) <= MAX_WIDTH_PT, (issuer, name)
-            for ch in name:
+            for ch in MIDDLE_DOT.sub("", name):
                 assert ch.isalnum() or ch in ORDINARY, (issuer, name, ch)
                 assert "CYRILLIC" not in unicodedata.name(ch, ""), (issuer, name)
 
@@ -104,3 +106,16 @@ def test_some_insurer_profiles_differ_from_the_lab():
         if set(ds[i].profiles[p.id].codes) != set(p.components)
     ]
     assert len(differing) >= 5
+
+
+def test_catalan_insurers_print_in_catalan():
+    cat = build_catalog()
+    ds = dialects(42)
+    catalan = [i for i in catalog.INSURERS if catalog.INSURER_LANGUAGE[i] == "ca"]
+    assert len(catalan) == 3
+    urocultivo = cat.find("Urocultivo").code
+    for issuer, d in ds.items():
+        assert d.language == ("ca" if issuer in catalan else "es")
+        uro = d.name(urocultivo).casefold()
+        assert ("cultiu" if issuer in catalan else "cultivo") in uro, (issuer, uro)
+    assert any("·" in n for i in catalan for n in ds[i].names.values())

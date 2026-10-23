@@ -20,8 +20,8 @@ from functools import cache
 from reportlab.pdfbase.pdfmetrics import stringWidth
 
 from ..evaluate.compare import compare_key
-from . import catalog
-from .labcatalog import SPECIMENS, Catalog, LabTest, build_catalog
+from . import catalan, catalog
+from .labcatalog import SPECIMENS, Catalog, LabTest, Specimen, build_catalog
 
 GENERIC = ""  # dialect key for documents without an insurer
 
@@ -83,6 +83,7 @@ class IssuerProfile:
 @dataclass(frozen=True)
 class Dialect:
     issuer: str
+    language: str  # "es" | "ca"
     style: Style
     names: dict[str, str]  # code -> printed name
     profiles: dict[str, IssuerProfile]  # lab profile id -> this issuer's version
@@ -96,6 +97,10 @@ def _fits(name: str) -> bool:
 
 
 def _truncate(name: str, rng: random.Random, p: float) -> str:
+    """Cut long words short ("Colest. total"). A one-word name keeps its word whole."""
+    if len(name.split()) < 2:
+        return name
+
     def cut(m: re.Match[str]) -> str:
         word = m.group(0)
         if len(word) < 9 or rng.random() >= p:
@@ -105,8 +110,37 @@ def _truncate(name: str, rng: random.Random, p: float) -> str:
     return re.sub(r"[^\W\d_]+", cut, name)
 
 
-def _with_specimen(name: str, t: LabTest, style: Style, rng: random.Random, force: bool) -> str:
-    spec = SPECIMENS[t.specimen]
+@dataclass(frozen=True)
+class _Words:
+    """A catalog test in the issuer's language."""
+
+    names: tuple[str, ...]  # canonical first
+    analyte: str
+    lab_name: str  # unique in the catalog, so a last resort for a free name
+    variants: tuple[str, ...]
+    specimen: Specimen
+
+
+def _words(t: LabTest, language: str) -> _Words:
+    if language == "es":
+        return _Words(t.names, t.analyte, t.name, t.variant, SPECIMENS[t.specimen])
+    tr = catalan.test_name
+    spec = catalan.SPECIMENS_CA[t.specimen]
+    analyte = tr(t.analyte)
+    name = f"{tr(f'{t.analyte} {t.variant[0]}')}" if t.variant else analyte
+    return _Words(
+        names=tuple(dict.fromkeys(tr(n) for n in t.names)),
+        analyte=analyte,
+        lab_name=f"{name}, {spec.label}" if spec.label else name,
+        variants=tuple(dict.fromkeys(tr(v) for v in t.variant)),
+        specimen=spec,
+    )
+
+
+def _with_specimen(
+    name: str, t: LabTest, w: _Words, style: Style, rng: random.Random, force: bool
+) -> str:
+    spec = w.specimen
     if not spec.label:
         return name
     if not force and t.default_specimen and rng.random() < style.omit_default_specimen:
@@ -123,28 +157,27 @@ def _with_specimen(name: str, t: LabTest, style: Style, rng: random.Random, forc
     return f"{name} en {spec.label}"
 
 
-def _candidates(t: LabTest, style: Style, rng: random.Random, base: str):
+def _candidates(t: LabTest, w: _Words, style: Style, rng: random.Random, base: str):
     """Printed names for ``t`` in this style, the preferred one first."""
-    variant = t.variant[rng.randrange(len(t.variant))] if t.variant else ""
+    variant = w.variants[rng.randrange(len(w.variants))] if w.variants else ""
 
     def compose(name: str, force_specimen: bool, truncate: bool) -> str:
         text = f"{name} {variant}" if variant else name
-        text = _with_specimen(text, t, style, rng, force_specimen)
+        text = _with_specimen(text, t, w, style, rng, force_specimen)
         if truncate:
             text = _truncate(text, rng, style.truncate)
         return text.upper() if style.upper else text
 
     yield compose(base, False, True)
-    for name in sorted(t.names, key=len):
+    for name in sorted(w.names, key=len):
         yield compose(name, False, False)
         yield compose(name, True, False)
-    yield compose(t.analyte, True, False)
-    # Last resort, unique by construction: the lab's own name.
-    yield t.name.upper() if style.upper else t.name
-    spec = SPECIMENS[t.specimen].short
-    text = f"{t.analyte} {t.variant[0]}" if t.variant else t.analyte
-    for name in sorted(t.names, key=len)[:2]:
-        text = f"{name} {t.variant[0]}" if t.variant else name
+    yield compose(w.analyte, True, False)
+    # Last resort, unique by construction: the lab's own name, then shortened forms of it.
+    yield w.lab_name.upper() if style.upper else w.lab_name
+    spec = w.specimen.short
+    for name in sorted(w.names, key=len)[:2]:
+        text = f"{name} {w.variants[0]}" if w.variants else name
         text = _truncate(f"{text} ({spec})" if spec else text, rng, 1.0)
         yield text.upper() if style.upper else text
 
@@ -164,17 +197,20 @@ def _make_style(rng: random.Random, generic: bool) -> Style:
 def _build(issuer: str, seed: int, cat: Catalog) -> Dialect:
     rng = random.Random(f"dialect:{seed}:{issuer}")
     style = _make_style(rng, issuer == GENERIC)
+    language = catalog.INSURER_LANGUAGE.get(issuer, "es")
+    words = {t.code: _words(t, language) for t in cat.tests}
 
     # One name per analyte, shared by its specimens and variants: a form is consistent.
     analyte_name: dict[str, str] = {}
     for t in cat.tests:
         if t.analyte not in analyte_name:
+            names_ = words[t.code].names
             if rng.random() < style.short_names:
-                analyte_name[t.analyte] = rng.choice(sorted(t.names, key=len)[:2])
+                analyte_name[t.analyte] = rng.choice(sorted(names_, key=len)[:2])
             elif rng.random() < 0.7:
-                analyte_name[t.analyte] = t.names[0]
+                analyte_name[t.analyte] = names_[0]
             else:
-                analyte_name[t.analyte] = rng.choice(t.names)
+                analyte_name[t.analyte] = rng.choice(names_)
 
     taken: set[str] = set()
     names: dict[str, str] = {}
@@ -194,14 +230,19 @@ def _build(issuer: str, seed: int, cat: Catalog) -> Dialect:
     order = common_codes + [t.code for t in cat.tests if t.code not in set(common_codes)]
     for code in order:
         t = cat.by_code(code)
-        names[code] = claim(_candidates(t, style, rng, analyte_name[t.analyte]), t.name)
+        w = words[code]
+        names[code] = claim(_candidates(t, w, style, rng, analyte_name[t.analyte]), t.name)
 
     profiles: dict[str, IssuerProfile] = {}
     for p in cat.profiles:
         if issuer == GENERIC:
             pname, codes = p.names[0], p.components
         else:
-            options = (p.names[0], *PROFILE_NAMES[p.id])
+            options = (
+                catalan.PROFILE_NAMES_CA[p.id]
+                if language == "ca"
+                else (p.names[0], *PROFILE_NAMES[p.id])
+            )
             pname = rng.choice(options)
             codes = list(p.components)
             if len(codes) > 3 and rng.random() < 0.35:
@@ -212,10 +253,11 @@ def _build(issuer: str, seed: int, cat: Catalog) -> Dialect:
                     codes.append(extra)
             codes = tuple(codes)
         pname = pname.upper() if style.upper else pname
-        canonical = p.names[0].upper() if style.upper else p.names[0]
+        canonical = catalan.PROFILE_NAMES_CA[p.id][0] if language == "ca" else p.names[0]
+        canonical = canonical.upper() if style.upper else canonical
         pname = claim([pname, canonical, f"{canonical} (perfil)"], p.id)
         profiles[p.id] = IssuerProfile(p.id, pname, tuple(codes))
-    return Dialect(issuer, style, names, profiles)
+    return Dialect(issuer, language, style, names, profiles)
 
 
 @cache
