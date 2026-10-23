@@ -29,7 +29,7 @@ export interface SearchSettings {
 /** The lexical search's, first choices of block 4. */
 export const LEXICAL_SETTINGS: SearchSettings = { minScore: 0.55, minLead: 0.05 };
 
-export type MappingSource = "memory" | "memory_elsewhere" | "search" | null;
+export type MappingSource = "memory" | "memory_elsewhere" | "model" | "search" | null;
 
 export interface Proposal {
   state: "green" | "orange" | "red";

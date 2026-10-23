@@ -105,3 +105,36 @@ def test_profile_lines_and_recall_by_language(tmp_path):
 def test_unknown_version_is_rejected(tmp_path):
     with pytest.raises(LoadError, match="mapping_version"):
         evaluate_mapping(write(tmp_path, [line(1, "red", None, "choose")], version=9))
+
+
+def test_model_section(tmp_path):
+    called = {
+        **line(1, "orange", True, "confirm", source="model"),
+        "model_called": True,
+        "model_codes": ["BQ0001"],
+    }
+    wrong = {
+        **line(2, "orange", False, "correct", source="model"),
+        "model_called": True,
+        "model_codes": ["BQ9999"],
+    }
+    silent = {**line(3, "red", None, "choose"), "model_called": True, "model_codes": None}
+    d = write(tmp_path, [called, wrong, silent])
+    manifest = json.loads((d / "mapping.json").read_text())
+    manifest["model"] = {
+        "provider": "local",
+        "name": "qwen",
+        "policy": "red",
+        "prompt_version": "1",
+        "calls": 3,
+        "cached_calls": 1,
+        "lines_sent": 3,
+        "input_tokens": 300,
+        "output_tokens": 30,
+        "latency_ms": 6000,
+    }
+    (d / "mapping.json").write_text(json.dumps(manifest))
+    m = evaluate_mapping(d)["model"]
+    assert (m["lines_answered"], m["lines_right"], m["precision"]) == (2, 1, 50.0)
+    assert m["ms_per_uncached_call"] == 3000
+    assert m["calls_per_100_documents"] == 100.0

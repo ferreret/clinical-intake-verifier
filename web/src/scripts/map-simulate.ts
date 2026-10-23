@@ -5,6 +5,12 @@
  *   npm run map-simulate -- --dataset ../data/synth/seed-42-n1000 [--error-rate 0.02]
  *                           [--seed 1] [--out ../data/mapping/<mapping-id>]
  *                           [--search lexical|embedding|hybrid --min-score 0.55 --min-lead 0.05]
+ *                           [--model gemini|local --policy red|all]
+ *
+ * With --model, a language model chooses among the candidates of the lines the memory did
+ * not settle: under policy "all" every such line (its answer replaces the search's, and none
+ * means red), under "red" only the lines the search left red. Replies are cached in
+ * data/model-cache, so a rerun costs nothing.
  *
  * Lines are read from the goldens, as a perfect extractor would read them, so the run
  * measures mapping alone. The technician approves green lines without acting, confirms an
@@ -19,9 +25,12 @@ import { parseArgs } from "node:util";
 import { catalogFromFile, type CatalogFile } from "@/lib/mapping/catalog";
 import { Embedder, EmbeddingSearch, HybridSearch } from "@/lib/mapping/embeddings";
 import { InMemoryMemory, type ApprovalKind } from "@/lib/mapping/memory";
+import { consult, MAPPING_PROMPT_VERSION, resolveProvider, type ModelLine, type Provider } from "@/lib/mapping/model";
 import { CANDIDATES, GREEN_APPROVALS, LEXICAL_SETTINGS, propose, textKey } from "@/lib/mapping/propose";
 import { CatalogIndex, type Searcher } from "@/lib/mapping/search";
 import { compareKey } from "@/lib/schema/compare";
+
+import { loadDotEnv } from "./env";
 
 const NOT_GOLDEN = new Set(["manifest.json", "catalog.json", "lis.json"]);
 
@@ -60,6 +69,8 @@ async function main(): Promise<number> {
       seed: { type: "string", default: "1" },
       out: { type: "string" },
       search: { type: "string", default: "lexical" },
+      model: { type: "string" },
+      policy: { type: "string", default: "red" },
       "min-score": { type: "string" },
       "min-lead": { type: "string" },
     },
@@ -72,12 +83,19 @@ async function main(): Promise<number> {
   const errorRate = Number(values["error-rate"]);
   const seed = Number(values.seed);
   const random = rng(seed);
+  await loadDotEnv(path.resolve(process.cwd(), ".env.local"));
   const method = values.search ?? "lexical";
+  const policy = values.policy ?? "red";
+  if (policy !== "red" && policy !== "all") throw new Error(`unknown --policy ${policy}: use red or all`);
+  const provider: Provider | null = values.model ? resolveProvider(values.model) : null;
+  const cacheDir = path.resolve("..", "data", "model-cache");
+  const modelStats = { calls: 0, cached: 0, linesSent: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0 };
   const settings = {
     minScore: values["min-score"] ? Number(values["min-score"]) : LEXICAL_SETTINGS.minScore,
     minLead: values["min-lead"] ? Number(values["min-lead"]) : LEXICAL_SETTINGS.minLead,
   };
-  const mappingId = `${timestamp(new Date())}-${path.basename(dataset)}-${method}-e${errorRate}`;
+  const modelTag = provider ? `-${provider.name}-${policy}` : "";
+  const mappingId = `${timestamp(new Date())}-${path.basename(dataset)}-${method}${modelTag}-e${errorRate}`;
   const outDir = path.resolve(values.out ?? path.join("..", "data", "mapping", mappingId));
 
   const read = async <T>(file: string) => JSON.parse(await fs.readFile(path.join(dataset, file), "utf8")) as T;
@@ -110,9 +128,44 @@ async function main(): Promise<number> {
     seen.set(scope, k);
 
     const approvals: { text: string; codes: string[]; kind: ApprovalKind; corrected: string[] | null }[] = [];
-    for (const t of g.tests) {
+    const proposals = [];
+    for (const t of g.tests) proposals.push(await propose(t.value, scope, memory, index, settings));
+
+    // The model, once per document, for the lines the policy hands it.
+    const sent = new Map<number, string[] | null>();
+    if (provider) {
+      const needs = proposals
+        .map((p, i) => ({ p, i }))
+        .filter(({ p }) => (policy === "all" ? p.source === "search" || p.source === null : p.state === "red"));
+      if (needs.length > 0) {
+        const lines: ModelLine[] = needs.map(({ p, i }) => ({ id: `L${i + 1}`, text: g.tests[i].value, candidates: p.candidates }));
+        const answer = await consult(
+          { insurer, language: g.context.language ?? "es", formLines: g.tests.map((t) => t.value), lines },
+          catalog,
+          provider,
+          cacheDir,
+        );
+        modelStats.calls += 1;
+        modelStats.cached += answer.cached ? 1 : 0;
+        modelStats.linesSent += lines.length;
+        modelStats.inputTokens += answer.usage.inputTokens ?? 0;
+        modelStats.outputTokens += answer.usage.outputTokens ?? 0;
+        modelStats.latencyMs += answer.latencyMs;
+        for (const { p, i } of needs) {
+          const codes = answer.choices.get(`L${i + 1}`) ?? null;
+          sent.set(i, codes);
+          if (codes) {
+            proposals[i] = { ...p, state: "orange", codes, source: "model", reason: "chosen by the model among the candidates" };
+          } else if (policy === "all") {
+            proposals[i] = { ...p, state: "red", codes: null, source: null, reason: "the model found no candidate that fits" };
+          }
+        }
+      }
+    }
+
+    for (const [i, t] of g.tests.entries()) {
       const truth = [...t.codes].sort();
-      const p = await propose(t.value, scope, memory, index, settings);
+      const p = proposals[i];
       const proposedRight = p.codes ? setKey(p.codes) === setKey(truth) : null;
       const wrongPick = () =>
         p.candidates.find((c) => setKey(c.codes) !== setKey(truth))?.codes ?? [allCodes[Math.floor(random() * allCodes.length)]];
@@ -152,6 +205,8 @@ async function main(): Promise<number> {
           action,
           chosen: [...chosen].sort(),
           chosen_right: setKey(chosen) === setKey(truth),
+          model_called: sent.has(i),
+          model_codes: sent.get(i) ?? null,
         }),
       );
     }
@@ -178,11 +233,33 @@ async function main(): Promise<number> {
     search_min_score: settings.minScore,
     search_min_lead: settings.minLead,
     candidates: CANDIDATES,
+    model: provider
+      ? {
+          provider: provider.name,
+          name: provider.model,
+          policy,
+          prompt_version: MAPPING_PROMPT_VERSION,
+          calls: modelStats.calls,
+          cached_calls: modelStats.cached,
+          lines_sent: modelStats.linesSent,
+          input_tokens: modelStats.inputTokens,
+          output_tokens: modelStats.outputTokens,
+          latency_ms: modelStats.latencyMs,
+        }
+      : null,
     created_at: new Date().toISOString(),
   };
   await fs.writeFile(path.join(outDir, "mapping.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(`mapping ${mappingId}: ${files.length} documents, ${lines.length} lines`);
   console.log(`  states  : ${Object.entries(tally).sort().map(([s, n]) => `${s}=${n}`).join(" ")}`);
+  if (provider) {
+    const fresh = modelStats.calls - modelStats.cached;
+    console.log(
+      `  model   : ${provider.name} ${provider.model}, policy ${policy}: ${modelStats.calls} calls (${modelStats.cached} cached), ` +
+        `${modelStats.linesSent} lines, ${modelStats.inputTokens} in / ${modelStats.outputTokens} out tokens, ` +
+        `${fresh ? Math.round(modelStats.latencyMs / fresh) : 0} ms per uncached call`,
+    );
+  }
   console.log(`  written : ${outDir}`);
   return 0;
 }

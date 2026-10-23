@@ -145,10 +145,29 @@ def evaluate_mapping(mapping_dir: Path) -> dict:
             lang: _curve([x for x in lines if x["language"] == lang]) for lang in languages
         },
         "curve_by_insurer": {s: _curve([x for x in lines if x["scope"] == s]) for s in scopes},
+        "model": _model(manifest.get("model"), lines),
         "insurers": {
             s: next(x["insurer"] for x in lines if x["scope"] == s) or "(no insurer)"
             for s in scopes
         },
+    }
+
+
+def _model(info: dict | None, lines: list[dict]) -> dict | None:
+    """What the model layer did and cost, when the run had one."""
+    if not info:
+        return None
+    sent = [x for x in lines if x.get("model_called")]
+    answered = [x for x in sent if x["model_codes"] is not None]
+    right = sum(x["model_codes"] == x["truth"] for x in answered)
+    fresh = info["calls"] - info["cached_calls"]
+    return {
+        **info,
+        "lines_answered": len(answered),
+        "lines_right": right,
+        "precision": round(100 * right / len(answered), 1) if answered else None,
+        "calls_per_100_documents": round(100 * info["calls"] / len({x["doc"] for x in lines}), 1),
+        "ms_per_uncached_call": round(info["latency_ms"] / fresh) if fresh else None,
     }
 
 
@@ -159,7 +178,7 @@ def console_summary(r: dict) -> list[str]:
         f"{s} {p['right']}/{p['proposed']}" for s, p in r["precision_by_source"].items()
     )
     recall = ", ".join(f"{lang} {pct}%" for lang, pct in r["recall_at_k"].items())
-    return [
+    out = [
         f"mapping {r['mapping_id']}: {r['documents']} documents, {t['lines']} lines, technician error rate {r['error_rate']}",
         f"  states       : green {t['green']}, orange {t['orange']}, red {t['red']}",
         f"  wrong green  : {t['wrong_green']}",
@@ -168,6 +187,17 @@ def console_summary(r: dict) -> list[str]:
         f"  recall@{r['settings']['candidates']}    : {recall}",
         f"  curve (k: green / work): {curve}",
     ]
+    m = r.get("model")
+    if m:
+        out.append(
+            f"  model        : {m['provider']} {m['name']}, policy {m['policy']}: "
+            f"{m['calls']} calls ({m['calls_per_100_documents']} per 100 documents), "
+            f"{m['lines_sent']} lines sent, {m['lines_answered']} answered, "
+            f"{m['lines_right']} right ({m['precision']}%), "
+            f"{m['input_tokens']} in / {m['output_tokens']} out tokens, "
+            f"{m['ms_per_uncached_call']} ms per uncached call"
+        )
+    return out
 
 
 def markdown(r: dict) -> str:
