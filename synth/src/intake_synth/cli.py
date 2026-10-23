@@ -160,6 +160,30 @@ def debug_boxes(
         typer.echo(str(p))
 
 
+@app.command("evaluate-search")
+def evaluate_search_cmd(
+    search_dir: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, help="A search comparison (search.json)."),
+    ],
+    out: Annotated[
+        Path | None, typer.Option(help="Output directory. Default: SEARCH_DIR/eval.")
+    ] = None,
+) -> None:
+    """Compare catalog searches: ranking, and coverage at matched precision."""
+    from .evaluate.load import LoadError
+    from .evaluate.search import console_summary, evaluate_search, write_search_report
+
+    try:
+        report = evaluate_search(search_dir)
+    except LoadError as e:
+        raise typer.BadParameter(str(e)) from None
+    md_path = write_search_report(report, out or search_dir / "eval")
+    for line in console_summary(report):
+        typer.echo(line)
+    typer.echo(f"  report : {md_path}")
+
+
 @app.command("evaluate-mapping")
 def evaluate_mapping_cmd(
     mapping_dir: Annotated[

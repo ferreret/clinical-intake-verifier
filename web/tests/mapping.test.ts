@@ -39,15 +39,15 @@ const CATALOG: Catalog = {
 const INDEX = new CatalogIndex(CATALOG);
 
 describe("catalog search", () => {
-  it("reads a bare analyte as its usual specimen", () => {
-    expect(INDEX.search("Glucosa")[0].codes).toEqual(["BQ0001"]);
-    expect(INDEX.search("GLU (SUERO)")[0].codes).toEqual(["BQ0001"]);
-    expect(INDEX.search("Glucosa en orina")[0].codes).toEqual(["BQ0002"]);
+  it("reads a bare analyte as its usual specimen", async () => {
+    expect((await INDEX.search("Glucosa"))[0].codes).toEqual(["BQ0001"]);
+    expect((await INDEX.search("GLU (SUERO)"))[0].codes).toEqual(["BQ0001"]);
+    expect((await INDEX.search("Glucosa en orina"))[0].codes).toEqual(["BQ0002"]);
   });
 
-  it("finds truncated words and profiles", () => {
-    expect(INDEX.search("Colest. total")[0].codes).toEqual(["BQ0003"]);
-    expect(INDEX.search("IONES")[0]).toMatchObject({ kind: "profile", codes: ["BQ0004", "BQ0005"] });
+  it("finds truncated words and profiles", async () => {
+    expect((await INDEX.search("Colest. total"))[0].codes).toEqual(["BQ0003"]);
+    expect((await INDEX.search("IONES"))[0]).toMatchObject({ kind: "profile", codes: ["BQ0004", "BQ0005"] });
   });
 });
 

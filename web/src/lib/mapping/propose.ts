@@ -13,15 +13,21 @@
 import { compareKey } from "@/lib/schema/compare";
 
 import type { MappingMemory, MemoryEntry } from "./memory";
-import type { Candidate, CatalogIndex } from "./search";
+import type { Candidate, Searcher } from "./search";
 
 /** Active approvals, with no contradiction, after which a line is proposed green. */
 export const GREEN_APPROVALS = 2;
-/** A search candidate is proposed when its score reaches this... */
-export const SEARCH_MIN_SCORE = 0.55;
-/** ...and leads the next one by at least this much. */
-export const SEARCH_MIN_LEAD = 0.05;
 export const CANDIDATES = 20;
+
+/** When a search's best candidate is proposed: its score reaches `minScore` and leads the
+ * next one by `minLead`. Each searcher has its own, its scores being on its own scale. */
+export interface SearchSettings {
+  minScore: number;
+  minLead: number;
+}
+
+/** The lexical search's, first choices of block 4. */
+export const LEXICAL_SETTINGS: SearchSettings = { minScore: 0.55, minLead: 0.05 };
 
 export type MappingSource = "memory" | "memory_elsewhere" | "search" | null;
 
@@ -46,10 +52,11 @@ export async function propose(
   line: string,
   scope: string,
   memory: MappingMemory,
-  index: CatalogIndex,
+  index: Searcher,
+  settings: SearchSettings = LEXICAL_SETTINGS,
 ): Promise<Proposal> {
   const key = textKey(line);
-  const candidates = index.search(line, CANDIDATES);
+  const candidates = await index.search(line, CANDIDATES);
   const out = (
     state: Proposal["state"],
     codes: string[] | null,
@@ -79,7 +86,7 @@ export async function propose(
   }
 
   const [first, second] = candidates;
-  if (first && first.score >= SEARCH_MIN_SCORE && first.score - (second?.score ?? 0) >= SEARCH_MIN_LEAD) {
+  if (first && first.score >= settings.minScore && first.score - (second?.score ?? 0) >= settings.minLead) {
     return out("orange", first.codes, "search", `closest catalog entry: ${first.label}`);
   }
   return out("red", null, null, first ? "no catalog entry stands out" : "nothing in the catalog looks like it");

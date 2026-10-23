@@ -4,6 +4,7 @@
  *
  *   npm run map-simulate -- --dataset ../data/synth/seed-42-n1000 [--error-rate 0.02]
  *                           [--seed 1] [--out ../data/mapping/<mapping-id>]
+ *                           [--search lexical|embedding|hybrid --min-score 0.55 --min-lead 0.05]
  *
  * Lines are read from the goldens, as a perfect extractor would read them, so the run
  * measures mapping alone. The technician approves green lines without acting, confirms an
@@ -16,16 +17,10 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 
 import { catalogFromFile, type CatalogFile } from "@/lib/mapping/catalog";
+import { Embedder, EmbeddingSearch, HybridSearch } from "@/lib/mapping/embeddings";
 import { InMemoryMemory, type ApprovalKind } from "@/lib/mapping/memory";
-import {
-  CANDIDATES,
-  GREEN_APPROVALS,
-  propose,
-  SEARCH_MIN_LEAD,
-  SEARCH_MIN_SCORE,
-  textKey,
-} from "@/lib/mapping/propose";
-import { CatalogIndex } from "@/lib/mapping/search";
+import { CANDIDATES, GREEN_APPROVALS, LEXICAL_SETTINGS, propose, textKey } from "@/lib/mapping/propose";
+import { CatalogIndex, type Searcher } from "@/lib/mapping/search";
 import { compareKey } from "@/lib/schema/compare";
 
 const NOT_GOLDEN = new Set(["manifest.json", "catalog.json", "lis.json"]);
@@ -64,6 +59,9 @@ async function main(): Promise<number> {
       "error-rate": { type: "string", default: "0" },
       seed: { type: "string", default: "1" },
       out: { type: "string" },
+      search: { type: "string", default: "lexical" },
+      "min-score": { type: "string" },
+      "min-lead": { type: "string" },
     },
   });
   if (!values.dataset) {
@@ -74,12 +72,28 @@ async function main(): Promise<number> {
   const errorRate = Number(values["error-rate"]);
   const seed = Number(values.seed);
   const random = rng(seed);
-  const mappingId = `${timestamp(new Date())}-${path.basename(dataset)}-e${errorRate}`;
+  const method = values.search ?? "lexical";
+  const settings = {
+    minScore: values["min-score"] ? Number(values["min-score"]) : LEXICAL_SETTINGS.minScore,
+    minLead: values["min-lead"] ? Number(values["min-lead"]) : LEXICAL_SETTINGS.minLead,
+  };
+  const mappingId = `${timestamp(new Date())}-${path.basename(dataset)}-${method}-e${errorRate}`;
   const outDir = path.resolve(values.out ?? path.join("..", "data", "mapping", mappingId));
 
   const read = async <T>(file: string) => JSON.parse(await fs.readFile(path.join(dataset, file), "utf8")) as T;
   const catalogFile = await read<CatalogFile>("catalog.json");
-  const index = new CatalogIndex(catalogFromFile(catalogFile));
+  const catalog = catalogFromFile(catalogFile);
+  const lexical = new CatalogIndex(catalog);
+  let index: Searcher = lexical;
+  let embedder: Embedder | null = null;
+  if (method !== "lexical") {
+    const dataDir = path.resolve("..", "data");
+    embedder = await Embedder.open(path.join(dataDir, "models"), path.join(dataDir, "embeddings"));
+    const semantic = await EmbeddingSearch.build(catalog, embedder);
+    if (method === "embedding") index = semantic;
+    else if (method === "hybrid") index = new HybridSearch(lexical, semantic);
+    else throw new Error(`unknown --search ${method}`);
+  }
   const allCodes = catalogFile.tests.map((t) => t.code);
   const memory = new InMemoryMemory();
 
@@ -98,7 +112,7 @@ async function main(): Promise<number> {
     const approvals: { text: string; codes: string[]; kind: ApprovalKind; corrected: string[] | null }[] = [];
     for (const t of g.tests) {
       const truth = [...t.codes].sort();
-      const p = await propose(t.value, scope, memory, index);
+      const p = await propose(t.value, scope, memory, index, settings);
       const proposedRight = p.codes ? setKey(p.codes) === setKey(truth) : null;
       const wrongPick = () =>
         p.candidates.find((c) => setKey(c.codes) !== setKey(truth))?.codes ?? [allCodes[Math.floor(random() * allCodes.length)]];
@@ -148,6 +162,7 @@ async function main(): Promise<number> {
     }
   }
 
+  await embedder?.save();
   await fs.mkdir(outDir, { recursive: true });
   await fs.writeFile(path.join(outDir, "lines.jsonl"), `${lines.join("\n")}\n`);
   const manifest = {
@@ -159,8 +174,9 @@ async function main(): Promise<number> {
     error_rate: errorRate,
     seed,
     green_approvals: GREEN_APPROVALS,
-    search_min_score: SEARCH_MIN_SCORE,
-    search_min_lead: SEARCH_MIN_LEAD,
+    search: method,
+    search_min_score: settings.minScore,
+    search_min_lead: settings.minLead,
     candidates: CANDIDATES,
     created_at: new Date().toISOString(),
   };

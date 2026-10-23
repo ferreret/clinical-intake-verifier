@@ -43,49 +43,65 @@ function dice(a: Set<string>, b: Set<string>): number {
   return (2 * shared) / (a.size + b.size);
 }
 
-interface Entry {
+/** A test or profile of the catalog with every form a line may be compared with. */
+export interface CatalogEntry {
   kind: Candidate["kind"];
   ref: string;
   codes: string[];
   label: string;
-  forms: Set<string>[];
+  forms: string[];
 }
 
-export class CatalogIndex {
-  private readonly entries: Entry[];
+export function catalogEntries(catalog: Catalog): CatalogEntry[] {
+  const tests: CatalogEntry[] = catalog.tests.map((t) => {
+    const forms = new Set<string>([t.name]);
+    for (const name of [t.analyte, ...t.synonyms]) {
+      const base = t.variant ? `${name} ${t.variant}` : name;
+      if (t.specimen) forms.add(`${base} ${t.specimen}`);
+      if (!t.specimen || t.defaultSpecimen) forms.add(base);
+    }
+    return { kind: "test", ref: t.code, codes: [t.code], label: t.name, forms: [...forms] };
+  });
+  const profiles: CatalogEntry[] = catalog.profiles.map((p) => ({
+    kind: "profile",
+    ref: p.id,
+    codes: [...p.codes].sort(),
+    label: p.name,
+    forms: [p.name],
+  }));
+  return [...tests, ...profiles];
+}
+
+/** Anything that ranks the catalog for a printed line. */
+export interface Searcher {
+  /** The `k` best candidates, best first. */
+  search(text: string, k?: number): Promise<Candidate[]>;
+}
+
+/** The best `k` entries for per-entry scores aligned with `entries`. */
+export function rank(entries: CatalogEntry[], scores: number[], k: number): Candidate[] {
+  return entries
+    .map((e, i) => ({ kind: e.kind, ref: e.ref, codes: e.codes, label: e.label, score: scores[i] }))
+    .sort((a, b) => b.score - a.score || a.ref.localeCompare(b.ref))
+    .slice(0, k);
+}
+
+export class CatalogIndex implements Searcher {
+  readonly entries: CatalogEntry[];
+  private readonly grams: Set<string>[][];
 
   constructor(catalog: Catalog) {
-    const tests: Entry[] = catalog.tests.map((t) => {
-      const forms = new Set<string>([searchKey(t.name)]);
-      for (const name of [t.analyte, ...t.synonyms]) {
-        const base = t.variant ? `${name} ${t.variant}` : name;
-        if (t.specimen) forms.add(searchKey(`${base} ${t.specimen}`));
-        if (!t.specimen || t.defaultSpecimen) forms.add(searchKey(base));
-      }
-      return { kind: "test", ref: t.code, codes: [t.code], label: t.name, forms: [...forms].map(trigrams) };
-    });
-    const profiles: Entry[] = catalog.profiles.map((p) => ({
-      kind: "profile",
-      ref: p.id,
-      codes: [...p.codes].sort(),
-      label: p.name,
-      forms: [trigrams(searchKey(p.name))],
-    }));
-    this.entries = [...tests, ...profiles];
+    this.entries = catalogEntries(catalog);
+    this.grams = this.entries.map((e) => [...new Set(e.forms.map(searchKey))].map(trigrams));
   }
 
-  /** The `k` best candidates for a printed line, best first. */
-  search(text: string, k = 20): Candidate[] {
+  /** Each entry's score for a line: the best Dice coefficient over its forms. */
+  scores(text: string): number[] {
     const query = trigrams(searchKey(text));
-    return this.entries
-      .map((e) => ({
-        kind: e.kind,
-        ref: e.ref,
-        codes: e.codes,
-        label: e.label,
-        score: Math.max(...e.forms.map((f) => dice(query, f))),
-      }))
-      .sort((a, b) => b.score - a.score || a.ref.localeCompare(b.ref))
-      .slice(0, k);
+    return this.grams.map((forms) => Math.max(...forms.map((f) => dice(query, f))));
+  }
+
+  async search(text: string, k = 20): Promise<Candidate[]> {
+    return rank(this.entries, this.scores(text), k);
   }
 }
