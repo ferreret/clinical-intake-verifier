@@ -46,6 +46,22 @@ export interface Catalog {
   profiles: CatalogProfile[];
 }
 
+/** The catalog of a `catalog.json`, as `readCatalog` returns it from the database. */
+export function catalogFromFile(data: CatalogFile): Catalog {
+  return {
+    tests: data.tests.map((t) => ({
+      code: t.code,
+      name: t.name,
+      analyte: t.analyte,
+      synonyms: [...new Set(t.synonyms)],
+      specimen: t.specimen === null ? null : data.specimens[t.specimen],
+      defaultSpecimen: t.default_specimen,
+      variant: t.variant,
+    })),
+    profiles: data.profiles.map((p) => ({ id: p.id, name: p.name, codes: p.codes })),
+  };
+}
+
 /** Replaces the catalog with `data`, in one transaction. */
 export async function loadCatalog(db: LisDb, data: CatalogFile): Promise<void> {
   if (data.catalog_version !== CATALOG_VERSION) {

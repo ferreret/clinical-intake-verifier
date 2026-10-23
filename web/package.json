@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "extract": "tsx src/scripts/extract-batch.ts",
     "seed-lis": "tsx src/scripts/seed-lis.ts",
-    "fuse": "tsx src/scripts/fuse-batch.ts"
+    "fuse": "tsx src/scripts/fuse-batch.ts",
+    "map-simulate": "tsx src/scripts/map-simulate.ts"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",

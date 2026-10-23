@@ -160,6 +160,35 @@ def debug_boxes(
         typer.echo(str(p))
 
 
+@app.command("evaluate-mapping")
+def evaluate_mapping_cmd(
+    mapping_dir: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, help="A mapping directory (mapping.json)."),
+    ],
+    out: Annotated[
+        Path | None, typer.Option(help="Output directory. Default: MAPPING_DIR/eval.")
+    ] = None,
+) -> None:
+    """Score a test-mapping simulation: learning curve, wrong green lines, recall@k.
+
+    Exits with status 1 when a wrong line came out green.
+    """
+    from .evaluate.load import LoadError
+    from .evaluate.mapping import console_summary, evaluate_mapping, write_mapping_report
+
+    try:
+        report = evaluate_mapping(mapping_dir)
+    except LoadError as e:
+        raise typer.BadParameter(str(e)) from None
+    md_path = write_mapping_report(report, out or mapping_dir / "eval")
+    for line in console_summary(report):
+        typer.echo(line)
+    typer.echo(f"  report       : {md_path}")
+    if report["wrong_green"]:
+        raise typer.Exit(code=1)
+
+
 @app.command("evaluate-fusion")
 def evaluate_fusion_cmd(
     fusion_dir: Annotated[
