@@ -191,10 +191,19 @@ def population(seed: int) -> Population:
     fake = Faker("es_ES")
     fake.seed_instance(rng.getrandbits(64))
 
-    patients = [new_patient(rng, fake, f"P{k:05d}", REFERENCE_DATE) for k in range(N_PATIENTS)]
+    # Identity documents and registration numbers are unique keys in the LIS.
+    doc_ids: set[str] = set()
+
+    def unique_patient(pid: str) -> LisPatient:
+        while (p := new_patient(rng, fake, pid, REFERENCE_DATE)).doc_id in doc_ids:
+            pass
+        doc_ids.add(p.doc_id)
+        return p
+
+    patients = [unique_patient(f"P{k:05d}") for k in range(N_PATIENTS)]
     homonyms: list[str] = []
     for k in rng.sample(range(N_PATIENTS), N_HOMONYM_PAIRS):
-        twin = new_patient(rng, fake, f"P{len(patients):05d}", REFERENCE_DATE)
+        twin = unique_patient(f"P{len(patients):05d}")
         base = patients[k]
         twin = LisPatient(
             twin.id,
@@ -209,7 +218,11 @@ def population(seed: int) -> Population:
         patients.append(twin)
         homonyms += [base.id, twin.id]
 
-    physicians = [new_physician(rng, fake, f"M{k:04d}") for k in range(N_PHYSICIANS)]
+    physicians: list[LisPhysician] = []
+    while len(physicians) < N_PHYSICIANS:
+        m = new_physician(rng, fake, f"M{len(physicians):04d}")
+        if m.colegiado not in {x.colegiado for x in physicians}:
+            physicians.append(m)
 
     unregistered = rng.choice(catalog.INSURERS)
     insurers = []
@@ -249,7 +262,9 @@ def draw(rng: random.Random, fake: Faker, pop: Population, on: date) -> Draw:
         physician_id = physician.id
 
     if scenario == "new_patient":
-        patient = new_patient(rng, fake, "P-new", on)
+        known = {p.doc_id for p in pop.patients}
+        while (patient := new_patient(rng, fake, "P-new", on)).doc_id in known:
+            pass
         return Draw(scenario, patient, None, physician, physician_id)
     if scenario == "homonym":
         pid = rng.choice(pop.homonyms)

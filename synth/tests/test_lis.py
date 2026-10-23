@@ -33,6 +33,7 @@ def test_population_is_consistent():
     for group in (pop.patients, pop.physicians, pop.insurers):
         assert len({r.id for r in group}) == len(group)
     assert len({p.doc_id for p in pop.patients}) == len(pop.patients)
+    assert len({m.colegiado for m in pop.physicians}) == len(pop.physicians)
     assert all(_checks(p.doc_id) for p in pop.patients)
     assert pop.unregistered_insurer in catalog.INSURERS
     assert pop.insurer(pop.unregistered_insurer) is None
