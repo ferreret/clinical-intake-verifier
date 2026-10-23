@@ -288,6 +288,26 @@ database (`mapping_memory`).
 
 `evaluate-mapping` exits with status 1 when any line came out green and wrong.
 
+### Comparing searches
+
+```bash
+npm --prefix web run search-compare -- --dataset ../data/synth/seed-42-n1000
+cd synth && uv run intake-synth evaluate-search ../data/search/<search-id>
+npm --prefix web run map-simulate -- --dataset ../data/synth/seed-42-n1000 --search hybrid --min-score 0.72 --min-lead 0.04
+```
+
+`search-compare` ranks the catalog for every distinct (insurer, line) pair of a dataset with
+three methods: `lexical` (trigrams), `embedding` (a local multilingual sentence-embedding
+model, `Xenova/multilingual-e5-small`, run with transformers.js) and `hybrid` (the mean of
+both scores). `evaluate-search` reports, per method, language and for profiles, how often
+the right codes come first, among the first 5 and among the 20 candidates, and the mean
+reciprocal rank. Then it compares methods at **matched precision**: each method proposes its
+first candidate above a minimum score and lead; the thresholds are swept, and a method is
+better only if it proposes more lines at the same share of right proposals. Thresholds are
+chosen on the first half of the lines and measured on the second ("held out"), because
+thresholds chosen on the lines they are measured on flatter every method. `map-simulate
+--search` then replays the documents with the chosen method and thresholds.
+
 ## Not yet
 
 - Running the evaluation in CI on every commit, which needs a Gemini key in CI. Deferred to F6.

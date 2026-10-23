@@ -13,7 +13,7 @@ Last updated: 2026-10-23.
 | F1 | Synthetic request generator with golden ground truth | done |
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
-| F4 | Mock LIS, fusion engine and test mapping | design approved; blocks 1 to 4 of 6 done (below) |
+| F4 | Mock LIS, fusion engine and test mapping | design approved; blocks 1 to 4 and 5a done (below) |
 | F5 | Verification UI | not started |
 | F6 | Public demo on Vercel | not started |
 
@@ -456,7 +456,7 @@ assumed above (Ollama on ROCm) and should be settled when the track is approved.
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
 **Status: proposed and approved on 2026-10-23, with every decision settled (at the end).
-Blocks 1 to 4 are done (below); next: block 5.**
+Blocks 1 to 4 and 5a are done (below); next: block 5b.**
 
 F4 as described in `CLAUDE.md` covers the demographic fields: a synthetic LIS and the traffic
 light. This proposal adds a third part, at the product owner's request on 2026-10-23, and it
@@ -739,6 +739,40 @@ per document by a TypeScript batch script, like `extract-batch.ts`, and scored i
    every line the memory does not settle, or only where the search is unsure (red lines).
    The local model on an APU is expected to be slow (prompt processing of a few thousand
    tokens per call); its latency is part of the result.
+
+   **5a done on 2026-10-23: local embeddings measured and not adopted.** Model
+   `Xenova/multilingual-e5-small` (q8, about 130 MB in `data/models`), run with
+   transformers.js, vectors cached in `data/embeddings`; three searches compared on the
+   1,586 distinct (insurer, line) pairs of the 1,000 documents, which are the lines that
+   reach the search once the memory is in place (`npm run search-compare`,
+   `intake-synth evaluate-search`, `docs/evaluation.md`):
+
+   | Search | Right first | Right among 20 | Profiles among 20 | ms per line |
+   |---|---|---|---|---|
+   | trigrams (block 4) | 94.3% | 97.5% | 60.5% | 1 |
+   | embeddings | 92.0% | 97.8% | 65.8% | 7 |
+   | mean of both | 94.8% | 97.5% | 60.5% | 3 |
+
+   Compared at matched precision with thresholds chosen on all the lines, the mean gained
+   about one point of coverage. That gain was the thresholds fitting the data they were
+   measured on: chosen on the first half and measured on the second, neither the mean nor
+   tuned trigrams beat block 4's own point (88% of lines proposed at about 96.9% precision on
+   that half), and embeddings alone propose far fewer lines (68%). The trigram thresholds
+   chosen this way for 99.5% land on block 4's guess (0.56 and 0.05 against 0.55 and 0.05).
+   End to end, replaying the 1,000 documents: technician work 2.2% with trigrams, 2.3% with
+   the mean, 4.8% with embeddings alone; no wrong green line in any. The embedding search
+   stays in the code as measured tooling (`web/src/lib/mapping/embeddings.ts`,
+   `--search` in `map-simulate`), not in the product's proposals, and transformers.js is a
+   development dependency.
+
+   What it says for 5b: the search is not where the remaining work is. Of the 2.2%, about
+   150 lines per 1,000 documents are red and 35 proposals are wrong (25 from the search, 12
+   from other insurers' memory), with profiles as the hardest case. That is the room a
+   model has to earn its cost. Two observations from the split: the second half of the
+   lines is harder than the first (more long-tail tests), so a precision chosen on early
+   requests does not hold on later ones; and the synthetic dialects, built from the
+   catalog's own synonyms, flatter lexical search, so a real-data rerun could rank the
+   methods differently.
 6. Full run with Gemini on the new dataset.
 
 #### Decisions

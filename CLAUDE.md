@@ -88,7 +88,7 @@ Capas, de mayor a menor confianza: mapeos ya aprobados por técnicos para esa mu
 | App + API | **Next.js** (App Router, TypeScript) |
 | UI | React + Tailwind |
 | Extracción | Gemini Flash vía SDK de Google en route handler |
-| Mapeo de pruebas | Memoria de aprobaciones + búsqueda en el catálogo (trigramas y embeddings multilingües locales con transformers.js) + modelo que elige entre candidatos, **seleccionable: Gemini o Qwen local** (LM Studio, API compatible con OpenAI) |
+| Mapeo de pruebas | Memoria de aprobaciones + búsqueda por trigramas en el catálogo + modelo que elige entre candidatos, **seleccionable: Gemini o Qwen local** (LM Studio, API compatible con OpenAI). Los embeddings locales (transformers.js) se midieron y no mejoraron la búsqueda: quedan solo como herramienta de medición |
 | Persistencia | SQLite + Drizzle |
 | Demo pública | Vercel |
 | Generador sintético y evaluación | **Python** (reportlab para los PDF) |
