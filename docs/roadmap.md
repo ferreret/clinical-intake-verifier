@@ -4,7 +4,7 @@ Where the project stands, what has been decided and what is only proposed. Read 
 starting a work session. Anything marked **proposed** is a design that has not been approved or
 implemented; it changes only after an explicit decision.
 
-Last updated: 2026-10-22.
+Last updated: 2026-10-23.
 
 ## Where things stand
 
@@ -13,7 +13,7 @@ Last updated: 2026-10-22.
 | F1 | Synthetic request generator with golden ground truth | done |
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
-| F4 | Mock LIS and fusion engine | not started |
+| F4 | Mock LIS, fusion engine and test mapping | design proposed (below) |
 | F5 | Verification UI | not started |
 | F6 | Public demo on Vercel | not started |
 
@@ -439,6 +439,180 @@ on `127.0.0.1:1234` speaks the OpenAI API and returns JSON constrained to a sche
 still holds with an image in the prompt is the manual check above. This changes the runtime
 assumed above (Ollama on ROCm) and should be settled when the track is approved.
 
-### 4. F4 to F6
+### 4. F4: mock LIS, fusion engine and test mapping (proposed)
+
+**Status: proposed on 2026-10-23, not approved, not implemented.** Open decisions at the end.
+
+F4 as described in `CLAUDE.md` covers the demographic fields: a synthetic LIS and the traffic
+light. This proposal adds a third part, at the product owner's request on 2026-10-23, and it
+is the one that carries most of the product's value: **mapping each requested test to the
+lab's own test codes.**
+
+The problem it solves: a lab works with many insurers, each with its own request form and its
+own wording. One insurer writes "HbA1c", another "Hb glicada", a third "Hemoglobina
+glicosilada"; all three are one code in the lab's catalog. A requested profile ("Perfil
+hepático") is entered in the lab as several separate codes, and its contents may differ
+between insurers. Today an operator does this mapping from memory. The extractor already reads
+the text at about 99.9%; knowing which codes that text means is the missing step.
+
+The design keeps the project's stance. Extraction still returns the exact printed text;
+mapping is a separate step after it, so a reading error and a mapping error can be measured
+apart. A mapping is green only when people have confirmed it before; anything the model
+proposes is at most orange.
+
+#### A. Generator v2: catalog, insurer dialects and LIS population
+
+**Lab catalog.** Synthetic and invented, around 2,000 codes, so that the size matches a real
+lab catalog (thousands of tests) without copying any. Built by combination: analyte × specimen
+(serum, plasma, whole blood, spot urine, 24 h urine, CSF, stool) × variant (basal or after a
+load, free or total, qualitative or quantitative). This produces exactly the near-duplicates
+that make mapping hard: "Glucosa" in serum against glucose in urine or after a load. Each
+entry has a code in an invented format, a canonical name, a specimen and synonyms. The lab
+also has its own profiles, each a named set of codes. Requests follow a skewed frequency: a
+few hundred common tests make up most lines, the rest is a long tail.
+
+**Insurer dialects.** Each insurer gets its own wording for every test, drawn from
+transformation rules: abbreviations (GOT, AST, ASAT), word order ("Colesterol HDL",
+"HDL-colesterol"), specimen words added or left out, casing, and its own profile names with
+**its own composition** (one insurer's hepatic profile has five tests, another's four).
+That last rule produces, without having to guess, cases where the same text means different
+codes depending on the insurer. Documents without an insurer use a generic dialect.
+
+**Golden.** Each entry of `tests[]` gains `codes`: the list of lab codes it means, one for a
+single test, several for a profile. Golden format version bumped.
+
+**LIS population.** Patients, physicians and insurers generated once per seed, and documents
+draw patients from that population, so some patients come back. Each document is assigned a
+scenario at a configurable rate, recorded in the golden so results can be sliced by it:
+
+| Scenario | Example |
+|---|---|
+| match | patient in the LIS, everything agrees |
+| drift | patient in the LIS, phone changed since |
+| form typo | the form has a digit wrong in the identity document |
+| new patient | not in the LIS |
+| homonym | another LIS patient with the same name and a different birth date |
+| unknown physician or insurer | not registered in the LIS |
+
+The generator writes the population as `lis.json` next to the manifest. The web app owns the
+SQLite schema through Drizzle and a seed script loads `lis.json` into it, so the schema is
+defined in one place.
+
+**Consequence:** every document changes, so the seed-42 dataset is regenerated and the runs
+recorded above cannot be compared with new ones. A new baseline full run with Gemini is needed
+(about 1.2 USD).
+
+#### B. Fusion engine for the fields
+
+In `web/src/lib/fusion/`, pure functions over a prediction and the LIS.
+
+**Finding the record.** The patient is linked automatically only on a strong match: the
+identity document agrees, and so does the name or the birth date. A single agreeing key, or
+keys that point to different patients, gives a candidate that is shown but not applied: the
+patient link itself is red and the operator confirms it. A wrong link is worse than none: it
+would paint another person's data green. The physician is found by registration number, then
+by name; the insurer by name, compared with `casefold`, against the LIS insurers and their
+known aliases.
+
+**Each field** gets the traffic light in `CLAUDE.md`, comparing values with the shared compare
+modes (`schema/compare-cases.json`), so fusion and evaluation cannot disagree on what "the
+same value" means. One addition: an AI-only value that carries an extractor warning
+(`garbled_text`, `pattern_mismatch`) is red, not orange. `Edad` has no LIS column; it stays
+AI-only.
+
+**Provenance**, per field: the AI value with its page, box and warnings; the LIS value with
+its record id; the final value and its source (`lis`, `ai`, `default`, `operator`); the state
+and a reason code; and a history of who changed what and when.
+
+**Configuration** stays in `schema/fields.json` (version 3): per field, the LIS column it maps
+to and a `default` (null for every field in v1; the mechanism exists for the third source).
+
+#### C. Test mapping
+
+In `web/src/lib/mapping/`. Input: each extracted test line plus the **whole extraction of the
+document** as context (insurer, template, the other tests, the physician). Output per line:
+the codes, the state, the source and the candidates that were considered.
+
+Layers, in order of confidence:
+
+1. **Confirmed mappings.** A table keyed by (insurer, normalised text) → codes, with how many
+   times operators confirmed it and how many times they corrected it. The insurer is the LIS
+   insurer the document was linked to, not the raw text, so a spelling variant of its name
+   still finds its mappings. Enough confirmations and no contradiction → **green**, with an
+   explanation ("confirmed 14 times for this insurer"). The same text confirmed for other
+   insurers is only a suggestion → orange. Conflicting confirmations → red, with both options.
+2. **Catalog search.** Lexical candidates from catalog names, synonyms and lab profiles
+   (SQLite FTS5 or trigram similarity), top 20. The catalog is too large to send whole to the
+   model on every document, and a search can be measured on its own (recall@k).
+3. **Model choice.** Gemini receives the line, the document context and the candidates, and
+   returns codes **constrained to that candidate list**, or none: it cannot invent a code.
+   One call per document for every line the first layer did not settle. Result: **orange**.
+4. **Nothing clear, or a tie → red.** The operator picks from a catalog search.
+
+**Learning.** Every operator decision feeds layer 1: a confirmation adds to the count, a
+correction records the contradiction. As mappings accumulate, more lines are green and fewer
+need the model, so the cost per document falls with use. That is the learning this proposal
+offers first: a memory of human decisions, scoped per insurer, explainable and useful from the
+first document. A trained model could come later, when there is data to train it, and the
+harness would say whether it beats the table. Semantic search with embeddings is added only if
+lexical recall@k turns out too low.
+
+#### D. Measurement
+
+The harness grows with F4, as it did for the extractor. Mapping outputs are written as JSON
+per document by a TypeScript batch script, like `extract-batch.ts`, and scored in Python.
+
+- **Fusion**: per field, the state against the one the scenario implies. Key figures: values
+  wrong and green (target: zero), patients linked to the wrong record (target: zero),
+  discrepancies caught as red. Needs no Gemini call: it can run on the golden used as a
+  perfect prediction, and on recorded runs. Cheap enough for every commit.
+- **Mapping**, twice: from the golden text (mapping errors alone) and from the predicted text
+  (end to end). Per line, exact, partial or wrong code set; per state, how many lines and how
+  many of them wrong. Key figure: **wrong codes in green**. Also the search's recall@20.
+- **Learning curve**: the documents of each insurer in order, with a simulated operator who
+  confirms or corrects with the golden codes. The share of green lines and the green errors
+  after 1, 10 and 50 documents, and the same with an operator who makes mistakes 2% of the
+  time, to see whether a wrong confirmation spreads. This chart is the piece a reader of the
+  portfolio remembers.
+
+#### Blocks
+
+1. Generator v2: catalog, dialects and `codes` in the golden.
+2. Generator v2: LIS population and scenarios; Drizzle schema and seed script.
+3. Fusion engine with provenance, and its scoring.
+4. Mapping layers 1, 2 and 4, recall@k, and the learning-curve simulation without the model.
+5. Mapping layer 3 (model) measured against block 4.
+6. Full run with Gemini on the new dataset.
+
+#### Decisions
+
+Answered by the product owner on 2026-10-23:
+
+1. **Profiles as several codes:** yes, often a profile is requested and the lab enters
+   separate codes. Proposed: a line maps to a list of codes from the start; doing it later
+   would mean reworking the golden, the table and the metrics.
+2. **The same text meaning different codes per insurer:** not known whether it happens.
+   Proposed: confirmed mappings are scoped per insurer, and evidence from other insurers is
+   only a suggestion. That is safe either way.
+3. **Context for mapping:** everything read from the document. Proposed: the whole extraction
+   goes to the model layer; the confirmed-mapping key stays (insurer, text) so that every
+   green can be explained.
+4. **Catalog size:** thousands of tests in a real lab. Proposed: a synthetic catalog of about
+   2,000 codes, and a candidate search before the model.
+
+Still open:
+
+5. **Confirmations needed for green.** Recommended: two, with no contradiction, configurable;
+   the learning curve with operator errors will show whether one is enough.
+6. **Automatic patient link.** Recommended: only on a strong match, as in B.
+7. **Replacing the seed-42 dataset**, which makes earlier runs incomparable and needs a new
+   baseline run (about 1.2 USD). Recommended: yes; the extractor's history stays in this file.
+8. **Persistence on the public demo.** Vercel's file system is read-only, so confirmed mappings
+   written on the demo would not persist. Recommended: F4 works on local SQLite only; the
+   demo's storage is decided in F6.
+
+Once approved, `CLAUDE.md` gains the test mapping in its architecture and v1 fields.
+
+### 5. F5 and F6
 
 Unchanged. See `CLAUDE.md`.
