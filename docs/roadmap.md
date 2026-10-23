@@ -13,7 +13,7 @@ Last updated: 2026-10-23.
 | F1 | Synthetic request generator with golden ground truth | done |
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
-| F4 | Mock LIS, fusion engine and test mapping | design proposed (below) |
+| F4 | Mock LIS, fusion engine and test mapping | design approved, not started (below) |
 | F5 | Verification UI | not started |
 | F6 | Public demo on Vercel | not started |
 
@@ -439,9 +439,10 @@ on `127.0.0.1:1234` speaks the OpenAI API and returns JSON constrained to a sche
 still holds with an image in the prompt is the manual check above. This changes the runtime
 assumed above (Ollama on ROCm) and should be settled when the track is approved.
 
-### 4. F4: mock LIS, fusion engine and test mapping (proposed)
+### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
-**Status: proposed on 2026-10-23, not approved, not implemented.** Open decisions at the end.
+**Status: proposed and approved on 2026-10-23, with every decision settled (at the end); not
+implemented. Next: block 1.**
 
 F4 as described in `CLAUDE.md` covers the demographic fields: a synthetic LIS and the traffic
 light. This proposal adds a third part, at the product owner's request on 2026-10-23, and it
@@ -616,7 +617,7 @@ Answered by the product owner on 2026-10-23:
 4. **Catalog size:** thousands of tests in a real lab. Proposed: a synthetic catalog of about
    2,000 codes, and a candidate search before the model.
 
-Still open:
+Settled on 2026-10-23 as recommended:
 
 5. **Approvals needed for green.** Recommended: two actively resolved approvals (see
    Learning in C), with no contradiction, configurable; the learning curve with operator
@@ -627,16 +628,16 @@ Still open:
 8. **Persistence on the public demo.** Vercel's file system is read-only, so confirmed mappings
    written on the demo would not persist. Recommended: F4 works on local SQLite only; the
    demo's storage is decided in F6.
-9. **How the technician approves.** Settled: nothing is accepted without approval. Open: at
-   what granularity. Recommended: red lines and fields must be resolved one by one; orange
+9. **How the technician approves.** Nothing is accepted without approval; the granularity
+   settled is: red lines and fields must be resolved one by one; orange
    ones need a confirmation each (one keystroke in F5); green ones are reviewed on screen and
    covered by a single approval of the whole request, which stays disabled while anything is
    red or orange. The approval records the technician, the time and the approved values and
    codes. The alternative, a confirmation for every line, green included, is the strictest
    and slows down the common case.
 
-Once approved, `CLAUDE.md` gains the test mapping in its architecture and v1 fields, and the
-approval requirement next to the traffic light: a colour is a signal, never an acceptance.
+`CLAUDE.md` now carries the test mapping in its architecture and v1 fields, and the approval
+requirement next to the traffic light: a colour is a signal, never an acceptance.
 
 ### 5. F5 and F6
 

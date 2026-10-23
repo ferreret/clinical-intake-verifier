@@ -34,9 +34,11 @@ volante (PDF)
     ↓
 [3] Motor de fusión  ───────────────→  campos con procedencia y confianza
     ↓
-[4] UI de verificación  ────────────→  operador confirma o corrige
+[3b] Mapeo de pruebas  ─────────────→  texto de la mutua → códigos del laboratorio
     ↓
-        petición validada
+[4] UI de verificación  ────────────→  el técnico revisa, corrige y aprueba
+    ↓
+        petición validada (aprobada por una persona)
 ```
 
 Y en paralelo, fuera del flujo:
@@ -71,6 +73,14 @@ Semáforo por campo:
 
 Cada campo arrastra su procedencia: qué dijo la IA, qué dijo el LIS, de dónde salió el valor final, y quién lo tocó. **Esa trazabilidad es parte del producto**, no un extra.
 
+**Un color es una señal, nunca una aceptación.** Por normativa sanitaria y europea, nada (ni campos ni pruebas) se da por bueno sin que el técnico que procesa la petición lo verifique y lo apruebe. Verde significa «propuesta con evidencia sólida, pendiente de aprobar». La aprobación es una acción explícita que queda registrada: quién, cuándo y qué valores y códigos exactos.
+
+## Mapeo de pruebas a códigos
+
+Cada mutua escribe las pruebas a su manera; el laboratorio tiene su propio catálogo de códigos (miles). Este paso propone, para cada línea leída, los códigos del laboratorio (varios si es un perfil). El extractor sigue devolviendo el texto exacto; el mapeo va después y se mide aparte.
+
+Capas, de mayor a menor confianza: mapeos ya aprobados por técnicos para esa mutua (verde) → búsqueda de candidatos en el catálogo → Gemini elige **solo entre esos candidatos**, con todo el volante como contexto (naranja) → nada claro (rojo). Solo las peticiones aprobadas alimentan la memoria. Diseño completo en [`docs/roadmap.md`](docs/roadmap.md), sección F4.
+
 ## Stack
 
 | Capa | Elección |
@@ -90,6 +100,8 @@ Los del prompt de la prueba de concepto. Todos con **bounding box** y **número 
 
 `Paciente` · `FechaNacimiento` · `Edad` · `Sexo` · `DocumentoIdentidad` · `Telefono` · `NombreMedico` · `NumeroColegiado` · `NumeroPeticion` · `NombreMutua` · `NumeroSolicitudMutua` · `NumeroAutorizacion` · `NumeroTarjeta` · `tests[]`
 
+Desde F4, cada prueba de `tests[]` lleva además sus códigos de laboratorio (`codes`): los propone el mapeo, no el extractor.
+
 Reglas de extracción heredadas del piloto, que funcionaron:
 
 - **Solo JSON.** Nada de texto fuera del objeto.
@@ -107,8 +119,8 @@ Pensadas para bloques de 90 minutos, no para semanas.
 - **F1 · Generador sintético.** PDFs de volante realistas con sus datos de referencia en JSON. Sin esto no hay demo pública ni evaluación.
 - **F2 · Extractor.** Llamada a Gemini con salida estructurada y bboxes. Contra los sintéticos primero.
 - **F3 · Harness de evaluación.** Métricas por campo contra el golden sample. **Antes que la UI** — así cada cambio posterior se mide.
-- **F4 · Mock LIS + motor de fusión.** SQLite sintético y la lógica del semáforo. Aquí está el valor real.
-- **F5 · UI de verificación.** Visor con bounding boxes, formulario, navegación por teclado.
+- **F4 · Mock LIS + motor de fusión + mapeo de pruebas.** SQLite sintético, la lógica del semáforo y el mapeo de pruebas a códigos del laboratorio. Aquí está el valor real.
+- **F5 · UI de verificación.** Visor con bounding boxes, formulario, navegación por teclado y aprobación explícita del técnico.
 - **F6 · Demo en Vercel + README.** La pieza que se enseña.
 
 ⚠️ **F3 va antes que F5 a propósito.** Es tentador saltar a la interfaz porque es lo que se ve; pero sin métricas no se sabe si un cambio de prompt mejora o empeora, y ese es justo el punto que el proyecto quiere demostrar.
