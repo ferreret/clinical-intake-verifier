@@ -231,7 +231,17 @@ one issue: `braces` 3.0.3, a denial of service through deeply nested glob patter
 by `@next/eslint-plugin-next` through `fast-glob` 3.3.1. No fixed `braces` has been published,
 and 16.4.2 pins the same `fast-glob`; the fix npm suggests is a downgrade to
 `eslint-config-next` 14. Accepted: it only runs when linting, never in the deployed app.
-Re-check when Next.js updates that dependency. 16.4.x is a minor upgrade, left for later.
+Re-check when Next.js updates that dependency.
+
+On 2026-10-23 three new Next.js advisories covered 16.0.0 to 16.4.0, one critical: remote code
+execution in the image optimisation API with SVG files and in `use cache` functions, and a
+denial of service through Server Actions. The app uses none of the three (no `next/image`, no
+Server Actions, no `use cache`), but the demo will be public, so `next` and
+`eslint-config-next` moved to 16.4.2 the same day; tests, lint, the type check, `next build`
+and the dev server all pass. `npm audit --omit=dev` now reports nothing. What remains is
+development-only: the five `braces` advisories above, and four moderate ones in the `esbuild`
+that `drizzle-kit` (block 2) pulls in, about esbuild's own development server, which this
+project never starts.
 
 The preview in `.claude/launch.json` failed here with `npm` not found, because of the nvm PATH
 issue above. Fixed on 2026-10-23: it runs through `bash`, which loads `~/.nvm/nvm.sh` when it
