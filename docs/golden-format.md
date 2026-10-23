@@ -38,7 +38,7 @@ introduces a conflicting value, so the golden stays unambiguous.
     "version": "0.3.0",
     "seed": 42,
     "index": 42,
-    "catalog_version": 1,
+    "catalog_version": 2,
     "template": "lab-classic",
     "scan": {
       "dpi": 200, "blur": 0.6, "noise": 0.02, "jpeg_quality": 62, "grayscale": true,
@@ -146,7 +146,8 @@ in casing or separators from counting as an extraction error.
 
 `catalog.json`, written next to `manifest.json`, is the lab's test catalog the codes refer
 to: about 730 tests in 13 sections, each with an invented code (section prefix and four
-digits), a canonical name, its analyte, synonyms, specimen and variant, plus the lab's
+digits), a canonical name, its analyte, synonyms, specimen (and whether it is the analyte's
+usual one, which forms often leave unwritten) and variant, plus the lab's
 profiles as named lists of codes. It is built by combination (an analyte in several
 specimens, an organism with several antibody classes, a culture per sample site), which
 produces the near-duplicates that make mapping hard. It is fixed for a catalog version and

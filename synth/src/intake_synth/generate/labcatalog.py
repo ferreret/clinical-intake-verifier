@@ -17,7 +17,9 @@ import random
 from dataclasses import dataclass
 from functools import cache
 
-CATALOG_VERSION = 1
+CATALOG_VERSION = 2
+# Seeds the code numbers. Kept apart from the format version so codes stay put across formats.
+CODE_SEED = "lab-catalog:1"
 
 SECTIONS: dict[str, str] = {
     "BQ": "Bioquímica",
@@ -117,6 +119,7 @@ class Catalog:
                     "analyte": t.analyte,
                     "synonyms": list(t.names[1:]),
                     "specimen": None if t.specimen == "X" else t.specimen,
+                    "default_specimen": t.default_specimen,
                     "variant": t.variant[0] if t.variant else None,
                 }
                 for t in self.tests
@@ -804,7 +807,7 @@ def build_catalog() -> Catalog:
         by_section.setdefault(section, []).append(k)
     codes: dict[int, str] = {}
     for section, ks in by_section.items():
-        numbers = random.Random(f"lab-catalog:{CATALOG_VERSION}:{section}").sample(
+        numbers = random.Random(f"{CODE_SEED}:{section}").sample(
             range(1, 10_000), len(ks)
         )
         for k, n in zip(ks, numbers, strict=True):
