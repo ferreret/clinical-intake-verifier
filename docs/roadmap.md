@@ -13,7 +13,7 @@ Last updated: 2026-10-23.
 | F1 | Synthetic request generator with golden ground truth | done |
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
-| F4 | Mock LIS, fusion engine and test mapping | design approved; blocks 1 to 3 of 6 done (below) |
+| F4 | Mock LIS, fusion engine and test mapping | design approved; blocks 1 to 4 of 6 done (below) |
 | F5 | Verification UI | not started |
 | F6 | Public demo on Vercel | not started |
 
@@ -456,7 +456,7 @@ assumed above (Ollama on ROCm) and should be settled when the track is approved.
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
 **Status: proposed and approved on 2026-10-23, with every decision settled (at the end).
-Blocks 1 to 3 are done (below); next: block 4.**
+Blocks 1 to 4 are done (below); next: block 5.**
 
 F4 as described in `CLAUDE.md` covers the demographic fields: a synthetic LIS and the traffic
 light. This proposal adds a third part, at the product owner's request on 2026-10-23, and it
@@ -668,6 +668,40 @@ per document by a TypeScript batch script, like `extract-batch.ts`, and scored i
    shows that the rules do what they say; how it behaves when the AI misreads is measured by
    fusing the block 6 run.
 4. Mapping layers 1, 2 and 4, recall@k, and the learning-curve simulation without the model.
+   **Done on 2026-10-23.** The catalog (format version 2, which marks each test's usual
+   specimen; codes unchanged) and a `mapping_memory` table join the LIS database; the engine
+   is in `web/src/lib/mapping`; `npm run map-simulate` and `intake-synth evaluate-mapping`
+   (`docs/evaluation.md`, "Test mapping"). A dataset of 1,000 documents
+   (`data/synth/seed-42-n1000`, whose first 200 are byte-identical to seed-42's) gives every
+   insurer 80 to 140 requests.
+
+   **Measured** on the 1,000 documents, 8,329 lines, perfect technician:
+
+   | Request k of its insurer | 1 | 2-5 | 6-10 | 11-25 | 26-50 | 51-100 | 101+ |
+   |---|---|---|---|---|---|---|---|
+   | Green, all | 0% | 4% | 20% | 52% | 70% | 81% | 88% |
+   | Work, Spanish insurers | 4% | 1% | 0% | 2% | 2% | 1% | 0.5% |
+   | Work, Catalan insurers | 19% | 22% | 14% | 5% | 4% | 3% | 3% |
+
+   No line came out green with wrong codes. Proposals: memory 6,743 of 6,743 right, other
+   insurers' memory 361 of 373, search 1,039 of 1,064. The search has the right codes among
+   its 20 candidates for 99.2% of Spanish lines and 98.7% of Catalan ones, but only for 152
+   of the 225 profiles requested as one line: insurers compose profiles their own way, which
+   only the memory learns. Catalan insurers start with five times the work and catch up by
+   their 11th to 25th request, which is the learning the design was for. The plateau below
+   100% is the long tail: a test an insurer requests once or twice never reaches green.
+
+   **With a technician who errs.** At 2% the run is almost unchanged (one wrong orange
+   proposal, no wrong green): the technician acts on so few lines that 2% is a handful of
+   mistakes. As a stress test at 20%, 83 wrong actions led to 14 wrong green lines: a wrong
+   meaning turns green only after two independent mistakes on the same line, so the
+   two-approval rule bounds the spread at about the square of the error rate.
+
+   **Caveats.** The synthetic dialects are built from the catalog's own synonyms plus
+   spelling rules, so lexical search finds them more easily than real insurers' wording; the
+   recall and search precision above are optimistic. The thresholds (2 approvals, 0.55 and
+   0.05) are first choices, not tuned; `lines.jsonl` keeps each line's top score and lead so
+   that they can be.
 5. Mapping layer 3 (model) measured against block 4.
 6. Full run with Gemini on the new dataset.
 

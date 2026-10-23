@@ -170,7 +170,7 @@ traffic light. Load the mock LIS, fuse, and score the result against each docume
 scenario:
 
 ```bash
-npm --prefix web run seed-lis
+npm --prefix web run seed-lis -- ../data/synth/seed-42
 npm --prefix web run fuse -- --golden ../data/synth/seed-42
 cd synth && uv run intake-synth evaluate-fusion ../data/fusion/<fusion-id>
 ```
@@ -179,6 +179,23 @@ Without `--run`, every golden stands in for a perfect extraction; add
 `--run ../data/runs/<run-id>` to fuse a real one. The two numbers that must stay at zero are
 documents linked to the wrong patient and wrong values shown green. See
 [docs/evaluation.md](docs/evaluation.md#fusion).
+
+## Quick start: map tests to lab codes
+
+Each requested line is mapped to the lab's codes: from what technicians approved before for
+that insurer, then from a search of the catalog. A simulated technician replays a dataset in
+order, approving and correcting, so the memory of approvals fills up as it would in use:
+
+```bash
+uv --directory synth run intake-synth generate --n 1000 --seed 42 --out ../data/synth/seed-42-n1000
+npm --prefix web run map-simulate -- --dataset ../data/synth/seed-42-n1000
+cd synth && uv run intake-synth evaluate-mapping ../data/mapping/<mapping-id>
+```
+
+The report is the learning curve: for each insurer, the share of lines proposed green and the
+share the technician had to correct, from its first request to its hundredth. Green lines
+still wait for the technician's approval; the number that must stay at zero is green lines
+with the wrong codes. See [docs/evaluation.md](docs/evaluation.md#test-mapping).
 
 ## How the extractor works
 

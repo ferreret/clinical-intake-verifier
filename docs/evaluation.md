@@ -225,7 +225,7 @@ light, a reason, a proposed value and its provenance. Every colour is a signal t
 technician, never an acceptance.
 
 ```bash
-npm --prefix web run seed-lis
+npm --prefix web run seed-lis -- ../data/synth/seed-42
 npm --prefix web run fuse -- --golden ../data/synth/seed-42
 cd synth && uv run intake-synth evaluate-fusion ../data/fusion/<fusion-id>
 ```
@@ -254,6 +254,39 @@ value of the right record. Values are compared with the field's LIS compare mode
 
 The report also tallies states by scenario and by field. `evaluate-fusion` exits with status 1
 when there is any wrong link or wrong green value.
+
+## Test mapping
+
+Each requested line is mapped to lab codes (`web/src/lib/mapping`, F4). Layers, most
+trusted first: what this insurer's approved requests say the line means (green after
+`GREEN_APPROVALS` = 2 active approvals with no contradiction, orange before); what other
+insurers' approved requests say (orange); a catalog search by character trigrams (orange
+when the best candidate scores at least 0.55 and leads the next by 0.05, red otherwise).
+Only approved requests write to the memory. An approval is **active** when the technician
+confirmed an orange proposal or chose the codes of a red line, **passive** when the line was
+already green; passive approvals never count towards green, so a mapping cannot confirm
+itself through its own colour.
+
+```bash
+npm --prefix web run map-simulate -- --dataset ../data/synth/seed-42-n1000 [--error-rate 0.02]
+cd synth && uv run intake-synth evaluate-mapping ../data/mapping/<mapping-id>
+```
+
+`map-simulate` replays the dataset's requests in index order, reading each line from the
+golden (a perfect extraction). The simulated technician approves green lines without
+acting, confirms a right orange proposal and corrects a wrong one, and chooses the codes of a
+red line; with `--error-rate`, that share of the confirmations of wrong proposals and of the
+choices goes wrong. The memory lives in memory for the run; the product keeps it in the
+database (`mapping_memory`).
+
+| Measure | What it counts |
+|---|---|
+| learning curve | per insurer and language, by the position `k` of the request among that insurer's: lines green, orange and red, and **work**, the lines the technician had to correct or choose |
+| wrong green | green lines whose codes are not the right ones; must stay at 0 |
+| precision by source | right proposals over proposals, for memory, other insurers' memory and search |
+| recall@20 | lines whose right codes are among the search's 20 candidates: the ceiling for anything that chooses among them |
+
+`evaluate-mapping` exits with status 1 when any line came out green and wrong.
 
 ## Not yet
 
