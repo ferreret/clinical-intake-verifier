@@ -5,7 +5,9 @@
     "exact": "String equality after trimming whitespace.",
     "casefold": "Case-insensitive, accent-insensitive, whitespace-collapsed equality.",
     "digits": "Equality of the digit sequences only (separators and spaces ignored).",
-    "alnum_upper": "Equality of the alphanumeric characters only, upper-cased."
+    "alnum_upper": "Equality of the alphanumeric characters only, upper-cased.",
+    "phone": "Equality of the digit sequences after dropping a Spanish country prefix (+34 or 0034).",
+    "person_name": "Equality of the words of a name in any order, compared like casefold, commas ignored: 'GARCÍA LÓPEZ, MARÍA' is 'María García López'."
   },
   "fields": [
     {

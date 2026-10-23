@@ -7,7 +7,7 @@
  */
 import fieldsJson from "../../../../schema/fields.json";
 
-export type CompareMode = "exact" | "casefold" | "digits" | "alnum_upper";
+export type CompareMode = "exact" | "casefold" | "digits" | "alnum_upper" | "phone" | "person_name";
 export type FieldType = "string" | "date" | "enum";
 
 export interface FieldSpec {

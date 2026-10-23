@@ -33,6 +33,19 @@
     { "mode": "alnum_upper", "a": "PET-2026/000123", "b": "PET2026000123", "match": true },
     { "mode": "alnum_upper", "a": "12345678Z", "b": "12345678Y", "match": false },
     { "mode": "alnum_upper", "a": "AUT0001", "b": "AUTO001", "match": false, "note": "a zero is not the letter O" },
-    { "mode": "alnum_upper", "a": "--", "b": "//", "match": false, "note": "values with no alphanumerics only match when identical after trimming" }
+    { "mode": "alnum_upper", "a": "--", "b": "//", "match": false, "note": "values with no alphanumerics only match when identical after trimming" },
+
+    { "mode": "phone", "a": "+34 612 345 678", "b": "612345678", "match": true, "note": "the country prefix is dropped" },
+    { "mode": "phone", "a": "0034 612-345-678", "b": "612 345 678", "match": true },
+    { "mode": "phone", "a": "612 345 678", "b": "612 345 687", "match": false },
+    { "mode": "phone", "a": "34 612 345", "b": "612345", "match": false, "note": "only an eleven-digit number loses a leading 34" },
+    { "mode": "phone", "a": "934 123 456", "b": "934123456", "match": true, "note": "a landline starting with 9 keeps its digits" },
+
+    { "mode": "person_name", "a": "GARCÍA LÓPEZ, MARÍA", "b": "María García López", "match": true, "note": "surnames-first with a comma is the same name" },
+    { "mode": "person_name", "a": "garcia  lopez maria", "b": "María García López", "match": true },
+    { "mode": "person_name", "a": "María García López", "b": "María García Pérez", "match": false },
+    { "mode": "person_name", "a": "María García", "b": "María García López", "match": false, "note": "a missing surname is a different key" },
+    { "mode": "person_name", "a": "María del Carmen Ruiz", "b": "RUIZ, MARÍA DEL CARMEN", "match": true },
+    { "mode": "person_name", "a": ", ", "b": ",", "match": true, "note": "values with no words only match when identical after trimming" }
   ]
 }

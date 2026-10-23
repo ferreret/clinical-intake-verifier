@@ -21,11 +21,28 @@ def _casefold(value: str) -> str:
     return _WHITESPACE.sub(" ", unmarked.lower()).strip()
 
 
+def _phone(value: str) -> str:
+    # Forms add the country prefix; the LIS keeps the national number.
+    d = _NOT_DIGIT.sub("", value)
+    if len(d) == 13 and d.startswith("0034"):
+        return d[4:]
+    if len(d) == 11 and d.startswith("34"):
+        return d[2:]
+    return d
+
+
+def _person_name(value: str) -> str:
+    # "SURNAMES, NAME" and "Name Surnames" are the same person.
+    return " ".join(sorted(_casefold(value.replace(",", " ")).split()))
+
+
 _KEYS = {
     "exact": str.strip,
     "casefold": _casefold,
     "digits": lambda v: _NOT_DIGIT.sub("", v),
     "alnum_upper": lambda v: _NOT_ALNUM.sub("", v.upper()),
+    "phone": _phone,
+    "person_name": _person_name,
 }
 
 MODES = frozenset(_KEYS)

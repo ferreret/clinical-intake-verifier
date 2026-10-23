@@ -6,18 +6,36 @@
  */
 import type { CompareMode } from "./fields";
 
+// toLowerCase on both sides: Python's casefold has no JavaScript counterpart.
+const casefold = (v: string): string =>
+  v
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+const digits = (v: string): string => v.replace(/[^0-9]/g, "");
+
 const KEYS: Record<CompareMode, (value: string) => string> = {
   exact: (v) => v.trim(),
-  // toLowerCase on both sides: Python's casefold has no JavaScript counterpart.
-  casefold: (v) =>
-    v
-      .normalize("NFD")
-      .replace(/\p{M}/gu, "")
-      .toLowerCase()
-      .replace(/\s+/g, " ")
-      .trim(),
-  digits: (v) => v.replace(/[^0-9]/g, ""),
+  casefold,
+  digits,
   alnum_upper: (v) => v.toUpperCase().replace(/[^0-9A-Z]/g, ""),
+  // Forms add the country prefix; the LIS keeps the national number.
+  phone: (v) => {
+    const d = digits(v);
+    if (d.length === 13 && d.startsWith("0034")) return d.slice(4);
+    if (d.length === 11 && d.startsWith("34")) return d.slice(2);
+    return d;
+  },
+  // "SURNAMES, NAME" and "Name Surnames" are the same person.
+  person_name: (v) =>
+    casefold(v.replace(/,/g, " "))
+      .split(" ")
+      .filter(Boolean)
+      .sort()
+      .join(" "),
 };
 
 export const COMPARE_MODES: readonly CompareMode[] = Object.freeze(
