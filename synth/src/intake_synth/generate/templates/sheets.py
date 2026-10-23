@@ -268,62 +268,75 @@ def id_copy(rec: Recorder, d: DocData, rng: random.Random, total_pages: int) -> 
         drew_any = True
 
     if d.patient.doc_id is not None and rng.random() < 0.85:
-        cx, cy, cw, ch = m + rng.uniform(0, 120), 330 + rng.uniform(0, 80), 258, 162
-        rec.rect(cx, cy, cw, ch, stroke=LIGHT_GREY, fill=CARD_BG_ID, width=0.8, radius=10)
-        rec.text(
-            cx + 12, cy + 18, "DOCUMENTO DE IDENTIDAD", font="Helvetica-Bold", size=8.5, color=NAVY
-        )
-        rec.rect(
-            cx + 12, cy + 30, 62, 78, stroke=LIGHT_GREY, fill=colors.HexColor("#D5D5D5"), width=0.5
-        )
-        rec.text(cx + 43, cy + 74, "FOTO", size=7, color=GREY, align="center")
-        tx = cx + 86
-        rec.text(tx, cy + 40, "APELLIDOS", size=6, color=GREY)
-        rec.text(
-            tx,
-            cy + 51,
-            f"{d.patient.last_name1} {d.patient.last_name2}".upper(),
-            font="Helvetica-Bold",
-            size=8.5,
-        )
-        rec.text(tx, cy + 64, "NOMBRE", size=6, color=GREY)
-        rec.text(tx, cy + 75, d.patient.first_name.upper(), font="Helvetica-Bold", size=8.5)
-        rec.text(tx, cy + 88, "SEXO", size=6, color=GREY)
-        card_sex = "F" if d.patient.sex == "M" else "M"
-        rec.field_text(
-            tx, cy + 99, "Sexo", card_sex, d.patient.sex, size=8.5, primary=False, hand_ok=False
-        )
-        rec.text(tx + 50, cy + 88, "NACIONALIDAD", size=6, color=GREY)
-        rec.text(tx + 50, cy + 99, "ESP", size=8.5)
-        rec.text(tx, cy + 112, "FECHA DE NACIMIENTO", size=6, color=GREY)
-        rec.field_text(
-            tx,
-            cy + 123,
-            "FechaNacimiento",
-            f"{d.patient.birth_date:%d %m %Y}",
-            d.birth_value,
-            size=8.5,
-            primary=False,
-            hand_ok=False,
-        )
-        rec.text(cx + 12, cy + 128, "DNI", size=6, color=GREY)
-        rec.field_text(
-            cx + 12,
-            cy + 141,
-            "DocumentoIdentidad",
-            d.patient.doc_id,
-            size=10,
-            font="Courier-Bold",
-            primary=False,
-            hand_ok=False,
-        )
-        rec.text(
-            tx + 90,
-            cy + 141,
-            f"VALIDEZ {rng.randint(1, 28):02d} {rng.randint(1, 12):02d} {d.issue_date.year + rng.randint(1, 9)}",
-            size=6.5,
-            color=GREY,
-        )
+        # A state document: Spanish whatever the insurer's language.
+        with rec.in_language("es"):
+            cx, cy, cw, ch = m + rng.uniform(0, 120), 330 + rng.uniform(0, 80), 258, 162
+            rec.rect(cx, cy, cw, ch, stroke=LIGHT_GREY, fill=CARD_BG_ID, width=0.8, radius=10)
+            rec.text(
+                cx + 12,
+                cy + 18,
+                "DOCUMENTO DE IDENTIDAD",
+                font="Helvetica-Bold",
+                size=8.5,
+                color=NAVY,
+            )
+            rec.rect(
+                cx + 12,
+                cy + 30,
+                62,
+                78,
+                stroke=LIGHT_GREY,
+                fill=colors.HexColor("#D5D5D5"),
+                width=0.5,
+            )
+            rec.text(cx + 43, cy + 74, "FOTO", size=7, color=GREY, align="center")
+            tx = cx + 86
+            rec.text(tx, cy + 40, "APELLIDOS", size=6, color=GREY)
+            rec.text(
+                tx,
+                cy + 51,
+                f"{d.patient.last_name1} {d.patient.last_name2}".upper(),
+                font="Helvetica-Bold",
+                size=8.5,
+            )
+            rec.text(tx, cy + 64, "NOMBRE", size=6, color=GREY)
+            rec.text(tx, cy + 75, d.patient.first_name.upper(), font="Helvetica-Bold", size=8.5)
+            rec.text(tx, cy + 88, "SEXO", size=6, color=GREY)
+            card_sex = "F" if d.patient.sex == "M" else "M"
+            rec.field_text(
+                tx, cy + 99, "Sexo", card_sex, d.patient.sex, size=8.5, primary=False, hand_ok=False
+            )
+            rec.text(tx + 50, cy + 88, "NACIONALIDAD", size=6, color=GREY)
+            rec.text(tx + 50, cy + 99, "ESP", size=8.5)
+            rec.text(tx, cy + 112, "FECHA DE NACIMIENTO", size=6, color=GREY)
+            rec.field_text(
+                tx,
+                cy + 123,
+                "FechaNacimiento",
+                f"{d.patient.birth_date:%d %m %Y}",
+                d.birth_value,
+                size=8.5,
+                primary=False,
+                hand_ok=False,
+            )
+            rec.text(cx + 12, cy + 128, "DNI", size=6, color=GREY)
+            rec.field_text(
+                cx + 12,
+                cy + 141,
+                "DocumentoIdentidad",
+                d.patient.doc_id,
+                size=10,
+                font="Courier-Bold",
+                primary=False,
+                hand_ok=False,
+            )
+            rec.text(
+                tx + 90,
+                cy + 141,
+                f"VALIDEZ {rng.randint(1, 28):02d} {rng.randint(1, 12):02d} {d.issue_date.year + rng.randint(1, 9)}",
+                size=6.5,
+                color=GREY,
+            )
         drew_any = True
 
     if not drew_any:

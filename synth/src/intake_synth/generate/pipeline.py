@@ -162,7 +162,7 @@ def generate_document(index: int, opts: GenerateOptions) -> GeneratedDoc:
     layout_seed = rng.getrandbits(64)
     hand_seed = rng.getrandbits(64)
 
-    rec = Recorder(A4, random.Random(hand_seed), plan, role=sheets[0])
+    rec = Recorder(A4, random.Random(hand_seed), plan, role=sheets[0], lang=data.lang)
     for i, kind in enumerate(sheets):
         if i > 0:
             rec.new_page(kind)
@@ -214,6 +214,7 @@ def generate_document(index: int, opts: GenerateOptions) -> GeneratedDoc:
         "urgent": data.urgent,
         "sex_shown": data.show_sex,
         "insurance_block": data.insurance is not None,
+        "language": data.lang,
         "sheets": sheets,
     }
     id_ = doc_id(index)

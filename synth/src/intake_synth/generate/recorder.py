@@ -13,6 +13,8 @@ import io
 import math
 import os
 import random
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -23,6 +25,8 @@ from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
+
+from . import catalan
 
 BLACK = colors.black
 WHITE = colors.white
@@ -106,8 +110,13 @@ class Recorder:
         handwriting: HandwritingPlan | None = None,
         *,
         role: str = "request",
+        lang: str = "es",
     ) -> None:
         register_fonts()
+        # Language of the fixed texts: "ca" prints templates and labels in Catalan. Fixed
+        # texts with no translation are collected in ``untranslated`` for the tests.
+        self.lang = lang
+        self.untranslated: set[str] = set()
         self.buf = io.BytesIO()
         self.W, self.H = pagesize
         self.c = canvas.Canvas(self.buf, pagesize=pagesize, invariant=1, pageCompression=0)
@@ -120,6 +129,23 @@ class Recorder:
         self.page = 1
         self.pages: list[PageInfo] = [PageInfo(self.W, self.H, self._check_role(role))]
         self.items: list[Drawn] = []
+
+    def _tr(self, s: str) -> str:
+        if self.lang != "ca":
+            return s
+        out = catalan.label(s)
+        if out == s:
+            self.untranslated.add(s)
+        return out
+
+    @contextmanager
+    def in_language(self, lang: str) -> Iterator[None]:
+        """Draw a block in another language: the identity card stays in Spanish."""
+        saved, self.lang = self.lang, lang
+        try:
+            yield
+        finally:
+            self.lang = saved
 
     @staticmethod
     def _check_role(role: str) -> str:
@@ -204,8 +230,8 @@ class Recorder:
         color: colors.Color = BLACK,
         align: str = "left",
     ) -> BBoxPt:
-        """Plain text (labels, decoration). Not recorded."""
-        return self._draw_string(x, y, s, font, size, color, align, 0.0)
+        """Plain text (labels, decoration), in the recorder's language. Not recorded."""
+        return self._draw_string(x, y, self._tr(s), font, size, color, align, 0.0)
 
     def paragraph(
         self,
@@ -221,6 +247,7 @@ class Recorder:
     ) -> float:
         """Word-wrapped plain text. Not recorded. Returns the baseline after the last line."""
         leading = leading or size * 1.35
+        text = self._tr(text)
         line = ""
         for word in text.split():
             trial = f"{line} {word}".strip()
@@ -332,6 +359,7 @@ class Recorder:
         pad: float = 8,
     ) -> None:
         """Rubber-stamp look: rotated bold text inside a rounded frame. Never recorded."""
+        text = self._tr(text)
         w = pdfmetrics.stringWidth(text, "Helvetica-Bold", size) + 2 * pad
         h = size + 2 * pad
         c = self.c
@@ -452,6 +480,8 @@ class Recorder:
         font: str = "Helvetica",
     ) -> None:
         """Two checkboxes with labels; records Sexo as the checked box plus its label."""
+        if self.lang == "ca":
+            labels = (catalan.SEX_LABELS[labels[0]], catalan.SEX_LABELS[labels[1]])
         mark = self.rng.choice(["x", "tick"])
         cursor = x
         side = size * 0.85

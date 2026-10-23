@@ -55,6 +55,7 @@ class RequestedItem:
 @dataclass
 class DocData:
     index: int
+    lang: str  # "es" | "ca": the language the issuer prints in
     center: Center
     service: str
     issue_date: date

@@ -12,7 +12,7 @@ from datetime import date, timedelta
 
 from faker import Faker
 
-from . import catalog
+from . import catalan, catalog
 from .dialects import GENERIC, Dialect
 from .labcatalog import Catalog, build_catalog
 from .model import DocData, Insurance, Patient, Physician, RequestedItem
@@ -267,8 +267,9 @@ def make_doc_data(
     dialect = dialects[insurance.name if insurance else GENERIC]
     preprinted = tuple(dialect.name(c) for c in cat.common if c not in dialect.profiles)
 
-    return DocData(
+    data = DocData(
         index=index,
+        lang=dialect.language,
         center=center,
         service=rng.choice(catalog.SERVICES),
         issue_date=issue,
@@ -290,3 +291,22 @@ def make_doc_data(
         instructions=rng.choice(catalog.INSTRUCTIONS),
         urgent=rng.random() < 0.15,
     )
+    if data.lang == "ca":
+        _to_catalan(data, birth)
+    return data
+
+
+def _to_catalan(d: DocData, birth: date) -> None:
+    """The printed texts of a Catalan insurer's document. Drawn after the Spanish ones, so
+    the random sequence, and every Spanish document, stays as it was."""
+    month_es = f"-{catalog.MONTHS_ES[birth.month - 1]}-"
+    d.birth_printed = d.birth_printed.replace(
+        month_es, f"-{catalan.MONTHS_SHORT[birth.month - 1]}-"
+    )
+    if d.age_printed:
+        d.age_printed = d.age_printed.replace(" años", " anys")
+    d.sex_printed = catalan.SEX_LABELS[d.sex_printed]
+    d.service = catalan.label(d.service)
+    d.observations = d.observations and catalan.label(d.observations)
+    d.diagnosis = d.diagnosis and catalan.label(d.diagnosis)
+    d.instructions = tuple(catalan.label(line) for line in d.instructions)

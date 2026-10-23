@@ -280,3 +280,30 @@ def test_scanned_documents_are_image_only_on_every_page(batch):
             assert len(page.get_images()) == 1
             assert abs(page.rect.width - 595.28) < 0.5
         pdf.close()
+
+
+# --------------------------------------------------------------------------- language
+
+# Spanish words a Catalan document must not print outside the identity card, a state
+# document that stays in Spanish.
+SPANISH_ONLY = ("Paciente", "Fecha", "Médico", "PRUEBAS", "Solicitud", "Firma", "Teléfono")
+
+
+def test_catalan_insurers_print_whole_documents_in_catalan():
+    opts = GenerateOptions(seed=SEED, scan_ratio=0)
+    docs = [generate_document(i, opts) for i in range(60)]
+    catalan = [d for d in docs if d.golden["context"]["language"] == "ca"]
+    assert len(catalan) >= 5
+    for doc in catalan:
+        insurer = doc.golden["fields"]["NombreMutua"]
+        assert insurer is None or catalog.INSURER_LANGUAGE[insurer["value"]] == "ca"
+        pdf = pymupdf.open(stream=doc.pdf, filetype="pdf")
+        for page, info in zip(pdf, doc.golden["pages"], strict=True):
+            if info["role"] == "id-copy":
+                continue
+            text = page.get_text()
+            for word in SPANISH_ONLY:
+                assert word not in text, (doc.id, info["role"], word)
+        sexo = doc.golden["fields"]["Sexo"]
+        if sexo is not None:  # the primary location is on the Catalan form, not the card
+            assert not {"Mujer", "Hombre", "Varón"} & set(sexo["printed"].split()), doc.id
