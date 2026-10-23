@@ -157,7 +157,15 @@ seed: a style (abbreviations or full names, how the specimen is written or left 
 capitals, truncated words such as "Colest.") and, within it, its own choice of name per
 test. Each insurer also names its profiles in its own way and may compose them differently
 from the lab, so the same profile name can mean different codes for two insurers.
-Documents without an insurer use a generic dialect close to the lab's names. Within one
+Documents without an insurer use a generic dialect close to the lab's names.
+
+**Catalan insurers.** Three of the seven fictional insurers print in Catalan, and their
+documents are entirely in Catalan: labels, paragraphs, sex (Home/Dona, or H/D in boxes),
+month names, ages ("anys") and test names ("Àcid úric", "Urinocultiu", "Pol·len
+d'olivera"). The photocopied identity card stays in Spanish, as a state document. The lab
+catalog stays in Spanish, so a Catalan line has to be mapped across languages. The golden
+values follow the document: test values are the Catalan text as printed, `Sexo` is still
+`H`/`M`/`U`. `context.language` records `es` or `ca`. Within one
 dialect every printed name is unique, so a line's codes are never ambiguous. Most lines
 come from about 80 common tests; 15% come from the rest of the catalog.
 

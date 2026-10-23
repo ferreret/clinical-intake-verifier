@@ -274,8 +274,8 @@ Results with `generate --n 200 --seed 42`:
 | scanned | 104 | `9c645b902cebb1fc` | `2488db358c89e71a` |
 
 These are the generator 0.2.0 dataset. F4 block 1 (generator 0.3.0, 2026-10-23) replaced it;
-on Ubuntu the new one fingerprints as all `36dba33a48840702`, clean `4103554aad5cb779`,
-scanned `691b90faaa2f5ca4`.
+with Catalan forms added the same day, on Ubuntu it fingerprints as all `a6fa4bd79481ec87`,
+clean `fd46356f840fc08e`, scanned `0665b5e74a1b37ca`.
 
 All three subsets differ. Document counts, page counts and absent fields match, so the generated
 content is the same; only the bytes differ. Because clean documents differ too, the cause is not
@@ -503,6 +503,15 @@ consequences for the extractor: the garbled-text check must accept the Catalan m
 between two l's ("pol·len", "cèl·lules"), which it currently flags; and the prompt's sex rule
 must read Home, Dona and a bare D (prompt v4), measured in the block 6 run.
 
+**Done on 2026-10-23**, as part of block 1. Garbí Salut Mútua, Serralada Assegurances
+Mèdiques and Rosada Salut Assegurances (fictional, replacing three Spanish names) print in
+Catalan. The recorder translates every fixed text of a Catalan document; the identity card
+stays in Spanish. Test names go through a vocabulary of the catalog's terms, with elision
+("Sistemàtic d'orina") and the middle dot ("Pol·len d'olivera"). The garbled-text check
+accepts `l·l` and still flags a middle dot anywhere else; prompt v4 is written, not yet run.
+In the regenerated seed-42 dataset, 60 of 200 documents and 400 of 1,578 test lines are
+Catalan; only 2 lines have an `l·l`.
+
 **Golden.** Each entry of `tests[]` gains `codes`: the list of lab codes it means, one for a
 single test, several for a profile. Golden format version bumped.
 
@@ -616,8 +625,8 @@ per document by a TypeScript batch script, like `extract-batch.ts`, and scored i
    cultures by site, drug levels, genetics), that is where it ends; reaching 2,000 would take
    invented names, which would make the long tail unrealistic. 726 is still large enough that
    sending the whole catalog with every document costs about 10k input tokens, so the
-   candidate search stays. The seed-42 dataset was regenerated: 1,577 test lines, 33 of them
-   profiles requested as one line (several codes) and 196 from the long tail. Every dialect
+   candidate search stays. The seed-42 dataset was regenerated: 1,578 test lines, 33 of them
+   profiles requested as one line (several codes) and 207 from the long tail. Every dialect
    name of three seeds (7,406) passes the extractor's garbled-text check unflagged. With
    about 20 documents per insurer, the learning curve of block 4 will need a larger dataset;
    generating one costs no API call.
