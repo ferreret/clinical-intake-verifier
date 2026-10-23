@@ -288,6 +288,23 @@ database (`mapping_memory`).
 
 `evaluate-mapping` exits with status 1 when any line came out green and wrong.
 
+### The model layer
+
+```bash
+npm --prefix web run map-simulate -- --dataset ../data/synth/seed-42-n1000 --model gemini --policy red
+npm --prefix web run map-simulate -- --dataset ../data/synth/seed-42-n1000 --model local --policy red
+```
+
+With `--model`, a language model chooses among each line's catalog candidates, once per
+document, for the lines the policy hands it: `red` (the default) only the lines the memory
+and the search left red; `all` every line the memory did not settle, its answer replacing
+the search's. Its answers are orange; an empty answer leaves a red line red (and makes a
+line red under `all`). Replies are cached in `data/model-cache`, keyed by provider, model,
+prompt version and request, so a rerun costs nothing. `evaluate-mapping` adds the model's
+calls (per 100 documents), lines sent, answered and right, tokens and latency per uncached
+call, and `precision_by_source` gains `model`. `local` needs LM Studio's server with the
+model loaded (`lms server start`; `lms load qwen/qwen3.6-35b-a3b`).
+
 ### Comparing searches
 
 ```bash

@@ -13,7 +13,7 @@ Last updated: 2026-10-23.
 | F1 | Synthetic request generator with golden ground truth | done |
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
-| F4 | Mock LIS, fusion engine and test mapping | design approved; blocks 1 to 4 and 5a done (below) |
+| F4 | Mock LIS, fusion engine and test mapping | design approved; blocks 1 to 5 done (below) |
 | F5 | Verification UI | not started |
 | F6 | Public demo on Vercel | not started |
 
@@ -456,7 +456,7 @@ assumed above (Ollama on ROCm) and should be settled when the track is approved.
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
 **Status: proposed and approved on 2026-10-23, with every decision settled (at the end).
-Blocks 1 to 4 and 5a are done (below); next: block 5b.**
+Blocks 1 to 5 are done (below); next: block 6.**
 
 F4 as described in `CLAUDE.md` covers the demographic fields: a synthetic LIS and the traffic
 light. This proposal adds a third part, at the product owner's request on 2026-10-23, and it
@@ -773,6 +773,40 @@ per document by a TypeScript batch script, like `extract-batch.ts`, and scored i
    requests does not hold on later ones; and the synthetic dialects, built from the
    catalog's own synonyms, flatter lexical search, so a real-data rerun could rank the
    methods differently.
+   **5b done on 2026-10-23: the model layer, measured and adopted, red lines only.** Code in
+   `web/src/lib/mapping/model.ts` (prompt, a JSON schema with each line's candidate codes as
+   an enum, components added for profile candidates among the first five, a disk cache of
+   replies) and `document.ts` (`proposeDocument`, one model call per document);
+   `map-simulate --model gemini|local --policy red|all`. Local Qwen3.6-35B-A3B through LM
+   Studio's server, with `reasoning_effort: "none"`: with reasoning on, the first manual
+   check took 63 s for the same answer it gave in 3.7 s without. Same 1,000 documents,
+   perfect technician:
+
+   | Variant | Technician work | Red lines | Model right | Calls per 100 documents | Tokens in / out | ms per call |
+   |---|---|---|---|---|---|---|
+   | block 4, no model | 2.2% | 149 | – | 0 | – | – |
+   | Gemini, red lines only | **0.8%** | 11 | 121 of 138 (87.7%) | 11.6 | 90k / 10k | 2,900 |
+   | Gemini, every unsettled line | **0.6%** | 13 | 1,172 of 1,200 (97.7%) | 55.7 | 627k / 34k | 2,700 |
+   | local Qwen, red lines only | **0.9%** | 10 | 107 of 139 (77.0%) | 11.6 | 93k / 4k | 2,600 |
+   | local Qwen, every unsettled line | 1.2% | 27 | 1,121 of 1,186 (94.5%) | 55.7 | 647k / 26k | 4,700 |
+
+   No line came out green with wrong codes in any run (the model's answers are orange, and
+   the memory turns them green only after two active approvals). The gain is where block 4
+   was weakest: Catalan insurers' first requests, where the technician's work falls from
+   19-22% to 0-5%, and profiles requested as one line, where the model composes the
+   insurer's version (29 of 133 non-green profile lines right under "every line", 11 or 12
+   under "red only").
+
+   **Decision taken from the measurement:** the model consults only the lines the memory and
+   the search left red. It takes three quarters of the work away with a fifth of the calls
+   of the alternative, which saves only 0.2 points more with Gemini and does worse than red
+   lines only with local Qwen (Qwen chooses less precisely than the search where the search
+   is confident). Gemini is slightly better than local Qwen (0.8% against 0.9%); local Qwen
+   costs nothing, sends nothing out of the machine and is as fast on this APU. Both stay
+   selectable (`MAPPING_MODEL_PROVIDER`); which one is the default is the product owner's
+   call. The caveat of block 4 holds: synthetic dialects flatter the search, so on real
+   wording the model may have more to do.
+
 6. Full run with Gemini on the new dataset.
 
 #### Decisions
