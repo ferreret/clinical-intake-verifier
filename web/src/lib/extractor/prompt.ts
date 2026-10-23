@@ -6,16 +6,17 @@
  */
 import { FIELDS, TESTS, type FieldSpec } from "@/lib/schema/fields";
 
-export const PROMPT_VERSION = "3";
+export const PROMPT_VERSION = "4";
 
 /** How each `normalize` rule in fields.json is explained to the model. */
 const NORMALISATION_TEXT: Record<string, string> = {
   "dd/mm/yyyy":
-    "Normalise to dd/mm/yyyy whatever the printed format (12-mar-1978, 12.3.78 and 1978-03-12 " +
-    "all become 12/03/1978).",
+    "Normalise to dd/mm/yyyy whatever the printed format and language (12-mar-1978, " +
+    "12-març-1978, 12.3.78 and 1978-03-12 all become 12/03/1978).",
   "H|M|U":
-    "Normalise to H (male), M (female) or U (unknown or other). Printed forms vary: Hombre, " +
-    "Varón, Masculino, V and H mean male; Mujer, Femenino and F mean female. A bare M depends " +
+    "Normalise to H (male), M (female) or U (unknown or other). Printed forms vary, in Spanish " +
+    "or Catalan: Hombre, Home, Varón, Masculino, Masculí, V and H mean male; Mujer, Dona, " +
+    "Femenino, Femení, F and D mean female. A bare M depends " +
     "on the sheet it is printed on: on the request form and its companion sheets it means " +
     "female (male is written H or V there); on a photocopied identity card, which prints a " +
     "single letter, M means male (masculino) and F female.",
@@ -35,7 +36,7 @@ function describeField(f: FieldSpec): string {
 
 export function buildSystemInstruction(): string {
   const fieldLines = FIELDS.map(describeField).join("\n");
-  return `You extract structured data from a scanned Spanish clinical laboratory request (a "volante") so that an operator can verify it. Your output is not the source of truth: it will be checked against the laboratory's own records and a person decides. Be exact, and prefer null over a guess.
+  return `You extract structured data from a scanned clinical laboratory request (a "volante"), printed in Spanish or Catalan, so that an operator can verify it. Your output is not the source of truth: it will be checked against the laboratory's own records and a person decides. Be exact, and prefer null over a guess.
 
 The document may have several pages in any order: the request form itself (sometimes continued on a further page), the insurer's authorisation letter, photocopies of an insurance card or an identity document, an informed-consent form, a fax cover sheet, blank pages, or the same form scanned twice. All pages belong to one patient and one request.
 
@@ -47,7 +48,7 @@ ${fieldLines}
 Requested tests (array "tests"): ${TESTS.description}
 
 Rules:
-1. Text exactly as printed: keep casing, accents, separators and spacing. Do not correct, expand, translate or reformat anything, except the fields with an explicit normalisation rule above.
+1. Text exactly as printed: keep casing, accents, separators and spacing. Do not correct, expand, translate or reformat anything, except the fields with an explicit normalisation rule above. Catalan stays Catalan: a test printed as "Àcid úric" or "Pol·len d'olivera" is returned exactly so, middle dot and apostrophe included.
 2. If a field is not clearly printed, return null for its value, page and box_2d. Never infer a value from another field (do not compute Edad from FechaNacimiento, do not derive Sexo from the name) and never invent one.
 3. Prefer the value printed on the request form. If it appears only on a companion sheet (an authorisation letter, a card), take it from there. Return each field once even when the same value appears on several pages. NumeroPeticion in particular is often printed twice, in the body and under a barcode: return it once, from the body.
 4. page is the 1-based page the returned value was read from. box_2d is [ymin, xmin, ymax, xmax] on a 0-1000 scale relative to that page, tight around the value only, never including its label.
