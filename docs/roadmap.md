@@ -460,6 +460,15 @@ mapping is a separate step after it, so a reading error and a mapping error can 
 apart. A mapping is green only when people have confirmed it before; anything the model
 proposes is at most orange.
 
+**Nothing is accepted without a technician's approval.** A product requirement stated by the
+product owner on 2026-10-23, for health and European regulatory reasons: no test, and no
+field, is taken as valid without the technician who processes the request verifying it. The
+system shows what was read, what it proposes from that, and why; a technician approves. Green
+therefore never means "accepted": it means "proposed, with strong evidence", and it is still
+pending until approved. Every state in this proposal is a signal to the technician, never a
+decision. The approval is an explicit action, recorded with who approved, when, and exactly
+which values and codes were approved, so the record shows that a person took each decision.
+
 #### A. Generator v2: catalog, insurer dialects and LIS population
 
 **Lab catalog.** Synthetic and invented, around 2,000 codes, so that the size matches a real
@@ -536,11 +545,11 @@ the codes, the state, the source and the candidates that were considered.
 Layers, in order of confidence:
 
 1. **Confirmed mappings.** A table keyed by (insurer, normalised text) → codes, with how many
-   times operators confirmed it and how many times they corrected it. The insurer is the LIS
+   times technicians approved it and how many times they corrected it. The insurer is the LIS
    insurer the document was linked to, not the raw text, so a spelling variant of its name
-   still finds its mappings. Enough confirmations and no contradiction → **green**, with an
-   explanation ("confirmed 14 times for this insurer"). The same text confirmed for other
-   insurers is only a suggestion → orange. Conflicting confirmations → red, with both options.
+   still finds its mappings. Enough approvals and no contradiction → **green**, with an
+   explanation ("approved 14 times for this insurer"), and still pending this request's
+   approval. The same text approved for other insurers is only a suggestion → orange. Conflicting approvals → red, with both options.
 2. **Catalog search.** Lexical candidates from catalog names, synonyms and lab profiles
    (SQLite FTS5 or trigram similarity), top 20. The catalog is too large to send whole to the
    model on every document, and a search can be measured on its own (recall@k).
@@ -549,8 +558,15 @@ Layers, in order of confidence:
    One call per document for every line the first layer did not settle. Result: **orange**.
 4. **Nothing clear, or a tie → red.** The operator picks from a catalog search.
 
-**Learning.** Every operator decision feeds layer 1: a confirmation adds to the count, a
-correction records the contradiction. As mappings accumulate, more lines are green and fewer
+**Approval.** Mapping proposes; it never accepts. Every line, green included, waits for the
+technician's approval (see the requirement at the top of this section and decision 9).
+
+**Learning.** Only approved requests feed layer 1, never a proposal on its own: an approved
+line adds to the count, a correction records the contradiction. Approvals of lines that were
+shown green are counted apart from lines the technician resolved actively (picked or changed
+the codes), because a person approving a green line may be trusting the colour rather than
+checking it. Green needs actively resolved evidence, so a mapping cannot confirm itself
+only through its own green approvals. As mappings accumulate, more lines are green and fewer
 need the model, so the cost per document falls with use. That is the learning this proposal
 offers first: a memory of human decisions, scoped per insurer, explainable and useful from the
 first document. A trained model could come later, when there is data to train it, and the
@@ -570,8 +586,8 @@ per document by a TypeScript batch script, like `extract-batch.ts`, and scored i
   (end to end). Per line, exact, partial or wrong code set; per state, how many lines and how
   many of them wrong. Key figure: **wrong codes in green**. Also the search's recall@20.
 - **Learning curve**: the documents of each insurer in order, with a simulated operator who
-  confirms or corrects with the golden codes. The share of green lines and the green errors
-  after 1, 10 and 50 documents, and the same with an operator who makes mistakes 2% of the
+  approves or corrects with the golden codes. The technician's work after 1, 10 and 50
+  documents (lines only to review and approve against lines to correct) and the green errors, and the same with an operator who makes mistakes 2% of the
   time, to see whether a wrong confirmation spreads. This chart is the piece a reader of the
   portfolio remembers.
 
@@ -602,16 +618,25 @@ Answered by the product owner on 2026-10-23:
 
 Still open:
 
-5. **Confirmations needed for green.** Recommended: two, with no contradiction, configurable;
-   the learning curve with operator errors will show whether one is enough.
+5. **Approvals needed for green.** Recommended: two actively resolved approvals (see
+   Learning in C), with no contradiction, configurable; the learning curve with operator
+   errors will show whether one is enough.
 6. **Automatic patient link.** Recommended: only on a strong match, as in B.
 7. **Replacing the seed-42 dataset**, which makes earlier runs incomparable and needs a new
    baseline run (about 1.2 USD). Recommended: yes; the extractor's history stays in this file.
 8. **Persistence on the public demo.** Vercel's file system is read-only, so confirmed mappings
    written on the demo would not persist. Recommended: F4 works on local SQLite only; the
    demo's storage is decided in F6.
+9. **How the technician approves.** Settled: nothing is accepted without approval. Open: at
+   what granularity. Recommended: red lines and fields must be resolved one by one; orange
+   ones need a confirmation each (one keystroke in F5); green ones are reviewed on screen and
+   covered by a single approval of the whole request, which stays disabled while anything is
+   red or orange. The approval records the technician, the time and the approved values and
+   codes. The alternative, a confirmation for every line, green included, is the strictest
+   and slows down the common case.
 
-Once approved, `CLAUDE.md` gains the test mapping in its architecture and v1 fields.
+Once approved, `CLAUDE.md` gains the test mapping in its architecture and v1 fields, and the
+approval requirement next to the traffic light: a colour is a signal, never an acceptance.
 
 ### 5. F5 and F6
 
