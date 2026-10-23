@@ -284,8 +284,8 @@ different bytes depending on the platform or the library build. Confirming it ne
 the Windows machine to compare object by object; no Windows machine is in use any more.
 
 Whatever the cause, the goldens stay valid, because boxes come from geometry and not from pixels.
-Still to do: the README and `docs/golden-format.md` should say that byte-identical output holds
-per platform, not across platforms.
+The README and `docs/golden-format.md` now say that byte-identical output holds per platform,
+not across platforms (2026-10-23).
 
 ### 2. F3: evaluation harness (approved)
 

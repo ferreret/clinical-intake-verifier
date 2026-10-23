@@ -142,6 +142,14 @@ gives byte-identical PDF and JSON, and `sha256` binds each golden to its PDF. Ch
 content or page sequence. Reproducibility is tied to the locked dependency versions in
 `synth/uv.lock`.
 
+Byte-identical output holds per platform, not across platforms. The same seed generated on
+Windows and on Ubuntu gives the same documents (same count, pages and absent fields), but
+different PDF bytes, for clean documents as well as scanned ones, so every `sha256` differs
+too. The likely cause is image compression (Pillow and zlib builds), not proven. The goldens
+stay valid on every platform, because values and boxes come from the generator's layout, not
+from the encoded pixels; but a run's predictions can only be scored against goldens generated
+on the same platform, since the evaluation checks `sha256` first.
+
 ## Visual check
 
 ```bash

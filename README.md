@@ -58,7 +58,9 @@ uv run intake-synth generate --n 50 --seed 42
 ```
 
 This writes 50 PDFs, 50 golden JSON files and a `manifest.json` into `data/synth/seed-42/`.
-Same seed, same bytes. Useful options:
+Same seed, same bytes on the same platform; on another operating system the content is the
+same but the PDF bytes may differ (see [docs/golden-format.md](docs/golden-format.md#reproducibility)).
+Useful options:
 
 ```
 --scan-ratio 0.5          fraction passed through the scanner simulation (raster, skew, blur, grain, JPEG)
