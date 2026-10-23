@@ -163,6 +163,23 @@ uv run intake-synth evaluate ../data/runs/<new-run> --baseline ../data/runs/<old
 The report then adds the change in every metric and the list of fields that were fixed and,
 more importantly, the ones that broke.
 
+## Quick start: fuse with the LIS
+
+The fusion engine sets each document against the lab's own records and gives every field a
+traffic light. Load the mock LIS, fuse, and score the result against each document's
+scenario:
+
+```bash
+npm --prefix web run seed-lis
+npm --prefix web run fuse -- --golden ../data/synth/seed-42
+cd synth && uv run intake-synth evaluate-fusion ../data/fusion/<fusion-id>
+```
+
+Without `--run`, every golden stands in for a perfect extraction; add
+`--run ../data/runs/<run-id>` to fuse a real one. The two numbers that must stay at zero are
+documents linked to the wrong patient and wrong values shown green. See
+[docs/evaluation.md](docs/evaluation.md#fusion).
+
 ## How the extractor works
 
 **Two layers and a boundary.** The model is asked for a flat JSON in its own conventions

@@ -13,7 +13,7 @@ Last updated: 2026-10-23.
 | F1 | Synthetic request generator with golden ground truth | done |
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
-| F4 | Mock LIS, fusion engine and test mapping | design approved; blocks 1 and 2 of 6 done (below) |
+| F4 | Mock LIS, fusion engine and test mapping | design approved; blocks 1 to 3 of 6 done (below) |
 | F5 | Verification UI | not started |
 | F6 | Public demo on Vercel | not started |
 
@@ -456,7 +456,7 @@ assumed above (Ollama on ROCm) and should be settled when the track is approved.
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
 **Status: proposed and approved on 2026-10-23, with every decision settled (at the end).
-Blocks 1 and 2 are done (below); next: block 3.**
+Blocks 1 to 3 are done (below); next: block 4.**
 
 F4 as described in `CLAUDE.md` covers the demographic fields: a synthetic LIS and the traffic
 light. This proposal adds a third part, at the product owner's request on 2026-10-23, and it
@@ -652,7 +652,21 @@ per document by a TypeScript batch script, like `extract-batch.ts`, and scored i
    printed for some men. For block 3, two things the data already shows: forms print phones
    with `+34` while the LIS keeps nine digits, and patient names in "SURNAMES, NAME" order,
    so neither compares as is.
-3. Fusion engine with provenance, and its scoring.
+3. Fusion engine with provenance, and its scoring. **Done on 2026-10-23.** Two compare modes
+   for comparing with the LIS (`phone`, which drops +34, and `person_name`, word order and
+   commas ignored); `fields.json` v3 names each field's LIS value, compare mode and default;
+   the engine in `web/src/lib/fusion`; `npm run fuse` and `intake-synth evaluate-fusion`
+   (`docs/evaluation.md`, "Fusion"). Two details beyond B: an insurer's aliases count as its
+   name, and a physician without a registration number on the form is linked on a unique
+   name, since physicians have no namesakes in practice.
+
+   **Measured** with every golden as a perfect prediction (seed 42, 200 documents): no wrong
+   link, no wrong green value, all 50 planted disagreements red and no red conflict without
+   one. Patients: 146 linked, 21 offered as candidates (the 8 identity-document typos and the
+   13 forms without one, all the right record) and 33 rightly without record. Fields: 1,161
+   green, 937 orange, 57 red, 445 grey. This is the engine without reading errors, so it only
+   shows that the rules do what they say; how it behaves when the AI misreads is measured by
+   fusing the block 6 run.
 4. Mapping layers 1, 2 and 4, recall@k, and the learning-curve simulation without the model.
 5. Mapping layer 3 (model) measured against block 4.
 6. Full run with Gemini on the new dataset.

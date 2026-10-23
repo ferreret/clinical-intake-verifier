@@ -217,6 +217,44 @@ Comparing two runs made the same way (same model, same prompt) is legitimate too
 how much the model varies from one run to the next, which is the noise any other difference
 has to beat.
 
+## Fusion
+
+The fusion engine (`web/src/lib/fusion`, F4) sets each document against the mock LIS: it
+links the document to a patient, a physician and an insurer, and gives every field a traffic
+light, a reason, a proposed value and its provenance. Every colour is a signal to the
+technician, never an acceptance.
+
+```bash
+npm --prefix web run seed-lis
+npm --prefix web run fuse -- --golden ../data/synth/seed-42
+cd synth && uv run intake-synth evaluate-fusion ../data/fusion/<fusion-id>
+```
+
+Without `--run`, `fuse` turns every golden into the prediction a perfect extractor would
+make, which measures the engine alone, at no cost and on any commit. With
+`--run ../data/runs/<run-id>` it fuses a real run, reading errors included.
+
+**Links.** A patient is linked only when the identity document agrees and so does the name
+or the birth date; a weaker match is a candidate the technician confirms, and several are
+ambiguous. Each link is scored against the golden's `lis` block: `linked`, `candidate_right`,
+`ambiguous_with_right`, `correct_none` (no record, rightly), `false_candidate`,
+`candidate_wrong`, `missed`, and **`wrong_link`**, the worst outcome.
+
+**Fields.** A field's right value is what the document prints, except where the scenario
+says the form has a typo (then the LIS's); where the document prints nothing, it is the LIS's
+value of the right record. Values are compared with the field's LIS compare mode
+(`fields.json`), so "612345678" is right for "+34 612 345 678".
+
+| Measure | What it counts | Target |
+|---|---|---|
+| wrong links | documents linked to another record | 0 |
+| wrong green | green fields whose value is not the right one, or empty | 0 |
+| disagreements caught red | fields where document and LIS differ by scenario, marked red | all |
+| conflicts with no disagreement | red conflicts the scenario did not plant | as few as possible |
+
+The report also tallies states by scenario and by field. `evaluate-fusion` exits with status 1
+when there is any wrong link or wrong green value.
+
 ## Not yet
 
 - Running the evaluation in CI on every commit, which needs a Gemini key in CI. Deferred to F6.
