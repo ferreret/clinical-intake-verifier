@@ -492,6 +492,17 @@ transformation rules: abbreviations (GOT, AST, ASAT), word order ("Colesterol HD
 That last rule produces, without having to guess, cases where the same text means different
 codes depending on the insurer. Documents without an insurer use a generic dialect.
 
+**Catalan forms** (added by the product owner on 2026-10-23, after block 1). The lab works
+with insurers in Catalonia: some print their forms in Spanish, others in Catalan. Language
+is a property of each insurer: three of the seven fictional insurers are Catalan and their
+documents are **entirely in Catalan** (labels, sex as Home/Dona, months, the authorisation
+letter, and the tests: "Àcid úric", "Urinocultiu", "Hemograma complet", "en sèrum"). The
+lab catalog **stays in Spanish only**, like a typical LIS, so mapping has to cross the
+language; that is the hard case worth measuring, and approved mappings learn it. Two
+consequences for the extractor: the garbled-text check must accept the Catalan middle dot
+between two l's ("pol·len", "cèl·lules"), which it currently flags; and the prompt's sex rule
+must read Home, Dona and a bare D (prompt v4), measured in the block 6 run.
+
 **Golden.** Each entry of `tests[]` gains `codes`: the list of lab codes it means, one for a
 single test, several for a profile. Golden format version bumped.
 
