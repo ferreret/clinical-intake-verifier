@@ -57,8 +57,9 @@ uv sync
 uv run intake-synth generate --n 50 --seed 42
 ```
 
-This writes 50 PDFs, 50 golden JSON files, a `manifest.json` and the lab's test catalog
-(`catalog.json`) into `data/synth/seed-42/`.
+This writes 50 PDFs, 50 golden JSON files, a `manifest.json`, the lab's test catalog
+(`catalog.json`) and the lab's own records of patients, physicians and insurers (`lis.json`,
+the mock LIS) into `data/synth/seed-42/`.
 Same seed, same bytes on the same platform; on another operating system the content is the
 same but the PDF bytes may differ (see [docs/golden-format.md](docs/golden-format.md#reproducibility)).
 Useful options:
@@ -196,6 +197,16 @@ entirely, writes some fields in handwriting fonts, repeats the request number un
 adds distractors (record numbers with their own barcode, unticked pre-printed tests, diagnosis
 text, observations, an identity card that prints F for mujer) and pushes half of the output
 through a scanner simulation with per-page skew.
+
+**Insurers write tests their own way, some in Catalan.** Tests are drawn from a synthetic lab
+catalog of 726 coded tests, and each insurer prints them in its own wording ("GLU (SUERO)",
+"S-Glucosa", "Glucèmia"); three insurers print the whole document in Catalan. Every test in
+the ground truth carries the lab codes it means.
+
+**A mock LIS to check documents against.** Patients and physicians come from the lab's own
+records, and each document has a scenario: everything agrees, the phone changed since, the
+form has a typo, the patient is new, or another patient has the same name. Load the records
+into SQLite with `npm --prefix web run seed-lis` (after `npm --prefix web ci`).
 
 Because the generator knows exactly what it drew, every document comes with its ground truth
 for free: the value of each field, the verbatim printed string, page and bounding box of the

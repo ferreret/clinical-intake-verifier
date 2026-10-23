@@ -30,7 +30,7 @@ introduces a conflicting value, so the golden stays unambiguous.
 
 ```json
 {
-  "golden_version": 2,
+  "golden_version": 3,
   "id": "synth-000042",
   "file": "synth-000042.pdf",
   "sha256": "…",
@@ -74,6 +74,7 @@ introduces a conflicting value, so the golden stays unambiguous.
     { "value": "Hemograma completo", "printed": "Hemograma completo", "page": 2, "bbox": { "…": "…" }, "style": "printed", "also_at": [], "codes": ["HE9359"] },
     { "value": "Iones Na, K, Cl", "printed": "Iones Na, K, Cl", "page": 2, "bbox": { "…": "…" }, "style": "printed", "also_at": [], "codes": ["BQ5212", "BQ1837", "BQ6057"] }
   ],
+  "lis": { "scenario": "form_typo", "patient_id": "P00072", "physician_id": "M0043", "insurer_id": "A03", "differs": "FechaNacimiento", "correct": "lis" },
   "context": { "issue_date": "2026-03-14", "center": "Centro Diagnóstico Alborada", "sheets": ["fax-cover", "request"] }
 }
 ```
@@ -168,6 +169,33 @@ values follow the document: test values are the Catalan text as printed, `Sexo` 
 `H`/`M`/`U`. `context.language` records `es` or `ca`. Within one
 dialect every printed name is unique, so a line's codes are never ambiguous. Most lines
 come from about 80 common tests; 15% come from the rest of the catalog.
+
+## Mock LIS and scenarios
+
+`lis.json`, next to `manifest.json`, holds the lab's own records: about 400 patients (15 pairs
+of them share a full name), 60 physicians and the insurers it has an agreement with, all
+generated from the seed and independent of which documents are made. One insurer is left
+out of it, so its documents carry an insurer the lab does not know. Identifiers are stored
+unformatted (`12345678Z`, nine-digit phone and registration numbers) and birth dates as
+`dd/mm/yyyy`.
+
+Each document draws its patient and physician from these records and is given a
+**scenario**, recorded in its golden `lis` block:
+
+| scenario | share | what the document prints | `differs` | `correct` |
+|---|---|---|---|---|
+| `match` | 45% | the LIS record, in the form's own formatting | null | null |
+| `drift` | 15% | a phone that changed since the record was made | `Telefono` | `document` |
+| `form_typo` | 10% | one digit of the ID, or the birth day or year, written wrong | the field | `lis` |
+| `new_patient` | 20% | a patient the lab has never seen; `patient_id` is null | null | null |
+| `homonym` | 10% | a patient who has a namesake in the LIS, with another birth date and ID | null | null |
+
+`physician_id` is null for the 15% of physicians the LIS does not know; `insurer_id` is null
+when the document has no insurer or an unregistered one. A value a scenario is about is
+always printed. A form typo in the ID or birth date is never repeated on a photocopied
+identity card (no card is drawn then), so sheets never contradict each other. Golden values
+are what the document prints, typos included; the LIS record is the other side of the
+comparison. Forms print phones as they like, `+34` included, while the LIS keeps nine digits.
 
 ## Reproducibility
 

@@ -13,7 +13,7 @@ Last updated: 2026-10-23.
 | F1 | Synthetic request generator with golden ground truth | done |
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
-| F4 | Mock LIS, fusion engine and test mapping | design approved; block 1 of 6 done (below) |
+| F4 | Mock LIS, fusion engine and test mapping | design approved; blocks 1 and 2 of 6 done (below) |
 | F5 | Verification UI | not started |
 | F6 | Public demo on Vercel | not started |
 
@@ -274,8 +274,8 @@ Results with `generate --n 200 --seed 42`:
 | scanned | 104 | `9c645b902cebb1fc` | `2488db358c89e71a` |
 
 These are the generator 0.2.0 dataset. F4 block 1 (generator 0.3.0, 2026-10-23) replaced it;
-with Catalan forms added the same day, on Ubuntu it fingerprints as all `a6fa4bd79481ec87`,
-clean `fd46356f840fc08e`, scanned `0665b5e74a1b37ca`.
+with Catalan forms and the mock LIS (block 2) added the same day, on Ubuntu it fingerprints as
+all `bbc8203179af22be`, clean `58badd6ab258fb56`, scanned `03826bd1eda00445`.
 
 All three subsets differ. Document counts, page counts and absent fields match, so the generated
 content is the same; only the bytes differ. Because clean documents differ too, the cause is not
@@ -446,7 +446,7 @@ assumed above (Ollama on ROCm) and should be settled when the track is approved.
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
 **Status: proposed and approved on 2026-10-23, with every decision settled (at the end).
-Block 1 is done (below); next: block 2.**
+Blocks 1 and 2 are done (below); next: block 3.**
 
 F4 as described in `CLAUDE.md` covers the demographic fields: a synthetic LIS and the traffic
 light. This proposal adds a third part, at the product owner's request on 2026-10-23, and it
@@ -630,7 +630,18 @@ per document by a TypeScript batch script, like `extract-batch.ts`, and scored i
    name of three seeds (7,406) passes the extractor's garbled-text check unflagged. With
    about 20 documents per insurer, the learning curve of block 4 will need a larger dataset;
    generating one costs no API call.
-2. Generator v2: LIS population and scenarios; Drizzle schema and seed script.
+2. Generator v2: LIS population and scenarios; Drizzle schema and seed script. **Done on
+   2026-10-23** (golden version 3, `lis.json`; described in `docs/golden-format.md`). The LIS
+   has 415 patients (15 namesake pairs), 60 physicians and 6 of the 7 insurers. In seed 42:
+   92 match, 28 drift, 22 form typos (14 in the birth date, 8 in the ID), 33 new patients
+   and 25 homonyms; 118 distinct LIS patients, up to 5 documents each; 30 unknown physicians
+   and 19 documents of the unregistered insurer. The web app owns the schema
+   (`web/src/lib/lis/schema.ts`, migrations in `web/drizzle/`) and `npm run seed-lis` loads
+   `lis.json` into `data/lis/seed-42.sqlite` through libSQL, which also leaves a hosted
+   SQLite open for decision 8. Physicians' titles now follow their sex, which fixes "Dra."
+   printed for some men. For block 3, two things the data already shows: forms print phones
+   with `+34` while the LIS keeps nine digits, and patient names in "SURNAMES, NAME" order,
+   so neither compares as is.
 3. Fusion engine with provenance, and its scoring.
 4. Mapping layers 1, 2 and 4, recall@k, and the learning-curve simulation without the model.
 5. Mapping layer 3 (model) measured against block 4.
