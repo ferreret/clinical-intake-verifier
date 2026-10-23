@@ -10,6 +10,23 @@ import fieldsJson from "../../../../schema/fields.json";
 export type CompareMode = "exact" | "casefold" | "digits" | "alnum_upper" | "phone" | "person_name";
 export type FieldType = "string" | "date" | "enum";
 
+/** Where the LIS holds a field: `record.column`, the name columns joined as one name. */
+export type LisSource =
+  | "patient.name"
+  | "patient.birth_date"
+  | "patient.sex"
+  | "patient.doc_id"
+  | "patient.phone"
+  | "physician.name"
+  | "physician.colegiado"
+  | "insurer.name";
+
+export interface LisSpec {
+  source: LisSource;
+  /** How the document's value is compared with the LIS's, which may differ from `compare`. */
+  compare: CompareMode;
+}
+
 export interface FieldSpec {
   name: string;
   label: string;
@@ -23,6 +40,10 @@ export interface FieldSpec {
   /** Regex the (normalised) value is expected to match, or null. */
   pattern: string | null;
   unique?: boolean;
+  /** The LIS value the fusion engine compares this field with, or null when there is none. */
+  lis: LisSpec | null;
+  /** System default, the lowest-priority source; null for none. */
+  default: string | null;
   description: string;
 }
 

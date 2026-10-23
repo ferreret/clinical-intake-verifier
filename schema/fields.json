@@ -1,6 +1,6 @@
 {
-  "$comment": "Single source of truth for the intake fields. Read by the Python generator/evaluator and by the Next.js app. Do not duplicate this configuration in prompts, backend or UI.",
-  "version": 2,
+  "$comment": "Single source of truth for the intake fields. Per field, lis is the LIS value it is compared with by the fusion engine (record.column; patient.name and physician.name are first name and both surnames) and the compare mode for that comparison, or null when the LIS does not hold it; default is the system default, the third and lowest-priority source. Read by the Python generator/evaluator and by the Next.js app. Do not duplicate this configuration in prompts, backend or UI.",
+  "version": 3,
   "compare_modes": {
     "exact": "String equality after trimming whitespace.",
     "casefold": "Case-insensitive, accent-insensitive, whitespace-collapsed equality.",
@@ -19,6 +19,8 @@
       "normalize": null,
       "compare": "casefold",
       "pattern": null,
+      "lis": { "source": "patient.name", "compare": "person_name" },
+      "default": null,
       "description": "Full name of the patient exactly as printed."
     },
     {
@@ -30,6 +32,8 @@
       "normalize": "dd/mm/yyyy",
       "compare": "exact",
       "pattern": "^\\d{2}/\\d{2}/\\d{4}$",
+      "lis": { "source": "patient.birth_date", "compare": "exact" },
+      "default": null,
       "description": "Date of birth normalized to dd/mm/yyyy regardless of how it is printed."
     },
     {
@@ -41,6 +45,8 @@
       "normalize": null,
       "compare": "digits",
       "pattern": null,
+      "lis": null,
+      "default": null,
       "description": "Age exactly as printed (may include a unit such as 'años')."
     },
     {
@@ -53,6 +59,8 @@
       "enum": ["H", "M", "U"],
       "compare": "exact",
       "pattern": "^[HMU]$",
+      "lis": { "source": "patient.sex", "compare": "exact" },
+      "default": null,
       "description": "H = hombre, M = mujer, U = unknown/other. Normalized from any printed representation."
     },
     {
@@ -64,6 +72,8 @@
       "normalize": null,
       "compare": "alnum_upper",
       "pattern": null,
+      "lis": { "source": "patient.doc_id", "compare": "alnum_upper" },
+      "default": null,
       "description": "DNI, NIE or passport number exactly as printed."
     },
     {
@@ -75,6 +85,8 @@
       "normalize": null,
       "compare": "digits",
       "pattern": null,
+      "lis": { "source": "patient.phone", "compare": "phone" },
+      "default": null,
       "description": "Patient contact phone exactly as printed."
     },
     {
@@ -86,6 +98,8 @@
       "normalize": "no-title",
       "compare": "casefold",
       "pattern": null,
+      "lis": { "source": "physician.name", "compare": "person_name" },
+      "default": null,
       "description": "Name and surnames of the requesting physician as printed, without any title or honorific."
     },
     {
@@ -97,6 +111,8 @@
       "normalize": null,
       "compare": "digits",
       "pattern": null,
+      "lis": { "source": "physician.colegiado", "compare": "digits" },
+      "default": null,
       "description": "Medical college registration number exactly as printed."
     },
     {
@@ -108,6 +124,8 @@
       "normalize": null,
       "compare": "alnum_upper",
       "pattern": null,
+      "lis": null,
+      "default": null,
       "unique": true,
       "description": "Request identifier. May be printed more than once (header, barcode label); returned once."
     },
@@ -120,6 +138,8 @@
       "normalize": null,
       "compare": "casefold",
       "pattern": null,
+      "lis": { "source": "insurer.name", "compare": "casefold" },
+      "default": null,
       "description": "Insurance company / mutual name exactly as printed."
     },
     {
@@ -131,6 +151,8 @@
       "normalize": null,
       "compare": "alnum_upper",
       "pattern": null,
+      "lis": null,
+      "default": null,
       "description": "Insurer-side request/solicitud number exactly as printed."
     },
     {
@@ -142,6 +164,8 @@
       "normalize": null,
       "compare": "alnum_upper",
       "pattern": null,
+      "lis": null,
+      "default": null,
       "description": "Insurer authorization number exactly as printed."
     },
     {
@@ -153,6 +177,8 @@
       "normalize": null,
       "compare": "digits",
       "pattern": null,
+      "lis": null,
+      "default": null,
       "description": "Insurance card number exactly as printed."
     }
   ],

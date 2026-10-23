@@ -44,6 +44,19 @@ def test_field_names_are_unique_and_compare_modes_known():
     assert cfg["tests"]["compare"] in modes
 
 
+def test_fields_say_where_the_lis_holds_them():
+    cfg = load_fields()
+    sources = set()
+    for f in cfg["fields"]:
+        assert "lis" in f and "default" in f, f["name"]
+        if f["lis"] is not None:
+            assert f["lis"]["compare"] in cfg["compare_modes"], f["name"]
+            record, _, column = f["lis"]["source"].partition(".")
+            assert record in ("patient", "physician", "insurer") and column, f["name"]
+            sources.add(f["lis"]["source"])
+    assert len(sources) == sum(f["lis"] is not None for f in cfg["fields"])
+
+
 def test_validate_golden_reports_errors_for_garbage():
     errors = validate_golden({"golden_version": 4})
     assert errors
