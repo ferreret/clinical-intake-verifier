@@ -233,8 +233,9 @@ and 16.4.2 pins the same `fast-glob`; the fix npm suggests is a downgrade to
 `eslint-config-next` 14. Accepted: it only runs when linting, never in the deployed app.
 Re-check when Next.js updates that dependency. 16.4.x is a minor upgrade, left for later.
 
-The preview in `.claude/launch.json` fails here with `npm` not found, because of the nvm PATH
-issue above. Not fixed yet.
+The preview in `.claude/launch.json` failed here with `npm` not found, because of the nvm PATH
+issue above. Fixed on 2026-10-23: it runs through `bash`, which loads `~/.nvm/nvm.sh` when it
+exists and otherwise uses whatever `npm` is on the PATH.
 
 **Resolved: rolldown native binding.** The old lockfile listed rolldown's platform bindings as
 optional dependencies but had no entry for any of them, a known npm bug, so vitest failed to
