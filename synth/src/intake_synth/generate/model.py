@@ -56,6 +56,7 @@ class RequestedItem:
 class DocData:
     index: int
     lang: str  # "es" | "ca": the language the issuer prints in
+    lis: dict  # how the document relates to the mock LIS (golden "lis")
     center: Center
     service: str
     issue_date: date

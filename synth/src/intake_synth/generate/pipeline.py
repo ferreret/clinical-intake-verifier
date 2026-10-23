@@ -24,7 +24,7 @@ from faker import Faker
 from reportlab.lib.pagesizes import A4
 
 from .. import __version__
-from . import catalog
+from . import catalog, lis
 from .dialects import dialects
 from .golden import build_golden
 from .identities import make_doc_data
@@ -36,6 +36,7 @@ from .templates import HANDWRITING_CANDIDATES, SHEETS, TEMPLATES
 
 MANIFEST_NAME = "manifest.json"
 CATALOG_NAME = "catalog.json"
+LIS_NAME = "lis.json"
 
 # Companion sheets and their relative frequency. "duplicate" re-renders the request form
 # (the same sheet scanned twice) and is handled by the pipeline, not by SHEETS.
@@ -156,7 +157,14 @@ def generate_document(index: int, opts: GenerateOptions) -> GeneratedDoc:
 
     scan_roll = rng.random()
     template = rng.choice(list(opts.templates))
-    data = make_doc_data(rng, fake, index, template=template, dialects=dialects(opts.seed))
+    data = make_doc_data(
+        rng,
+        fake,
+        index,
+        template=template,
+        dialects=dialects(opts.seed),
+        pop=lis.population(opts.seed),
+    )
     plan = _plan_handwriting(rng, data, template, opts.handwriting_ratio)
     sheets = _plan_sheets(rng, data)
     layout_seed = rng.getrandbits(64)
@@ -226,6 +234,7 @@ def generate_document(index: int, opts: GenerateOptions) -> GeneratedDoc:
         pages=pages,
         items=items,
         test_codes=data.test_codes,
+        lis=data.lis,
         context=context,
     )
     return GeneratedDoc(id_, pdf, golden, template, scan_public is not None)
@@ -253,6 +262,9 @@ def generate_batch(
     out_dir.mkdir(parents=True, exist_ok=True)
     with open(out_dir / CATALOG_NAME, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(build_catalog().to_json(), fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    with open(out_dir / LIS_NAME, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(lis.population(opts.seed).to_json(), fh, ensure_ascii=False, indent=2)
         fh.write("\n")
     docs_meta = []
     for i in indices:
@@ -286,6 +298,8 @@ def generate_batch(
         "templates": list(opts.templates),
         "catalog": CATALOG_NAME,
         "catalog_version": CATALOG_VERSION,
+        "lis": LIS_NAME,
+        "lis_version": lis.LIS_VERSION,
         "count": len(docs_meta),
         "documents": docs_meta,
     }

@@ -12,27 +12,14 @@ from datetime import date, timedelta
 
 from faker import Faker
 
-from . import catalan, catalog
+from . import catalan, catalog, lis
 from .dialects import GENERIC, Dialect
 from .labcatalog import Catalog, build_catalog
 from .model import DocData, Insurance, Patient, Physician, RequestedItem
 
-DNI_LETTERS = "TRWAGMYFPDXBNJZSQVHLCKE"
-
-
 # --------------------------------------------------------------------------- identifiers
-
-
-def make_dni(rng: random.Random) -> str:
-    n = rng.randint(10_000_000, 99_999_999)
-    return f"{n}{DNI_LETTERS[n % 23]}"
-
-
-def make_nie(rng: random.Random) -> str:
-    prefix = rng.choice("XYZ")
-    n = rng.randint(1_000_000, 9_999_999)
-    numeric = int(f"{'XYZ'.index(prefix)}{n:07d}")
-    return f"{prefix}{n:07d}{DNI_LETTERS[numeric % 23]}"
+#
+# The LIS holds identifiers unformatted; a form prints them in one of several styles.
 
 
 def format_doc_id(rng: random.Random, raw: str) -> str:
@@ -43,20 +30,16 @@ def format_doc_id(rng: random.Random, raw: str) -> str:
     )
 
 
-def make_phone(rng: random.Random) -> str:
-    first = rng.choice("6667799")
-    digits = first + "".join(str(rng.randint(0, 9)) for _ in range(8))
+def format_phone(rng: random.Random, digits: str) -> str:
     grouped = f"{digits[:3]} {digits[3:6]} {digits[6:]}"
     return rng.choice(
         [digits, digits, grouped, f"+34 {grouped}", f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"]
     )
 
 
-def make_colegiado(rng: random.Random) -> str:
-    prov = rng.choice(catalog.PROVINCE_CODES)
-    seq = rng.randint(1000, 99999)
-    raw = f"{prov}{prov}{seq:05d}"
-    return rng.choice([raw, raw, f"{prov}/{prov}/{seq:05d}", f"{prov}-{prov}{seq:05d}"])
+def format_colegiado(rng: random.Random, digits: str) -> str:
+    prov, seq = digits[:2], digits[4:]
+    return rng.choice([digits, digits, f"{prov}/{prov}/{seq}", f"{prov}-{prov}{seq}"])
 
 
 def make_request_number(rng: random.Random, issue: date) -> str:
@@ -98,23 +81,6 @@ def make_insurance(rng: random.Random, issue: date) -> Insurance:
 
 def compute_age(birth: date, on: date) -> int:
     return on.year - birth.year - ((on.month, on.day) < (birth.month, birth.day))
-
-
-def sample_birth_date(rng: random.Random, issue: date) -> date:
-    bucket = rng.random()
-    if bucket < 0.10:
-        age = rng.randint(1, 17)
-    elif bucket < 0.70:
-        age = rng.randint(18, 64)
-    else:
-        age = rng.randint(65, 94)
-    anchor_year = issue.year - age
-    # Same calendar day `age` years back, then push back up to a year so the age is exact.
-    try:
-        anchor = issue.replace(year=anchor_year)
-    except ValueError:  # 29 Feb
-        anchor = issue.replace(year=anchor_year, day=28)
-    return anchor - timedelta(days=rng.randint(0, 364))
 
 
 def format_birth(rng: random.Random, b: date) -> str:
@@ -206,6 +172,7 @@ def make_doc_data(
     *,
     template: str,
     dialects: Mapping[str, Dialect],
+    pop: lis.Population,
 ) -> DocData:
     issue = date(2026, 1, 1) + timedelta(days=rng.randint(0, 240))
 
@@ -215,13 +182,21 @@ def make_doc_data(
         centers = [c for c in catalog.CENTERS if c.kind != "hospital"]
     center = rng.choice(centers)
 
-    sex = rng.choice("HM")
-    first = fake.first_name_male() if sex == "H" else fake.first_name_female()
-    last1, last2 = fake.last_name(), fake.last_name()
-    birth = sample_birth_date(rng, issue)
-    raw_doc = make_nie(rng) if rng.random() < 0.10 else make_dni(rng)
-    doc_id = None if rng.random() < 0.08 else format_doc_id(rng, raw_doc)
-    phone = None if rng.random() < 0.25 else make_phone(rng)
+    who = lis.draw(rng, fake, pop, issue)
+    p = who.patient
+    sex, first, last1, last2 = p.sex, p.first_name, p.last_name1, p.last_name2
+    birth = p.birth_date
+    raw_doc = p.doc_id
+    if who.differs == "DocumentoIdentidad":
+        raw_doc = lis.typo_doc_id(rng, raw_doc)
+    elif who.differs == "FechaNacimiento":
+        birth = lis.typo_birth_date(rng, birth)
+    phone_digits = lis.make_phone_digits(rng) if who.differs == "Telefono" else p.phone
+    # A value the scenario is about is always printed; otherwise forms leave some out.
+    show_doc = who.differs == "DocumentoIdentidad" or rng.random() >= 0.08
+    show_phone = who.differs == "Telefono" or rng.random() >= 0.25
+    doc_id = format_doc_id(rng, raw_doc) if show_doc else None
+    phone = format_phone(rng, phone_digits) if show_phone else None
     patient = Patient(first, last1, last2, sex, birth, doc_id, phone)
 
     name_style = rng.random()
@@ -240,21 +215,14 @@ def make_doc_data(
     pair = rng.choice(catalog.SEX_LABEL_PAIRS)
     sex_printed = pair[0] if sex == "H" else pair[1]
 
-    doc_sex = rng.choice("HM")
-    doc_first = fake.first_name_male() if doc_sex == "H" else fake.first_name_female()
-    doc_last1, doc_last2 = fake.last_name(), fake.last_name()
-    honorific = (
-        rng.choice(["Dr. ", "Dra. ", "", ""])
-        if doc_sex == "H"
-        else rng.choice(["Dra. ", "Dra. ", "", ""])
-    )
-    if honorific == "Dr. " and doc_sex == "M":
-        honorific = "Dra. "
+    m = who.physician
+    title = ("Dr. " if m.sex == "H" else "Dra. ") if rng.random() < 0.5 else ""
+    full_name = f"{m.first_name} {m.last_name1} {m.last_name2}"
     physician = Physician(
-        name=f"{honorific}{doc_first} {doc_last1} {doc_last2}",
-        full_name=f"{doc_first} {doc_last1} {doc_last2}",
-        colegiado=None if rng.random() < 0.15 else make_colegiado(rng),
-        signature=f"{doc_first[0]}. {doc_last1}",
+        name=f"{title}{full_name}",
+        full_name=full_name,
+        colegiado=None if rng.random() < 0.15 else format_colegiado(rng, m.colegiado),
+        signature=f"{m.first_name[0]}. {m.last_name1}",
     )
 
     needs_insurance = template == "insurer-form"
@@ -267,8 +235,19 @@ def make_doc_data(
     dialect = dialects[insurance.name if insurance else GENERIC]
     preprinted = tuple(dialect.name(c) for c in cat.common if c not in dialect.profiles)
 
+    insurer = pop.insurer(insurance.name) if insurance else None
+    record = {
+        "scenario": who.scenario,
+        "patient_id": who.patient_id,
+        "physician_id": who.physician_id,
+        "insurer_id": insurer.id if insurer else None,
+        "differs": who.differs,
+        "correct": who.correct,
+    }
+
     data = DocData(
         index=index,
+        lis=record,
         lang=dialect.language,
         center=center,
         service=rng.choice(catalog.SERVICES),

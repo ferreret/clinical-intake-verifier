@@ -58,6 +58,7 @@ def build_golden(
     pages: list[PageInfo],
     items: list[Drawn],
     test_codes: dict[str, tuple[str, ...]],
+    lis: dict,
     context: dict,
 ) -> dict:
     names = field_names()
@@ -92,7 +93,7 @@ def build_golden(
     )
 
     golden = {
-        "golden_version": 2,
+        "golden_version": 3,
         "id": doc_id,
         "file": file_name,
         "sha256": sha256,
@@ -108,6 +109,7 @@ def build_golden(
         ],
         "fields": fields,
         "tests": tests,
+        "lis": lis,
         "context": context,
     }
     errors = validate_golden(golden)

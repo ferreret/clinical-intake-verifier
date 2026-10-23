@@ -5,9 +5,9 @@
   "description": "Ground truth emitted by the synthetic generator alongside each PDF. Field keys mirror schema/fields.json. Documents are usually multipage; any field may live on any page.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["golden_version", "id", "file", "sha256", "generator", "pages", "fields", "tests", "context"],
+  "required": ["golden_version", "id", "file", "sha256", "generator", "pages", "fields", "tests", "lis", "context"],
   "properties": {
-    "golden_version": { "const": 2 },
+    "golden_version": { "const": 3 },
     "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
     "file": { "type": "string", "pattern": "\\.pdf$" },
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
@@ -106,6 +106,20 @@
     "tests": {
       "type": "array",
       "items": { "$ref": "#/$defs/testItem" }
+    },
+    "lis": {
+      "type": "object",
+      "description": "How the document relates to the mock LIS (lis.json next to the manifest): the records it should be linked to and where it disagrees with them. Ground truth for the fusion engine; the extractor never sees it.",
+      "additionalProperties": false,
+      "required": ["scenario", "patient_id", "physician_id", "insurer_id", "differs", "correct"],
+      "properties": {
+        "scenario": { "enum": ["match", "drift", "form_typo", "new_patient", "homonym"] },
+        "patient_id": { "type": ["string", "null"], "description": "The patient's LIS record; null for a patient the lab has never seen." },
+        "physician_id": { "type": ["string", "null"] },
+        "insurer_id": { "type": ["string", "null"], "description": "Null when the document has no insurer or the insurer is not registered in the LIS." },
+        "differs": { "type": ["string", "null"], "description": "The field where the document and the LIS record disagree, if any." },
+        "correct": { "enum": ["document", "lis", null], "description": "Which side is right where they disagree: the document after a change (drift), the LIS after a form typo." }
+      }
     },
     "context": {
       "type": "object",

@@ -227,7 +227,8 @@ def validate(
     against schema/golden.schema.json.
     """
     files = sorted(path.glob("*.json")) if path.is_dir() else [path]
-    files = [f for f in files if f.name not in ("manifest.json", "run.json", "catalog.json")]
+    not_golden = ("manifest.json", "run.json", "catalog.json", "lis.json")
+    files = [f for f in files if f.name not in not_golden]
     if not files:
         typer.echo("no golden or prediction files found", err=True)
         raise typer.Exit(code=1)

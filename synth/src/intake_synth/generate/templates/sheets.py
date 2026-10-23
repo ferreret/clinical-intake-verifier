@@ -267,7 +267,9 @@ def id_copy(rec: Recorder, d: DocData, rng: random.Random, total_pages: int) -> 
         )
         drew_any = True
 
-    if d.patient.doc_id is not None and rng.random() < 0.85:
+    # A form typo in the ID or birth date would contradict the real card: no card then.
+    typo = d.lis["differs"] in ("DocumentoIdentidad", "FechaNacimiento")
+    if d.patient.doc_id is not None and rng.random() < 0.85 and not typo:
         # A state document: Spanish whatever the insurer's language.
         with rec.in_language("es"):
             cx, cy, cw, ch = m + rng.uniform(0, 120), 330 + rng.uniform(0, 80), 258, 162
