@@ -588,9 +588,12 @@ Layers, in order of confidence:
 2. **Catalog search.** Lexical candidates from catalog names, synonyms and lab profiles
    (SQLite FTS5 or trigram similarity), top 20. The catalog is too large to send whole to the
    model on every document, and a search can be measured on its own (recall@k).
-3. **Model choice.** Gemini receives the line, the document context and the candidates, and
-   returns codes **constrained to that candidate list**, or none: it cannot invent a code.
-   One call per document for every line the first layer did not settle. Result: **orange**.
+3. **Model choice.** A language model receives the line, the document context and the
+   candidates, and returns codes **constrained to that candidate list**, or none: it cannot
+   invent a code. One call per document for every line the first layer did not settle.
+   Result: **orange**. Revised on 2026-10-23 (block 5 below): the model is selectable,
+   Gemini or the local Qwen, and comes after a local embedding search, only if that search
+   leaves problems the measurements show.
 4. **Nothing clear, or a tie → red.** The operator picks from a catalog search.
 
 **Approval.** Mapping proposes; it never accepts. Every line, green included, waits for the
@@ -605,8 +608,9 @@ only through its own green approvals. As mappings accumulate, more lines are gre
 need the model, so the cost per document falls with use. That is the learning this proposal
 offers first: a memory of human decisions, scoped per insurer, explainable and useful from the
 first document. A trained model could come later, when there is data to train it, and the
-harness would say whether it beats the table. Semantic search with embeddings is added only if
-lexical recall@k turns out too low.
+harness would say whether it beats the table. Semantic search with embeddings was to be
+added only if lexical recall@k turned out too low; block 5, revised, tries it first anyway,
+for ordering candidates rather than finding them.
 
 #### D. Measurement
 
@@ -702,7 +706,39 @@ per document by a TypeScript batch script, like `extract-batch.ts`, and scored i
    recall and search precision above are optimistic. The thresholds (2 approvals, 0.55 and
    0.05) are first choices, not tuned; `lines.jsonl` keeps each line's top score and lead so
    that they can be.
-5. Mapping layer 3 (model) measured against block 4.
+5. **Revised on 2026-10-23, approved by the product owner:** compare ways of choosing among
+   candidates on the same harness, cheapest first, and keep only what beats what came before.
+   Block 4 already finds the right codes among the 20 candidates for 99% of lines, so the
+   open problem is **choosing** (search proposals are right 97.6% of the time; about 150
+   lines stay red) and **profiles** (recall only 68%, since insurers compose them their own
+   way), not finding.
+
+   - **5a. Local embeddings.** A small multilingual sentence-embedding model run in Node
+     (transformers.js with ONNX weights, a few hundred MB downloaded once; no server, no API,
+     nothing leaves the machine, the same answer every time). Used to rank the catalog for a
+     line, alone and combined with the trigram score. It should help where meaning differs
+     from spelling, Catalan against a Spanish catalog above all. It cannot compose a profile
+     or use the rest of the document.
+   - **5b. A language model that chooses**, only if 5a leaves problems worth the cost. It
+     receives the lines the memory did not settle, the document's context (insurer,
+     language, the other requested tests) and each line's candidates, and returns codes from
+     those candidates or none, as a JSON schema with the candidate codes as an enum. For a
+     line that looks like a lab profile, the profile's components join the candidates so
+     that the model can compose the insurer's version. **The provider is selectable**: Gemini
+     (the SDK the extractor uses) or the **local Qwen** served by LM Studio's
+     OpenAI-compatible API on `127.0.0.1:1234` (Qwen3.6-35B-A3B, text only here, so the
+     image check of the local-model track above does not apply). Chosen by environment
+     variable, overridable per run. No patient data is sent: only test lines, the insurer
+     and the catalog candidates. Responses are cached by request, so repeated simulations
+     cost nothing.
+
+   Measured with `map-simulate` on the same 1,000 documents against block 4: the
+   technician's work along the learning curve, precision of each layer on the same lines,
+   wrong green lines (still 0), calls, tokens, cost and latency per document, and how the
+   calls fall as the memory fills. For 5b, both providers, and two policies: the model on
+   every line the memory does not settle, or only where the search is unsure (red lines).
+   The local model on an APU is expected to be slow (prompt processing of a few thousand
+   tokens per call); its latency is part of the result.
 6. Full run with Gemini on the new dataset.
 
 #### Decisions

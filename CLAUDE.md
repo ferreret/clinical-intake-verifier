@@ -79,7 +79,7 @@ Cada campo arrastra su procedencia: qué dijo la IA, qué dijo el LIS, de dónde
 
 Cada mutua escribe las pruebas a su manera; el laboratorio tiene su propio catálogo de códigos (miles). Este paso propone, para cada línea leída, los códigos del laboratorio (varios si es un perfil). El extractor sigue devolviendo el texto exacto; el mapeo va después y se mide aparte.
 
-Capas, de mayor a menor confianza: mapeos ya aprobados por técnicos para esa mutua (verde) → búsqueda de candidatos en el catálogo → Gemini elige **solo entre esos candidatos**, con todo el volante como contexto (naranja) → nada claro (rojo). Solo las peticiones aprobadas alimentan la memoria. Diseño completo en [`docs/roadmap.md`](docs/roadmap.md), sección F4.
+Capas, de mayor a menor confianza: mapeos ya aprobados por técnicos para esa mutua (verde) → búsqueda de candidatos en el catálogo → un modelo de lenguaje, Gemini o Qwen local a elegir, escoge **solo entre esos candidatos**, con todo el volante como contexto (naranja) → nada claro (rojo). Cada capa entra solo si la medición demuestra que mejora a la anterior. Solo las peticiones aprobadas alimentan la memoria. Diseño completo en [`docs/roadmap.md`](docs/roadmap.md), sección F4.
 
 ## Stack
 
@@ -88,6 +88,7 @@ Capas, de mayor a menor confianza: mapeos ya aprobados por técnicos para esa mu
 | App + API | **Next.js** (App Router, TypeScript) |
 | UI | React + Tailwind |
 | Extracción | Gemini Flash vía SDK de Google en route handler |
+| Mapeo de pruebas | Memoria de aprobaciones + búsqueda en el catálogo (trigramas y embeddings multilingües locales con transformers.js) + modelo que elige entre candidatos, **seleccionable: Gemini o Qwen local** (LM Studio, API compatible con OpenAI) |
 | Persistencia | SQLite + Drizzle |
 | Demo pública | Vercel |
 | Generador sintético y evaluación | **Python** (reportlab para los PDF) |
