@@ -69,9 +69,13 @@ const GARBLED: readonly { pattern: RegExp; reason: string; kinds: readonly TextK
   { pattern: /\p{L}\d+\p{L}/u, reason: "digit between letters", kinds: ["name"] },
 ];
 
+/** The Catalan middle dot between two l's ("pol·len", "Cèl·lules"), which is spelling, not a symbol. */
+const CATALAN_L_DOT = /(?<=l)·(?=l)/giu;
+
 /** Why `value` looks like corrupted text, or null. */
 export function garbledReason(value: string, kind: TextKind): string | null {
-  const hit = GARBLED.find((g) => g.kinds.includes(kind) && g.pattern.test(value));
+  const text = value.replace(CATALAN_L_DOT, "");
+  const hit = GARBLED.find((g) => g.kinds.includes(kind) && g.pattern.test(text));
   return hit ? hit.reason : null;
 }
 

@@ -208,6 +208,15 @@ describe("garbledReason", () => {
     expect(garbledReason("γ-GT", "name")).toBe("Greek letter");
   });
 
+  it("allows the Catalan middle dot between two l's only", () => {
+    expect(garbledReason("IgE específica Pol·len d'olivera", "test")).toBeNull();
+    expect(garbledReason("Recompte de cèl·lules", "test")).toBeNull();
+    expect(garbledReason("POL·LEN DE GRAMÍNIES", "test")).toBeNull();
+    expect(garbledReason("Marcel·lí Puig Soler", "name")).toBeNull();
+    expect(garbledReason("Fern·ndez", "name")).toBe("symbol next to a letter");
+    expect(garbledReason("Pol·en", "test")).toBe("symbol next to a letter");
+  });
+
   it("does not look for symbols in identifiers", () => {
     expect(garbledReason("AUT#001", "other")).toBeNull();
     expect(garbledReason("AUT#001", "name")).toBe("symbol next to a letter");
