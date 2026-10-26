@@ -43,10 +43,20 @@ export type TextKind = "name" | "test" | "other";
 const SYMBOL = String.raw`[^\p{L}\p{N}\s.,'’\-/()+&]`;
 
 /**
+ * A lowercase letter standing alone between words, or after a word at the end, other than the
+ * one-letter words of Spanish and Catalan (a, e, i, o, u, y). Seen when an accented letter
+ * became a space and a wrong letter: "sèrum" as "s crum", "aglutinació" as "aglutinaci c"
+ * (2026-10-26). A letter next to a number is left alone: hours ("orina de 24 h") and allergen
+ * components ("Pru p 3", "Bet v 1") are written that way.
+ */
+const STRAY_LETTER = /(?<=\p{L} )[b-df-hj-np-tv-xz](?=$| \p{L})/u;
+
+/**
  * The forms in which the model has been seen to corrupt accented letters, intermittently and
  * across a whole document: a control character ("Est\tevez"), an HTML entity ("Ferr&#225;ndiz"),
- * a symbol in place of a letter ("M!rmol", "Ur%a"), a Cyrillic look-alike ("ТТРА" for TTPA) and,
- * in names, a digit between letters ("P0a"). No golden value contains any of them.
+ * a symbol in place of a letter ("M!rmol", "Ur%a"), a Cyrillic look-alike ("ТТРА" for TTPA), a
+ * space and a wrong letter ("s crum") and, in names, a digit between letters ("P0a"). No golden
+ * value contains any of them.
  *
  * Each check has the narrowest scope that catches what was seen. Symbols are checked in text
  * only, not in identifiers. Digits and Greek letters are checked in names only, because test
@@ -63,6 +73,11 @@ const GARBLED: readonly { pattern: RegExp; reason: string; kinds: readonly TextK
   {
     pattern: new RegExp(`(?<=\\p{L})${SYMBOL}|${SYMBOL}(?=\\p{L})`, "u"),
     reason: "symbol next to a letter",
+    kinds: ["name", "test"],
+  },
+  {
+    pattern: STRAY_LETTER,
+    reason: "stray letter",
     kinds: ["name", "test"],
   },
   { pattern: /\p{Script=Greek}/u, reason: "Greek letter", kinds: ["name"] },

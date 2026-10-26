@@ -197,6 +197,21 @@ describe("garbledReason", () => {
     expect(garbledReason("!cido !rico", "test")).toBe("symbol next to a letter");
     expect(garbledReason("Haroldo Gonzalo Ur%a", "name")).toBe("symbol next to a letter");
     expect(garbledReason("P0a Martinez Carmona", "name")).toBe("digit between letters");
+    expect(garbledReason("FT3 en s crum", "test")).toBe("stray letter");
+    expect(garbledReason("Brucella aglutinaci c en s crum", "test")).toBe("stray letter");
+  });
+
+  it("allows one-letter words and letters next to numbers", () => {
+    const ordinary = [
+      "Ortega y Gasset, José",
+      "Puig i Cadafalch, Josep",
+      "Glucosa, orina de 24 h",
+      "Glucosa tras sobrecarga oral 2 h, suero",
+      "IgE específica Pru p 3",
+      "IgE Bet v 1",
+      "Vitamina D total",
+    ];
+    for (const v of ordinary) expect(garbledReason(v, "test"), v).toBeNull();
   });
 
   it("allows in test names what they legitimately contain", () => {
