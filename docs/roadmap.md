@@ -17,7 +17,8 @@ Last updated: 2026-10-26.
 | F5 | Verification UI | not started |
 | F6 | Public demo on a self-hosted Dokploy | not started |
 
-Local open-weight vision models are a **proposed** side track between F3 and F4.
+Local open-weight vision models were approved on 2026-10-26 as the top priority, ahead of
+F4 block 6 (section 3).
 
 ### First live extractor run
 
@@ -404,9 +405,13 @@ version, seed, generator version, `fields.json` version and IoU threshold.
    the metric definitions. (b) Baseline comparison and a full 200-document run. Running the
    evaluation in CI on every commit needs a Gemini key in CI and is deferred to F6.
 
-### 3. Local open-weight vision models (proposed)
+### 3. Local open-weight vision models (approved)
 
-**Status: proposed on 2026-10-22, not approved, not implemented.**
+**Status: proposed on 2026-10-22; approved by the product owner on 2026-10-26 as the top
+priority. Not implemented.** Until now the local model has only chosen lab codes (F4
+block 5); it has never read a document. The public demo will replay recorded replies of both
+providers for a fixed set of synthetic documents, so it needs a local extraction to replay
+(design in section 5).
 
 Goal: run the extractor with an open-weight vision model on the local AMD GPU and compare it
 with Gemini on the same 200 documents, using the harness. Two reasons beyond curiosity: with a
@@ -441,8 +446,8 @@ layout, not fields; a two-stage pipeline built on one of them is a later experim
   differently. The harness verifies the conversion.
 - The same prompt and the same `fields.json`; only the transport changes.
 
-**Constraints.** The public demo stays on Gemini; local models are for development and
-evaluation. Adding a provider changes the stack described in `CLAUDE.md`, which is updated only
+**Constraints.** Local models run only on the development machine; the public demo shows
+their recorded replies (section 5). Adding a provider changes the stack described in `CLAUDE.md`, which is updated only
 once this is approved.
 
 **Workstation, as found on 2026-10-22.** The GPU is a Radeon 890M, an APU with 2 GB of dedicated
@@ -452,6 +457,17 @@ mixture-of-experts model with about 3 billion active parameters and vision suppo
 on `127.0.0.1:1234` speaks the OpenAI API and returns JSON constrained to a schema; whether that
 still holds with an image in the prompt is the manual check above. This changes the runtime
 assumed above (Ollama on ROCm) and should be settled when the track is approved.
+
+**Plan, as approved.** The runtime is LM Studio, already installed and already serving the
+mapping layer; Ollama and ROCm are not needed unless it falls short. One step at a time:
+
+1. The manual check above: one page image, the layer-1 schema, one call. It settles whether
+   schema-constrained output works with an image, how Qwen reports boxes, and the time per
+   page on this APU.
+2. Provider choice and `page-images` input in the extractor, with Qwen's box adapter.
+3. A smoke run on five documents, then the 200 documents scored by the harness.
+4. The same 200 documents with Gemini (F4 block 6), so that both are measured on the
+   regenerated dataset; the 2026-10-22 run used the earlier one.
 
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
@@ -852,4 +868,16 @@ requirement next to the traffic light: a colour is a signal, never an acceptance
 
 ### 5. F5 and F6
 
-Unchanged. See `CLAUDE.md`.
+As in `CLAUDE.md`, with these decisions for F6, taken by the product owner on 2026-10-26:
+
+- **The public demo replays recorded replies.** It runs on the product owner's self-hosted
+  Dokploy, which cannot run a local model. For a fixed set of synthetic documents, the
+  replies of Gemini and of local Qwen (extraction and mapping) are recorded beforehand on the
+  development machine; the demo lets the visitor pick a provider and serves the recorded
+  reply. No API key on the server and no cost per visit. Proposed: the UI says the reply
+  is recorded (model, date, measured latency) rather than passing it off as live.
+- **No uploads on the public demo.** Only the bundled synthetic documents.
+- **Uploads in local mode.** Run on the development machine, the app calls the models live
+  and accepts new documents, for a demo from that machine on request. Uploaded documents
+  are stored outside the repository tree, since they may be real.
+- One environment variable chooses the mode, replay or live.
