@@ -7,7 +7,7 @@
 import { FIELDS, TESTS, type FieldSpec } from "@/lib/schema/fields";
 import { GEMINI_BOXES, type BoxConvention } from "./response-schema";
 
-export const PROMPT_VERSION = "4";
+export const PROMPT_VERSION = "5";
 
 /** How each `normalize` rule in fields.json is explained to the model. */
 const NORMALISATION_TEXT: Record<string, string> = {
@@ -20,7 +20,8 @@ const NORMALISATION_TEXT: Record<string, string> = {
     "Femenino, Femení, F and D mean female. A bare M depends " +
     "on the sheet it is printed on: on the request form and its companion sheets it means " +
     "female (male is written H or V there); on a photocopied identity card, which prints a " +
-    "single letter, M means male (masculino) and F female.",
+    "single letter, M means male (masculino) and F female. U only when the document marks the " +
+    "sex as unknown or other; when no sex is printed or marked anywhere, the value is null.",
   "no-title":
     "Drop any title or honorific in front of the name (Dr., Dra., Doctor, Doctora, Prof.) and " +
     "return only the name and surnames, otherwise exactly as printed. The box still covers the " +

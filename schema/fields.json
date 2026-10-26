@@ -140,7 +140,7 @@
       "pattern": null,
       "lis": { "source": "insurer.name", "compare": "casefold" },
       "default": null,
-      "description": "Insurance company / mutual name exactly as printed."
+      "description": "Insurance company / mutual name exactly as printed: the company that pays for the request, never the hospital, clinic or laboratory that issued the form. Null when no insurer is printed."
     },
     {
       "name": "NumeroSolicitudMutua",
