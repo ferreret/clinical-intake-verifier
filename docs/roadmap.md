@@ -524,6 +524,54 @@ fields 23 of 23 right with 0 of 3 nulls invented; tests 29 of 30 right (exact li
 poor on the scanned one); 108 s per document, 9.0k tokens in and 1.7k out. The same request
 through the API route took 55 s.
 
+**Step 3 done on 2026-10-26: the 200 documents with local Qwen.** Seed 42 as regenerated
+(golden version 3), prompt v4, `page-images` at 150 dpi, run
+`20261026-qwen3.6-35b-a3b-p4`, scored by the harness:
+
+| Measure | Result |
+|---|---|
+| Documents | 198 evaluated, **2 failed** (`schema_mismatch`), 0 rejected |
+| Fields | 2,025 correct, 9 wrong, 0 missed; precision 97.2%, recall 99.6% |
+| Invented values | **50 of 540** golden nulls (9.3%) |
+| Requested tests | P 99.5%, R 99.5%; exact list in 189 of 198 documents |
+| Boxes located at IoU ≥ 0.5 | 934 of 3,601 (25.9%), median IoU 0.21; 6 on a wrong page |
+| Handwritten values | 96 of 100 correct |
+| Cost | 84 s per document, about 4.7 hours in all; 1.88M tokens in and 0.24M out; no money, nothing sent out |
+
+Not yet comparable with Gemini: its last full run (2026-10-22) was on the dataset before the
+regeneration, which is what step 4 is for. For orientation only, that run had precision 99.8%,
+no invented value of 561 and 99.2% of boxes located.
+
+What the mistakes are, from the mismatch list:
+
+1. **The centre taken for the insurer** (30 of the 50 inventions). On forms with no insurer,
+   `NombreMutua` came back as the hospital or laboratory that issued the form, every time a
+   centre name; 29 of them on the `hospital-compact` template.
+2. **"U" for a sex that is not printed** (11 inventions), plus 4 cases of H or M with no sex on
+   the form. The prompt says U means "unknown or other", which the model reads as "not
+   stated"; the rule is null when absent. Also 3 sexes wrong (two M read as H, one H as U).
+3. **An authorisation-like number as the insurer's request number** (5 inventions,
+   `NumeroSolicitudMutua`, such as `AUT61827874`).
+4. **Γ read as G** in "Γ-GT" (5 documents, once as "I-GT"), the commonest test miss; the rest
+   are single-letter slips ("PORFINAS", "antiacuporina") and one profile heading listed as a
+   test.
+5. **Digit and letter slips** in 7 values: card and phone numbers with one digit changed or
+   dropped, "Isodoro" for "Isidoro", "INIELA" for "INIESTA".
+6. **The two failures:** `Sexo` written as something other than an item in both attempts (the
+   raw reply is not kept, so the exact form is unknown).
+
+**Boxes, with a looser measure.** IoU 0.5 is strict for short text, so the centres were also
+checked ad hoc against the golden boxes (3,555 pairs on the right page): the centre falls
+inside the value's box in 42.7%, on the same line in 63.9%, and is 1.7% of the page away at the
+median (6.5% at the 90th percentile). Roughly one box in three is off the line; for the UI
+that means highlighting would often point at the wrong place.
+
+**Reading of the result.** Values are close to usable: 99.6% recall, and the wrong ones are
+the kind the fusion engine catches against the LIS. The inventions are the weak point, and they
+are concentrated: two prompt rules (an insurer is never the issuing centre; an unprinted sex
+is null, U only when the form says so) would address 41 of the 50, but changing the prompt
+means a new prompt version and a new run for both models. Boxes are far behind Gemini's.
+
 
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
