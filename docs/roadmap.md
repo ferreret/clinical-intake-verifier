@@ -572,6 +572,49 @@ are concentrated: two prompt rules (an insurer is never the issuing centre; an u
 is null, U only when the form says so) would address 41 of the 50, but changing the prompt
 means a new prompt version and a new run for both models. Boxes are far behind Gemini's.
 
+**Step 4 done on 2026-10-26: Gemini on the same 200 documents, and the comparison.** Run
+`20261026-gemini-3.8-flash-p4` (prompt v4, `pdf-inline`, thinking `low`), and the Qwen run
+scored against it with `--baseline` (`eval-vs-gemini` in the Qwen run):
+
+| Measure | Gemini 3.8 Flash | Local Qwen3.6-35B-A3B |
+|---|---|---|
+| Documents failed | 0 of 200 | 2 of 200 |
+| Field precision / recall | 99.9% / 99.9% | 97.2% / 99.6% |
+| Wrong values | 2 | 9 |
+| **Invented values** | **0 of 550** | **50 of 540** |
+| Requested tests, F1 | 99.6% | 99.5% |
+| Exact test list | 195 of 200 | 189 of 198 |
+| Handwritten values | 99 of 100 | 96 of 100 |
+| Boxes located at IoU ≥ 0.5 | **98.7%**, median IoU 0.76 | **25.9%**, median IoU 0.21 |
+| Time per document | 9.4 s | 84 s |
+| Cost of the 200 | about 1.2 USD | none; nothing leaves the machine |
+
+On the 198 documents both read, Qwen fixed 15 of Gemini's mistakes and broke 74 of its right
+answers. Most of the 15 are one document: in `synth-000032` Gemini corrupted every accented
+Catalan letter ("sèrum" as "s crum", "Mútua" as "M atua"), which Qwen read correctly. That is
+a **new form of Gemini's garbled text that the boundary does not catch**: a space and a wrong
+letter in place of the accented one. The six replies retried for the forms it does catch
+recovered.
+
+**Verdict.** Gemini stays the default for extraction: it is better on every quality measure,
+and on boxes by far, which the verification UI depends on. Local Qwen reads values nearly as
+well (recall 99.6% against 99.9%), but invents where a field is absent and places boxes too
+loosely to highlight them reliably; at about nine times the time. Its case is privacy: a
+demo on real documents from this machine sends nothing out.
+
+Proposed after the comparison, not approved:
+
+1. **Prompt v5 with two rules**: the insurer is never the centre that issues the form, and a
+   sex that is not printed is null, U only when the form says unknown or other. Aimed at 41 of
+   Qwen's 50 inventions; both models rerun on v5 (about 1.2 USD and 5 hours).
+2. **Catch the new garbled form at the boundary**, flagged and retried like the others, with
+   a test built from `synth-000032`. No model call needed to build it.
+3. **Keep the raw reply in the prediction** (or beside it), since the two Qwen failures could
+   not be diagnosed without it.
+4. **Boxes for the local model** are the open problem. Options to measure: a second, short
+   grounding call per value, which placed every value correctly in the manual check;
+   rendering at a higher resolution; or Gemma 4, the other vision model in LM Studio.
+
 
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
