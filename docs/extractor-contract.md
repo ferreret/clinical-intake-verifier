@@ -41,6 +41,22 @@ the fields with a `normalize` rule in `fields.json` (date of birth as `dd/mm/yyy
 printed more than once returned once. The prompt is versioned (`prompt_version`) and every
 prediction records the version that produced it.
 
+#### Another model's conventions
+
+A model family trained on another box convention is asked in its own, and its reply is
+rewritten in layer 1's before validation; nothing downstream knows which model answered. The
+local vision model (Qwen, see "Input mode and model") is asked for `bbox_2d` as
+`[xmin, ymin, xmax, ymax]` on the same 0–1000 scale: asked for Gemini's convention, it kept the
+order but invented the vertical positions. The instruction is the same text with only the box
+key and order changed, so it keeps the same `prompt_version`. The rewrite does three things
+and nothing else:
+
+- `bbox_2d` becomes `box_2d`, with the four numbers in Gemini's order;
+- an item with a box under any other key loses it, so that the reply fails validation and is
+  retried: the order of such a box cannot be known;
+- a field written as a bare `null`, which is how this model says "not present" when its
+  output is not constrained, becomes the item of three nulls that means the same.
+
 ### Layer 2: the prediction
 
 What the API returns, what batch runs persist, what the harness reads and what the fusion
@@ -123,7 +139,7 @@ of:
 
 | code | meaning |
 |---|---|
-| `api_error` | the request to Gemini failed (network, quota, server error, timeout) |
+| `api_error` | the request to the model failed: Gemini (network, quota, server error, timeout) or the local server (not running, model not loaded, timeout) |
 | `invalid_json` | the model returned something that does not parse as JSON |
 | `schema_mismatch` | the JSON does not match the layer-1 schema |
 
@@ -133,14 +149,26 @@ model. One end-to-end line of the evaluation report counts its fields as missed.
 
 ## Input mode and model
 
-Version 1 sends the whole PDF inline as `application/pdf` and asks for a page number per
-value. There is no server-side rendering; Gemini rasterises the pages and runs OCR on scanned
-ones. Every prediction records `input_mode` so that a later mode (pages rendered to images,
-one part per page) can be added and **measured** by the harness rather than argued about.
+Two providers, chosen by `EXTRACTOR_PROVIDER` (`gemini` by default), by `--provider` in batch
+runs, or by a `provider` form field in the API. Every prediction records `model` and
+`input_mode`, so that the harness compares them rather than anyone arguing about them.
 
-The model id comes from `GEMINI_MODEL` (default: the current Flash). Generation is
-deterministic within the limits of the API: `temperature: 0`, JSON mode with the layer-1 schema
-as `responseJsonSchema`, low thinking (the current Flash rejects `minimal` with a 400).
+**Gemini, `pdf-inline`.** The whole PDF is sent inline as `application/pdf` with a page number
+asked per value. There is no server-side rendering; Gemini rasterises the pages and runs OCR
+on scanned ones. The model id comes from `GEMINI_MODEL` (default: the current Flash).
+Generation is deterministic within the limits of the API: `temperature: 0`, JSON mode with the
+layer-1 schema as `responseJsonSchema`, low thinking (the current Flash rejects `minimal` with a
+400).
+
+**Local, `page-images`.** A vision model behind an OpenAI-compatible chat API, LM Studio's
+server with Qwen by default (`LOCAL_LLM_URL`, `LOCAL_LLM_MODEL`). Each page is rendered to a
+PNG at 150 dpi with pdf.js and sent as one image, in page order. `temperature: 0` and reasoning
+switched off; `thinking_level` is recorded as `null`. The output is **not** constrained by a
+schema while decoding: in the manual check of 2026-10-26 that left the values intact but made
+the boxes far worse. The layer-1 schema, in the model's own box convention, is appended to the
+instruction instead, and the reply goes through the same validation and retry as Gemini's.
+Nothing leaves the machine. A multi-page document needs a context of about 32k tokens on the
+server. Batch runs default to one document at a time with this provider.
 
 ## Batch runs
 

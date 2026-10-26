@@ -3,15 +3,26 @@
  * run.json (docs/extractor-contract.md, "Batch runs").
  *
  *   npm run extract -- --in ../data/synth/seed-42 [--out ../data/runs/<run-id>] [--limit 20]
- *                      [--concurrency 4] [--model gemini-x] [--only synth-000003,synth-000007]
- *                      [--force]
+ *                      [--provider gemini|local] [--concurrency 4] [--model gemini-x]
+ *                      [--only synth-000003,synth-000007] [--force]
+ *
+ * The provider defaults to EXTRACTOR_PROVIDER, else gemini. The local model answers one
+ * request at a time, so its concurrency defaults to 1.
  *
  * Reads only the PDFs: golden files are never opened here.
  */
 import fs from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { extract, INPUT_MODE, PROMPT_VERSION, resolveModel } from "@/lib/extractor";
+import {
+  extract,
+  INPUT_MODE_OF,
+  PROMPT_VERSION,
+  PROVIDERS,
+  resolveModel,
+  resolveProvider,
+  type Provider,
+} from "@/lib/extractor";
 
 import { loadDotEnv } from "./env";
 import type { Prediction } from "@/lib/schema/prediction";
@@ -92,26 +103,37 @@ async function main(): Promise<number> {
       in: { type: "string" },
       out: { type: "string" },
       limit: { type: "string" },
-      concurrency: { type: "string", default: "4" },
+      provider: { type: "string" },
+      concurrency: { type: "string" },
       model: { type: "string" },
       only: { type: "string" },
       force: { type: "boolean", default: false },
     },
   });
   if (!values.in) {
-    console.error("usage: npm run extract -- --in <dir of PDFs> [--out <dir>] [--limit N] [--concurrency N] [--model id] [--only id,id] [--force]");
+    console.error(
+      "usage: npm run extract -- --in <dir of PDFs> [--out <dir>] [--limit N] [--provider gemini|local] [--concurrency N] [--model id] [--only id,id] [--force]",
+    );
     return 1;
   }
-  if (!process.env.GEMINI_API_KEY) {
+  if (values.provider !== undefined && !(PROVIDERS as readonly string[]).includes(values.provider)) {
+    console.error(`unknown provider "${values.provider}": use ${PROVIDERS.join(" or ")}`);
+    return 1;
+  }
+  const provider = (values.provider as Provider | undefined) ?? resolveProvider();
+  if (provider === "gemini" && !process.env.GEMINI_API_KEY) {
     console.error("GEMINI_API_KEY is not set (put it in web/.env.local)");
     return 1;
   }
 
-  const model = values.model ?? resolveModel();
+  const model = values.model ?? resolveModel(provider);
+  const inputMode = INPUT_MODE_OF[provider];
   const inDir = path.resolve(values.in);
-  const runId = `${timestamp(new Date())}-${model}-p${PROMPT_VERSION}`;
+  // Local model ids have a publisher prefix ("qwen/..."), which cannot go in a directory name.
+  const runId = `${timestamp(new Date())}-${model.replaceAll("/", "-")}-p${PROMPT_VERSION}`;
   const outDir = path.resolve(values.out ?? path.join(process.cwd(), "..", "data", "runs", runId));
-  const concurrency = Math.max(1, Number.parseInt(values.concurrency ?? "4", 10) || 1);
+  const defaultConcurrency = provider === "local" ? "1" : "4";
+  const concurrency = Math.max(1, Number.parseInt(values.concurrency ?? defaultConcurrency, 10) || 1);
   const limit = values.limit ? Number.parseInt(values.limit, 10) : undefined;
   const only = values.only ? new Set(values.only.split(",").map((s) => s.trim()).filter(Boolean)) : null;
 
@@ -131,7 +153,7 @@ async function main(): Promise<number> {
     source: path.relative(path.resolve(process.cwd(), ".."), inDir).split(path.sep).join("/"),
     model,
     prompt_version: PROMPT_VERSION,
-    input_mode: INPUT_MODE,
+    input_mode: inputMode,
     temperature: 0,
     started_at: new Date().toISOString(),
     finished_at: null,
@@ -147,7 +169,7 @@ async function main(): Promise<number> {
   };
 
   console.log(`run ${manifest.run_id}: ${pdfs.length} PDF(s) from ${inDir}`);
-  console.log(`model ${model}, prompt v${PROMPT_VERSION}, ${INPUT_MODE}, concurrency ${concurrency}`);
+  console.log(`${provider} model ${model}, prompt v${PROMPT_VERSION}, ${inputMode}, concurrency ${concurrency}`);
   console.log(`writing to ${outDir}`);
 
   let skipped = 0;
@@ -174,7 +196,7 @@ async function main(): Promise<number> {
       }
 
       const bytes = new Uint8Array(await fs.readFile(path.join(inDir, file)));
-      const prediction = await extract(bytes, { id, file, model });
+      const prediction = await extract(bytes, { id, file, provider, model });
       await writeJson(predictionPath, prediction);
       documents.set(id, toRunDocument(prediction, predictionFile));
       await flush();

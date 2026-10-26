@@ -4,25 +4,45 @@
  * A prediction is always produced for a PDF that could be read: when the model call fails
  * after its retry, the fields are null and `extractor.error` says why. Only a missing API key
  * or a malformed PDF throws.
+ *
+ * Two providers, the same prompt and the same checks: Gemini reads the PDF itself; the local
+ * vision model sees the pages rendered to images and answers in its own box convention, which
+ * is converted before anything else reads the reply.
  */
 import { FIELD_NAMES } from "@/lib/schema/fields";
 import {
   assertPrediction,
   PREDICTION_VERSION,
   type ExtractorError,
+  type InputMode,
   type Prediction,
   type Usage,
 } from "@/lib/schema/prediction";
 import { callGemini, GeminiApiError } from "./gemini";
+import { callLocal, LocalModelError, resolveLocalModel, resolveLocalUrl } from "./local";
 import type { NormalisedExtraction } from "./normalize";
 import { garbledCount, normaliseExtraction } from "./normalize";
 import { looksLikePdf, readPages, sha256Hex } from "./pdf";
 import { buildSystemInstruction, PROMPT_VERSION, USER_MESSAGE } from "./prompt";
-import { buildResponseSchema, validateRawExtraction, type RawExtraction } from "./response-schema";
+import { renderPages } from "./render";
+import {
+  buildResponseSchema,
+  GEMINI_BOXES,
+  QWEN_BOXES,
+  toLayer1,
+  validateRawExtraction,
+  type BoxConvention,
+  type RawExtraction,
+} from "./response-schema";
 
 export const DEFAULT_MODEL = "gemini-3.8-flash";
 export const DEFAULT_THINKING_LEVEL = "low";
-export const INPUT_MODE = "pdf-inline" as const;
+
+export const PROVIDERS = ["gemini", "local"] as const;
+export type Provider = (typeof PROVIDERS)[number];
+
+/** What each provider is given: the PDF itself, or one image per page. */
+export const INPUT_MODE_OF: Record<Provider, InputMode> = { gemini: "pdf-inline", local: "page-images" };
 
 export { PROMPT_VERSION } from "./prompt";
 
@@ -55,6 +75,8 @@ export interface ExtractOptions {
   id?: string;
   /** Base name of the PDF; derived from the hash when omitted. */
   file?: string;
+  /** gemini or local; EXTRACTOR_PROVIDER or gemini when omitted. */
+  provider?: Provider;
   model?: string;
   temperature?: number;
   /** null disables the thinking config; undefined uses GEMINI_THINKING_LEVEL or the default. */
@@ -64,8 +86,20 @@ export interface ExtractOptions {
   retryDelayMs?: number;
 }
 
-export function resolveModel(): string {
-  return process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
+/**
+ * The provider named by EXTRACTOR_PROVIDER. Gemini by default: it is the measured one; the
+ * local model becomes a candidate for the default once the harness has measured it.
+ */
+export function resolveProvider(): Provider {
+  const which = process.env.EXTRACTOR_PROVIDER?.trim() || "gemini";
+  if (!(PROVIDERS as readonly string[]).includes(which)) {
+    throw new ConfigError(`unknown EXTRACTOR_PROVIDER "${which}": use ${PROVIDERS.join(" or ")}`);
+  }
+  return which as Provider;
+}
+
+export function resolveModel(provider: Provider = "gemini"): string {
+  return provider === "local" ? resolveLocalModel() : process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
 }
 
 export function resolveThinkingLevel(): string {
@@ -88,10 +122,10 @@ function emptyFields(): Record<string, null> {
   return Object.fromEntries(FIELD_NAMES.map((name) => [name, null]));
 }
 
-function parseRaw(text: string): RawExtraction {
+function parseRaw(text: string, boxes: BoxConvention): RawExtraction {
   let doc: unknown;
   try {
-    doc = JSON.parse(text);
+    doc = toLayer1(JSON.parse(text), boxes);
   } catch (err) {
     throw new ModelOutputError("invalid_json", err instanceof Error ? err.message : String(err));
   }
@@ -113,13 +147,13 @@ function addUsage(a: Usage, b: Usage): Usage {
 
 function toExtractorError(err: unknown): ExtractorError {
   if (err instanceof ModelOutputError) return { code: err.code, message: err.message };
-  if (err instanceof GeminiApiError) return { code: "api_error", message: err.message };
+  if (err instanceof GeminiApiError || err instanceof LocalModelError) return { code: "api_error", message: err.message };
   return { code: "api_error", message: err instanceof Error ? err.message : String(err) };
 }
 
 function isRetryable(err: unknown): boolean {
   if (err instanceof ModelOutputError) return true;
-  if (err instanceof GeminiApiError) return err.retryable;
+  if (err instanceof GeminiApiError || err instanceof LocalModelError) return err.retryable;
   return false;
 }
 
@@ -127,12 +161,15 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 
 export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promise<Prediction> {
   if (!looksLikePdf(pdf)) throw new InvalidPdfError("not a PDF");
+  const provider = opts.provider ?? resolveProvider();
   const apiKey = opts.apiKey ?? process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new ConfigError("GEMINI_API_KEY is not set");
+  if (provider === "gemini" && !apiKey) throw new ConfigError("GEMINI_API_KEY is not set");
 
-  const model = opts.model ?? resolveModel();
+  const model = opts.model ?? resolveModel(provider);
   const temperature = opts.temperature ?? 0;
-  const thinkingLevel = opts.thinkingLevel === undefined ? resolveThinkingLevel() : opts.thinkingLevel;
+  // The local server takes no thinking level; reasoning is switched off in local.ts.
+  const thinkingLevel =
+    provider === "local" ? null : opts.thinkingLevel === undefined ? resolveThinkingLevel() : opts.thinkingLevel;
   const maxAttempts = Math.max(1, opts.maxAttempts ?? 2);
   const retryDelayMs = opts.retryDelayMs ?? 2000;
 
@@ -143,18 +180,41 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
   const file = opts.file ?? `${sha256.slice(0, 12)}.pdf`;
   const id = opts.id ?? idFromFileName(file, sha256.slice(0, 12));
 
-  const request = {
-    apiKey,
-    model,
-    pdf,
-    systemInstruction: buildSystemInstruction(),
-    userMessage: USER_MESSAGE,
-    responseSchema: buildResponseSchema(),
-    temperature,
-    thinkingLevel,
-  };
-
   const started = Date.now();
+  const boxes = provider === "local" ? QWEN_BOXES : GEMINI_BOXES;
+  let call: () => Promise<{ text: string; modelVersion: string | null; usage: Usage }>;
+  if (provider === "local") {
+    const images = await renderPages(pdf).catch((err) => {
+      throw new InvalidPdfError(err instanceof Error ? err.message : String(err));
+    });
+    // No constrained decoding for this provider (see local.ts): the schema goes in the text.
+    const systemInstruction =
+      buildSystemInstruction(boxes) +
+      "\n\nThe JSON object has this JSON Schema:\n" +
+      JSON.stringify(buildResponseSchema(boxes));
+    const request = {
+      baseUrl: resolveLocalUrl(),
+      model,
+      pages: images,
+      systemInstruction,
+      userMessage: USER_MESSAGE,
+      temperature,
+    };
+    call = () => callLocal(request);
+  } else {
+    const request = {
+      apiKey: apiKey!,
+      model,
+      pdf,
+      systemInstruction: buildSystemInstruction(boxes),
+      userMessage: USER_MESSAGE,
+      responseSchema: buildResponseSchema(boxes),
+      temperature,
+      thinkingLevel,
+    };
+    call = () => callGemini(request);
+  }
+
   let attempts = 0;
   let result: NormalisedExtraction | null = null;
   let error: ExtractorError | null = null;
@@ -168,10 +228,10 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
   while (attempts < maxAttempts) {
     attempts += 1;
     try {
-      const reply = await callGemini(request);
+      const reply = await call();
       modelVersion = reply.modelVersion ?? modelVersion;
       usage = addUsage(usage, reply.usage);
-      const candidate = normaliseExtraction(parseRaw(reply.text), pages.length);
+      const candidate = normaliseExtraction(parseRaw(reply.text, boxes), pages.length);
       if (result === null) garbledFirst = garbledCount(candidate);
       if (result === null || garbledCount(candidate) < garbledCount(result)) result = candidate;
       error = null;
@@ -200,7 +260,7 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
       model,
       model_version: modelVersion,
       prompt_version: PROMPT_VERSION,
-      input_mode: INPUT_MODE,
+      input_mode: INPUT_MODE_OF[provider],
       temperature,
       thinking_level: thinkingLevel,
       attempts,

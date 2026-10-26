@@ -15,6 +15,7 @@ import path from "node:path";
 import { GoogleGenAI, type ThinkingLevel } from "@google/genai";
 
 import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL } from "@/lib/extractor";
+import { resolveLocalModel, resolveLocalUrl } from "@/lib/extractor/local";
 
 import type { Catalog } from "./catalog";
 import type { Candidate } from "./search";
@@ -159,8 +160,8 @@ export class LocalProvider implements Provider {
   readonly name = "local" as const;
 
   constructor(
-    readonly model: string = process.env.LOCAL_LLM_MODEL?.trim() || "qwen/qwen3.6-35b-a3b",
-    private readonly baseUrl: string = process.env.LOCAL_LLM_URL?.trim() || "http://127.0.0.1:1234/v1",
+    readonly model: string = resolveLocalModel(),
+    private readonly baseUrl: string = resolveLocalUrl(),
   ) {}
 
   async complete(system: string, user: string, schema: Record<string, unknown>): Promise<ProviderReply> {

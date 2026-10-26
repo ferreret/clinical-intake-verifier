@@ -9,7 +9,7 @@ import Ajv2020 from "ajv/dist/2020";
 import predictionSchema from "../../../../schema/prediction.schema.json";
 
 export const PREDICTION_VERSION = 1 as const;
-export const INPUT_MODES = ["pdf-inline"] as const;
+export const INPUT_MODES = ["pdf-inline", "page-images"] as const;
 export type InputMode = (typeof INPUT_MODES)[number];
 
 export interface BBox {

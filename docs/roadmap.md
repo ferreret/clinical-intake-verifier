@@ -506,6 +506,24 @@ What it settled:
   a context of 32k tokens; LM Studio was loaded with `--context-length 32768`.
 - LM Studio also has Gemma 4 26B-A4B with vision; a candidate for a later comparison.
 
+**Step 2 done on 2026-10-26: the local provider in the extractor.** `EXTRACTOR_PROVIDER`
+(`gemini` by default until measured), `--provider` in `npm run extract`, and a `provider` field
+in `POST /api/extract`. Pages are rendered with pdf.js and a native canvas, both from npm, so
+no system tool is needed (`web/src/lib/extractor/render.ts`); the call is in `local.ts`; the box
+convention in `response-schema.ts` (`QWEN_BOXES`, `toLayer1`). Gemini's instruction and schema
+are byte-identical to before, and Qwen's to the ones of the manual check. Described in
+`docs/extractor-contract.md`.
+
+Two things the first end-to-end run showed, both handled at the boundary: without constrained
+decoding Qwen writes an absent field as a bare `null` (read as absent), and a reply with boxes
+under Gemini's key must be rejected rather than read, since their order is unknown.
+
+Smoke run on the same two documents, scored by the harness (`data/runs/smoke-local-step2`):
+fields 23 of 23 right with 0 of 3 nulls invented; tests 29 of 30 right (exact list in 1 of 2;
+"Γ-GT" read as "G-GT"); boxes 12 of 52 at IoU ≥ 0.5, median 0.17 (0.56 on the clean page,
+poor on the scanned one); 108 s per document, 9.0k tokens in and 1.7k out. The same request
+through the API route took 55 s.
+
 
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 

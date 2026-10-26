@@ -18,10 +18,12 @@
   "dependencies": {
     "@google/genai": "^2.21.0",
     "@libsql/client": "^0.18.0",
+    "@napi-rs/canvas": "1.0.10",
     "ajv": "^8.20.0",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.2",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "6.4.299",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

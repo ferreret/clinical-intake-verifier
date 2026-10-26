@@ -19,7 +19,7 @@
         "model": { "type": "string", "minLength": 1, "description": "Model id requested." },
         "model_version": { "type": ["string", "null"], "description": "Model version reported by the API, when available." },
         "prompt_version": { "type": "string", "minLength": 1 },
-        "input_mode": { "type": "string", "enum": ["pdf-inline"] },
+        "input_mode": { "type": "string", "enum": ["pdf-inline", "page-images"] },
         "temperature": { "type": "number", "minimum": 0 },
         "thinking_level": { "type": ["string", "null"] },
         "attempts": { "type": "integer", "minimum": 1 },
