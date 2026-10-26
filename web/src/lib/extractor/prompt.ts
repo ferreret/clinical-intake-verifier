@@ -7,7 +7,7 @@
 import { FIELDS, TESTS, type FieldSpec } from "@/lib/schema/fields";
 import { GEMINI_BOXES, type BoxConvention } from "./response-schema";
 
-export const PROMPT_VERSION = "5";
+export const PROMPT_VERSION = "6";
 
 /** How each `normalize` rule in fields.json is explained to the model. */
 const NORMALISATION_TEXT: Record<string, string> = {

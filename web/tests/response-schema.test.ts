@@ -56,6 +56,15 @@ describe("box conventions", () => {
     expect(out.tests).toEqual([{ value: "Urea", page: 1, box_2d: [515, 96, 526, 129] }]);
   });
 
+  it("reads a bare string as a value without page or box", () => {
+    const fields = nullFields("bbox_2d");
+    fields.Sexo = "M";
+    const doc = toLayer1({ fields, tests: ["Urea"] }, QWEN_BOXES) as { fields: Record<string, unknown>; tests: unknown[] };
+    expect(validateRawExtraction(doc)).toEqual([]);
+    expect(doc.fields.Sexo).toEqual({ value: "M", page: null, box_2d: null });
+    expect(doc.tests).toEqual([{ value: "Urea", page: null, box_2d: null }]);
+  });
+
   it("reads a field written as a bare null as absent", () => {
     const fields = nullFields("bbox_2d");
     fields.Telefono = null;

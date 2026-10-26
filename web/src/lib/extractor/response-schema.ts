@@ -101,13 +101,15 @@ export function buildResponseSchema(boxes: BoxConvention = GEMINI_BOXES): Record
  * A parsed reply in `boxes`' convention, rewritten in layer 1's: each item's box under
  * `box_2d`, in Gemini's order. Anything malformed is passed through for the validator to
  * reject; nothing is repaired here. An item without `boxes.key` loses any `box_2d` it has,
- * so that it fails validation: the order of a box under the wrong key cannot be known. A
- * field written as a bare null, which is how the local model says "not present" without
- * constrained decoding, becomes the item of three nulls that means the same.
+ * so that it fails validation: the order of a box under the wrong key cannot be known. Two
+ * shorthands the local model uses without constrained decoding are read for what they say: a
+ * bare null is a field not present, and a bare string is a value it did not locate (page and
+ * box null).
  */
 export function toLayer1(doc: unknown, boxes: BoxConvention): unknown {
   if (boxes === GEMINI_BOXES || typeof doc !== "object" || doc === null) return doc;
   const item = (raw: unknown): unknown => {
+    if (typeof raw === "string") return { value: raw, page: null, box_2d: null };
     if (typeof raw !== "object" || raw === null) return raw;
     if (!(boxes.key in raw)) {
       const rest = { ...(raw as Record<string, unknown>) };

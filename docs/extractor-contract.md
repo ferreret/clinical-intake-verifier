@@ -55,7 +55,9 @@ and nothing else:
 - an item with a box under any other key loses it, so that the reply fails validation and is
   retried: the order of such a box cannot be known;
 - a field written as a bare `null`, which is how this model says "not present" when its
-  output is not constrained, becomes the item of three nulls that means the same.
+  output is not constrained, becomes the item of three nulls that means the same;
+- a field or test written as a bare string becomes a value it did not locate: page and box
+  `null`. Seen with `Sexo` on documents with an identity card, the same in both attempts.
 
 ### Layer 2: the prediction
 
