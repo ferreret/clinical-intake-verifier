@@ -88,12 +88,12 @@ Capas, de mayor a menor confianza: mapeos ya aprobados por técnicos para esa mu
 | App + API | **Next.js** (App Router, TypeScript) |
 | UI | React + Tailwind |
 | Extracción | Gemini Flash vía SDK de Google en route handler |
-| Mapeo de pruebas | Memoria de aprobaciones + búsqueda por trigramas en el catálogo + modelo que elige entre candidatos **solo en las líneas que quedan en rojo**, **seleccionable: Qwen local por defecto** (LM Studio, API compatible con OpenAI) **o Gemini** (alternativa, y el de la demo en Vercel). Los embeddings locales (transformers.js) se midieron y no mejoraron la búsqueda: quedan solo como herramienta de medición |
+| Mapeo de pruebas | Memoria de aprobaciones + búsqueda por trigramas en el catálogo + modelo que elige entre candidatos **solo en las líneas que quedan en rojo**, **seleccionable: Qwen local por defecto** (LM Studio, API compatible con OpenAI) **o Gemini** (alternativa, y el de la demo pública). Los embeddings locales (transformers.js) se midieron y no mejoraron la búsqueda: quedan solo como herramienta de medición |
 | Persistencia | SQLite + Drizzle |
-| Demo pública | Vercel |
+| Demo pública | Dokploy autoalojado (contenedor Docker) |
 | Generador sintético y evaluación | **Python** (reportlab para los PDF) |
 
-Next.js en vez de React a secas: despliegue de una pieza en Vercel, API routes sin backend aparte, y es lo que hace que la demo sea *pública y ejecutable* en vez de un vídeo. Python queda solo para lo que es naturalmente Python: generar PDFs y calcular métricas.
+Next.js en vez de React a secas: despliegue de una pieza en un solo contenedor, API routes sin backend aparte, y es lo que hace que la demo sea *pública y ejecutable* en vez de un vídeo. Python queda solo para lo que es naturalmente Python: generar PDFs y calcular métricas.
 
 ## Campos de la v1
 
@@ -122,7 +122,7 @@ Pensadas para bloques de 90 minutos, no para semanas.
 - **F3 · Harness de evaluación.** Métricas por campo contra el golden sample. **Antes que la UI** — así cada cambio posterior se mide.
 - **F4 · Mock LIS + motor de fusión + mapeo de pruebas.** SQLite sintético, la lógica del semáforo y el mapeo de pruebas a códigos del laboratorio. Aquí está el valor real.
 - **F5 · UI de verificación.** Visor con bounding boxes, formulario, navegación por teclado y aprobación explícita del técnico.
-- **F6 · Demo en Vercel + README.** La pieza que se enseña.
+- **F6 · Demo en Dokploy + README.** La pieza que se enseña.
 
 ⚠️ **F3 va antes que F5 a propósito.** Es tentador saltar a la interfaz porque es lo que se ve; pero sin métricas no se sabe si un cambio de prompt mejora o empeora, y ese es justo el punto que el proyecto quiere demostrar.
 

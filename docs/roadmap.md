@@ -4,7 +4,7 @@ Where the project stands, what has been decided and what is only proposed. Read 
 starting a work session. Anything marked **proposed** is a design that has not been approved or
 implemented; it changes only after an explicit decision.
 
-Last updated: 2026-10-23.
+Last updated: 2026-10-26.
 
 ## Where things stand
 
@@ -15,7 +15,7 @@ Last updated: 2026-10-23.
 | F3 | Evaluation harness | done, first full run measured (below) |
 | F4 | Mock LIS, fusion engine and test mapping | design approved; blocks 1 to 5 done (below) |
 | F5 | Verification UI | not started |
-| F6 | Public demo on Vercel | not started |
+| F6 | Public demo on a self-hosted Dokploy | not started |
 
 Local open-weight vision models are a **proposed** side track between F3 and F4.
 
@@ -441,7 +441,7 @@ layout, not fields; a two-stage pipeline built on one of them is a later experim
   differently. The harness verifies the conversion.
 - The same prompt and the same `fields.json`; only the transport changes.
 
-**Constraints.** The public demo on Vercel stays on Gemini; local models are for development and
+**Constraints.** The public demo stays on Gemini; local models are for development and
 evaluation. Adding a provider changes the stack described in `CLAUDE.md`, which is updated only
 once this is approved.
 
@@ -804,9 +804,9 @@ per document by a TypeScript batch script, like `extract-batch.ts`, and scored i
    is confident). Gemini is slightly better than local Qwen (0.8% against 0.9%); local Qwen
    costs nothing, sends nothing out of the machine and is as fast on this APU. Both stay
    selectable (`MAPPING_MODEL_PROVIDER`). **Default, decided by the product owner on
-   2026-10-23: local Qwen**, with Gemini as the alternative and for the public demo on
-   Vercel, where no local model runs. The caveat of block 4 holds: synthetic dialects flatter the search, so on real
-   wording the model may have more to do.
+   2026-10-23: local Qwen**, with Gemini as the alternative and for the public demo, whose
+   server does not run the local model. The caveat of block 4 holds: synthetic dialects
+   flatter the search, so on real wording the model may have more to do.
 
 6. Full run with Gemini on the new dataset.
 
@@ -834,9 +834,11 @@ Settled on 2026-10-23 as recommended:
 6. **Automatic patient link.** Recommended: only on a strong match, as in B.
 7. **Replacing the seed-42 dataset**, which makes earlier runs incomparable and needs a new
    baseline run (about 1.2 USD). Recommended: yes; the extractor's history stays in this file.
-8. **Persistence on the public demo.** Vercel's file system is read-only, so confirmed mappings
-   written on the demo would not persist. Recommended: F4 works on local SQLite only; the
-   demo's storage is decided in F6.
+8. **Persistence on the public demo.** Recommended: F4 works on local SQLite only; the
+   demo's storage is decided in F6. *Changed on 2026-10-26:* the demo runs on the product
+   owner's self-hosted Dokploy, not on Vercel, so it is a Docker container whose SQLite file
+   can live on a persistent volume; the read-only file system that motivated this decision
+   no longer applies.
 9. **How the technician approves.** Nothing is accepted without approval; the granularity
    settled is: red lines and fields must be resolved one by one; orange
    ones need a confirmation each (one keystroke in F5); green ones are reviewed on screen and

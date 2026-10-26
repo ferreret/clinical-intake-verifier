@@ -26,7 +26,7 @@ uncertainty.
 | F3 | Evaluation harness against the golden sample | **done** |
 | F4 | Mock LIS + fusion engine (traffic light per field) | |
 | F5 | Verification UI | |
-| F6 | Public demo on Vercel | |
+| F6 | Public demo on a self-hosted Dokploy | |
 
 F3 comes before the UI on purpose: without per-field metrics there is no way to know whether a
 prompt change helped or hurt, and that is exactly what this project wants to show.
