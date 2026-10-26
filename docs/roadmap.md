@@ -469,6 +469,44 @@ mapping layer; Ollama and ROCm are not needed unless it falls short. One step at
 4. The same 200 documents with Gemini (F4 block 6), so that both are measured on the
    regenerated dataset; the 2026-10-22 run used the earlier one.
 
+**Step 1 done on 2026-10-26: the manual check.** Qwen3.6-35B-A3B in LM Studio, pages rendered
+at 150 dpi as PNG, the extractor's own system instruction and layer-1 schema, temperature 0,
+`reasoning_effort: "none"`. Two documents of seed 42: `synth-000000` (one clean page) and
+`synth-000003` (four scanned pages, fax cover and consent first, two handwritten fields).
+
+| | synth-000000 | synth-000003 |
+|---|---|---|
+| Fields right | 13 of 13 | 13 of 13, both handwritten ones included |
+| Tests right, exact text | 6 of 6 | 22 of 24 |
+| Page of each value | all right | all right |
+| Boxes at IoU ≥ 0.5 | about half | almost none, though near the value |
+| Time | 57-66 s | 151 s |
+| Tokens in / out | 3.3k / 1.1k | 12.7k / 2.0k |
+
+The two test misses: "Γ-GT" read as "G-GT" and "HOMOCISTEÍNA" as "HOMO CISTEÍNA".
+
+What it settled:
+
+- **Reading is good, boxes are the weak point.** Values and pages were as good as Gemini's on
+  these two documents. Boxes on the scanned document land about 2% of the page off the value,
+  on the right line, which fails IoU 0.5 on short text; whether that matters for the UI is a
+  question the harness can answer once IoU is reported next to a looser measure.
+- **Qwen's box convention is `bbox_2d` as `[x1, y1, x2, y2]` on 0-1000.** Asked for Gemini's
+  `box_2d` as `[ymin, xmin, ymax, xmax]`, it complied with the order but the vertical
+  positions were invented (no box overlapped its value). Asked in its own convention, a bare
+  grounding prompt placed every value correctly. So the request uses Qwen's convention and
+  the box adapter converts it.
+- **Schema-constrained decoding hurts the boxes.** With `response_format: json_schema` the
+  values were identical but the boxes far worse (median IoU about 0.15 against 0.55 on
+  `synth-000000`). Without it, with the schema in the prompt, the reply was still valid JSON
+  matching the schema. Proposed for step 2: no constrained decoding for this provider; the
+  reply is parsed and validated as now, and a non-conforming reply is retried.
+- **Time:** about a minute per page on this APU, almost all of it prompt processing, so 200
+  documents take some hours, against 9 s per document for Gemini. A four-page document needs
+  a context of 32k tokens; LM Studio was loaded with `--context-length 32768`.
+- LM Studio also has Gemma 4 26B-A4B with vision; a candidate for a later comparison.
+
+
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
 **Status: proposed and approved on 2026-10-23, with every decision settled (at the end).
