@@ -22,6 +22,7 @@ import {
   resolveModel,
   resolveProvider,
   type Provider,
+  type RawReply,
 } from "@/lib/extractor";
 
 import { loadDotEnv } from "./env";
@@ -196,8 +197,15 @@ async function main(): Promise<number> {
       }
 
       const bytes = new Uint8Array(await fs.readFile(path.join(inDir, file)));
-      const prediction = await extract(bytes, { id, file, provider, model });
+      const replies: RawReply[] = [];
+      const prediction = await extract(bytes, { id, file, provider, model, onReply: (r) => replies.push(r) });
       await writeJson(predictionPath, prediction);
+      await writeJson(path.join(outDir, `${id}.raw.json`), {
+        id,
+        model,
+        prompt_version: PROMPT_VERSION,
+        replies,
+      });
       documents.set(id, toRunDocument(prediction, predictionFile));
       await flush();
 

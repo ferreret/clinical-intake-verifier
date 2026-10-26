@@ -84,6 +84,16 @@ describe("extract", () => {
     expect(p.extractor.usage.input_tokens).toBe(200);
   });
 
+  it("hands every reply to onReply, in order, before parsing it", async () => {
+    mockedCall.mockResolvedValueOnce(reply("not json")).mockResolvedValueOnce(reply(goodJson()));
+    const seen: { attempt: number; text: string }[] = [];
+    await extract(await samplePdf(), { ...opts, onReply: (r) => seen.push(r) });
+    expect(seen).toEqual([
+      { attempt: 1, text: "not json" },
+      { attempt: 2, text: goodJson() },
+    ]);
+  });
+
   it("still returns a schema-valid prediction when both attempts fail", async () => {
     mockedCall.mockResolvedValue(reply(JSON.stringify({ fields: {}, tests: "nope" })));
     const p = await extract(await samplePdf(), opts);

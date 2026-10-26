@@ -84,6 +84,14 @@ export interface ExtractOptions {
   apiKey?: string;
   maxAttempts?: number;
   retryDelayMs?: number;
+  /** Called with every reply the model sent, before it is parsed: for diagnosing failures. */
+  onReply?: (reply: RawReply) => void;
+}
+
+/** One reply as the model sent it, before parsing (for a local model, without its fence). */
+export interface RawReply {
+  attempt: number;
+  text: string;
 }
 
 /**
@@ -229,6 +237,7 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
     attempts += 1;
     try {
       const reply = await call();
+      opts.onReply?.({ attempt: attempts, text: reply.text });
       modelVersion = reply.modelVersion ?? modelVersion;
       usage = addUsage(usage, reply.usage);
       const candidate = normaliseExtraction(parseRaw(reply.text, boxes), pages.length);

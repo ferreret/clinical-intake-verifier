@@ -176,9 +176,15 @@ server. Batch runs default to one document at a time with this provider.
 data/runs/<run-id>/
   run.json                  what was run, on what, with what, and the totals
   synth-000000.pred.json    one prediction per PDF, named after the document id
+  synth-000000.raw.json     every reply the model sent for it, as text, before parsing
   synth-000001.pred.json
   …
 ```
+
+The `.raw.json` beside each prediction keeps what the model actually answered, attempt by
+attempt (`{id, model, prompt_version, replies: [{attempt, text}]}`), so that a
+`schema_mismatch` or an odd value can be diagnosed. It is not part of the contract: the
+harness reads only `.pred.json`, and `intake-synth validate` skips these files.
 
 `run-id` defaults to `<timestamp>-<model>-p<prompt_version>`. The runner reads **only the
 PDFs** of the input directory: golden files are never opened by anything on the extraction
