@@ -19,6 +19,7 @@ import {
   type Usage,
 } from "@/lib/schema/prediction";
 import { callGemini, GeminiApiError } from "./gemini";
+import { groundBoxes } from "./grounding";
 import { callLocal, LocalModelError, resolveLocalModel, resolveLocalUrl } from "./local";
 import type { NormalisedExtraction } from "./normalize";
 import { garbledCount, normaliseExtraction } from "./normalize";
@@ -86,6 +87,10 @@ export interface ExtractOptions {
   retryDelayMs?: number;
   /** Called with every reply the model sent, before it is parsed: for diagnosing failures. */
   onReply?: (reply: RawReply) => void;
+  /** Local provider only: resolution the pages are rendered at (150 by default). */
+  dpi?: number;
+  /** Local provider only, experimental: locate the values again in a second pass per page. */
+  grounding?: boolean;
 }
 
 /** One reply as the model sent it, before parsing (for a local model, without its fence). */
@@ -191,8 +196,9 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
   const started = Date.now();
   const boxes = provider === "local" ? QWEN_BOXES : GEMINI_BOXES;
   let call: () => Promise<{ text: string; modelVersion: string | null; usage: Usage }>;
+  let images: Uint8Array[] = [];
   if (provider === "local") {
-    const images = await renderPages(pdf).catch((err) => {
+    images = await renderPages(pdf, opts.dpi).catch((err) => {
       throw new InvalidPdfError(err instanceof Error ? err.message : String(err));
     });
     // No constrained decoding for this provider (see local.ts): the schema goes in the text.
@@ -251,6 +257,12 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
       if (!isRetryable(err) || attempts >= maxAttempts) break;
       if (retryDelayMs > 0) await sleep(retryDelayMs * attempts);
     }
+  }
+  if (result !== null && provider === "local" && opts.grounding) {
+    const grounded = await groundBoxes(result, images, (page, prompt) =>
+      callLocal({ baseUrl: resolveLocalUrl(), model, pages: [page], systemInstruction: "", userMessage: prompt, temperature }),
+    );
+    for (const u of grounded.usage) usage = addUsage(usage, u);
   }
   if (result !== null && garbledFirst > 0 && attempts > 1) {
     result.warnings.push({

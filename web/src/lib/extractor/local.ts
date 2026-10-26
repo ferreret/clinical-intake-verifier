@@ -94,8 +94,9 @@ export async function callLocal(req: LocalRequest): Promise<LocalReply> {
   ];
   const body = {
     model: req.model,
+    // An empty instruction sends none: the grounding pass asks in a single user message.
     messages: [
-      { role: "system", content: req.systemInstruction },
+      ...(req.systemInstruction ? [{ role: "system", content: req.systemInstruction }] : []),
       { role: "user", content },
     ],
     temperature: req.temperature,

@@ -70,6 +70,24 @@ describe("extract with the local provider", () => {
     expect(request.systemInstruction).toContain("The JSON object has this JSON Schema:");
   });
 
+  it("locates the values again in a second pass when asked", async () => {
+    // Every value of the reply is on page 2, so only page 2 is sent again.
+    mockedCall
+      .mockResolvedValueOnce(reply(qwenJson()))
+      .mockResolvedValueOnce(reply('[{"label": "RUIZ ORTEGA, MARIA", "bbox_2d": [600, 300, 700, 320]}]'));
+    const p = await extract(await samplePdf(), { ...opts, grounding: true });
+
+    expect(mockedCall).toHaveBeenCalledTimes(2);
+    const second = mockedCall.mock.calls[1][0];
+    expect(second.pages).toHaveLength(1);
+    expect(second.systemInstruction).toBe("");
+    expect(second.userMessage).toContain('"RUIZ ORTEGA, MARIA", "Urea"');
+    expect(p.extractor.usage.input_tokens).toBe(6000);
+    expect(p.fields.Paciente?.bbox).toEqual({ x0: 0.6, y0: 0.3, x1: 0.7, y1: 0.32 });
+    expect(p.tests[0].bbox).toEqual({ x0: 0.096, y0: 0.515, x1: 0.129, y1: 0.526 }); // not located: kept
+    expect(validatePrediction(p)).toEqual([]);
+  });
+
   it("needs no API key", async () => {
     mockedCall.mockResolvedValueOnce(reply(qwenJson()));
     const p = await extract(await samplePdf(1), opts);

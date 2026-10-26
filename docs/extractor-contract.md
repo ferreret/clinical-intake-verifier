@@ -170,6 +170,12 @@ instruction instead, and the reply goes through the same validation and retry as
 Nothing leaves the machine. A multi-page document needs a context of about 32k tokens on the
 server. Batch runs default to one document at a time with this provider.
 
+Two experiments with this provider, measured before any is adopted, are batch options
+recorded under `options` in `run.json` (the prediction itself does not record them):
+`--dpi` renders the pages at another resolution, and `--grounding` sends each page again
+with only the values read on it, asking the model to locate them; a located value's box is
+replaced and nothing else changes (`grounding.ts`).
+
 ## Batch runs
 
 ```

@@ -7,7 +7,9 @@
  *                      [--only synth-000003,synth-000007] [--force]
  *
  * The provider defaults to EXTRACTOR_PROVIDER, else gemini. The local model answers one
- * request at a time, so its concurrency defaults to 1.
+ * request at a time, so its concurrency defaults to 1. Experiments with the local model:
+ * [--dpi 200] renders the pages at another resolution, [--grounding] locates the values again
+ * in a second pass per page; both are recorded under `options` in run.json.
  *
  * Reads only the PDFs: golden files are never opened here.
  */
@@ -44,6 +46,8 @@ interface RunManifest {
   model: string;
   prompt_version: string;
   input_mode: string;
+  /** Local-model experiments, when any was used. */
+  options?: { dpi?: number; grounding?: boolean };
   temperature: number;
   started_at: string;
   finished_at: string | null;
@@ -105,6 +109,8 @@ async function main(): Promise<number> {
       out: { type: "string" },
       limit: { type: "string" },
       provider: { type: "string" },
+      dpi: { type: "string" },
+      grounding: { type: "boolean", default: false },
       concurrency: { type: "string" },
       model: { type: "string" },
       only: { type: "string" },
@@ -133,6 +139,17 @@ async function main(): Promise<number> {
   // Local model ids have a publisher prefix ("qwen/..."), which cannot go in a directory name.
   const runId = `${timestamp(new Date())}-${model.replaceAll("/", "-")}-p${PROMPT_VERSION}`;
   const outDir = path.resolve(values.out ?? path.join(process.cwd(), "..", "data", "runs", runId));
+  const dpi = values.dpi ? Number.parseInt(values.dpi, 10) : undefined;
+  const grounding = values.grounding ?? false;
+  if ((dpi !== undefined || grounding) && provider !== "local") {
+    console.error("--dpi and --grounding apply to the local provider only");
+    return 1;
+  }
+  if (dpi !== undefined && !(dpi >= 50 && dpi <= 400)) {
+    console.error("--dpi must be between 50 and 400");
+    return 1;
+  }
+  const options = dpi !== undefined || grounding ? { ...(dpi !== undefined && { dpi }), ...(grounding && { grounding }) } : undefined;
   const defaultConcurrency = provider === "local" ? "1" : "4";
   const concurrency = Math.max(1, Number.parseInt(values.concurrency ?? defaultConcurrency, 10) || 1);
   const limit = values.limit ? Number.parseInt(values.limit, 10) : undefined;
@@ -155,6 +172,7 @@ async function main(): Promise<number> {
     model,
     prompt_version: PROMPT_VERSION,
     input_mode: inputMode,
+    ...(options && { options }),
     temperature: 0,
     started_at: new Date().toISOString(),
     finished_at: null,
@@ -170,7 +188,10 @@ async function main(): Promise<number> {
   };
 
   console.log(`run ${manifest.run_id}: ${pdfs.length} PDF(s) from ${inDir}`);
-  console.log(`${provider} model ${model}, prompt v${PROMPT_VERSION}, ${inputMode}, concurrency ${concurrency}`);
+  console.log(
+    `${provider} model ${model}, prompt v${PROMPT_VERSION}, ${inputMode}, concurrency ${concurrency}` +
+      (options ? `, options ${JSON.stringify(options)}` : ""),
+  );
   console.log(`writing to ${outDir}`);
 
   let skipped = 0;
@@ -198,7 +219,15 @@ async function main(): Promise<number> {
 
       const bytes = new Uint8Array(await fs.readFile(path.join(inDir, file)));
       const replies: RawReply[] = [];
-      const prediction = await extract(bytes, { id, file, provider, model, onReply: (r) => replies.push(r) });
+      const prediction = await extract(bytes, {
+        id,
+        file,
+        provider,
+        model,
+        dpi,
+        grounding,
+        onReply: (r) => replies.push(r),
+      });
       await writeJson(predictionPath, prediction);
       await writeJson(path.join(outDir, `${id}.raw.json`), {
         id,
