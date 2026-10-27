@@ -11,13 +11,14 @@ import { useI18n } from "../_ui/i18n";
 import { ArrowRight, Cloud, Cpu, Plus, Trash } from "../_ui/icons";
 import { usePolling } from "../_ui/polling";
 import { PageHeader } from "../_ui/session";
-import { StatesBar, StatesLegend } from "../_ui/states";
+import { BAR_ORDER, StatesBar, StatesLegend } from "../_ui/states";
 
 export default function BatchesPage() {
   const [batches, setBatches] = useState<BatchSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { t } = useI18n();
-  const [deleting, setDeleting] = useState<BatchSummary | null>(null);
+  // The batch to delete, or "all".
+  const [deleting, setDeleting] = useState<BatchSummary | "all" | null>(null);
   const moving = batches?.some((b) => ACTIVE_STATES.some((s) => b.states[s] > 0)) ?? false;
 
   const load = () => api.batches().then((r) => setBatches(r.batches), (e: Error) => setError(e.message));
@@ -25,6 +26,7 @@ export default function BatchesPage() {
   usePolling(load, moving);
 
   const total = (s: DocumentState) => batches?.reduce((a, b) => a + b.states[s], 0) ?? 0;
+  const allStates = Object.fromEntries(BAR_ORDER.map((s) => [s, total(s)])) as Record<DocumentState, number>;
   const tiles = [
     { label: t.batches.tiles.toVerify, value: total("awaiting_verification"), tone: "text-violet-700" },
     { label: t.batches.tiles.reading, value: total("extracting") + total("queued"), tone: "text-sky-700" },
@@ -38,12 +40,24 @@ export default function BatchesPage() {
         title={t.common.batches}
         subtitle={t.batches.subtitle}
         action={
-          <Link
-            href="/batches/new"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm shadow-brand-600/20 transition hover:bg-brand-700"
-          >
-            <Plus className="size-4" /> {t.batches.newBatch}
-          </Link>
+          <span className="flex items-center gap-2">
+            {batches && batches.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setDeleting("all")}
+                title={t.deleteBatch.allTitle}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-rose-700 ring-1 ring-rose-200 transition hover:bg-rose-50"
+              >
+                <Trash className="size-4" /> {t.deleteBatch.all}
+              </button>
+            )}
+            <Link
+              href="/batches/new"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm shadow-brand-600/20 transition hover:bg-brand-700"
+            >
+              <Plus className="size-4" /> {t.batches.newBatch}
+            </Link>
+          </span>
         }
       />
 
@@ -125,8 +139,10 @@ export default function BatchesPage() {
       </ul>
       {deleting && (
         <DeleteBatchDialog
-          batch={deleting}
-          states={deleting.states}
+          batch={deleting === "all" ? null : deleting}
+          batches={batches?.length ?? 0}
+          readingBatches={batches?.filter((b) => b.states.extracting > 0).length ?? 0}
+          states={deleting === "all" ? allStates : deleting.states}
           onCancel={() => setDeleting(null)}
           onDeleted={() => {
             setDeleting(null);

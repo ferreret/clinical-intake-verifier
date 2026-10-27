@@ -1,6 +1,8 @@
 /**
  * GET /api/batches: the workspace's batches, newest first, with their documents counted by
  * state.
+ * DELETE /api/batches: deletes every batch but those still being read (lib/batches/remove.ts);
+ * returns how many went and how many are still being read.
  * POST /api/batches: creates a batch and queues its documents. JSON
  * `{ "provider": "gemini", "name": "…", "documents": ["synth-000003.pdf", …] }` with bundled
  * documents; in live mode, also a multipart form with `provider`, `name`, `documents`
@@ -11,6 +13,7 @@ import { NextResponse } from "next/server";
 
 import { appMode, type Provider } from "@/lib/batches/config";
 import { queue } from "@/lib/batches/queue";
+import { deleteAllBatches } from "@/lib/batches/remove";
 import { PROVIDERS } from "@/lib/batches/schema";
 import { getSession, noSession } from "@/lib/batches/session";
 import { listBundled, readBundled, saveUpload } from "@/lib/batches/sources";
@@ -28,6 +31,12 @@ export async function GET(): Promise<NextResponse> {
   const session = await getSession();
   if (!session) return noSession();
   return NextResponse.json({ batches: await listBatches(session.db) });
+}
+
+export async function DELETE(): Promise<NextResponse> {
+  const session = await getSession();
+  if (!session) return noSession();
+  return NextResponse.json(await deleteAllBatches(session.db));
 }
 
 const bad = (error: string) => NextResponse.json({ error }, { status: 400 });

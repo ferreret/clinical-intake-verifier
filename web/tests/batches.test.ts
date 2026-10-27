@@ -10,7 +10,7 @@ import { fuse } from "@/lib/fusion/fuse";
 import { readSnapshot } from "@/lib/lis/snapshot";
 import { approveDocument, getDecision, rejectDocument, type ApprovalInput } from "@/lib/batches/decide";
 import { BatchQueue } from "@/lib/batches/queue";
-import { deleteBatch } from "@/lib/batches/remove";
+import { deleteAllBatches, deleteBatch } from "@/lib/batches/remove";
 import { batchDocuments } from "@/lib/batches/schema";
 import { describeBundled, listBundled } from "@/lib/batches/sources";
 import {
@@ -406,5 +406,16 @@ describe("deleting a batch", () => {
     expect(await new DbMemory(db).lookup("A1", textKey("Glucosa"))).toHaveLength(1);
     expect((await listBatches(db)).map((b) => b.id)).toEqual([keep.id]);
     expect(await deleteBatch(db, batch.id)).toEqual({ ok: false, reason: "missing" });
+  });
+
+  it("deletes them all at once, but those still being read", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const doc = await newDoc("doc-a.pdf");
+    for (const name of ["A", "B"]) await createBatch(db, { name, provider: "gemini", createdBy: "T01", documents: [doc] });
+    const reading = await createBatch(db, { name: "C", provider: "gemini", createdBy: "T01", documents: [doc] });
+    await db.update(batchDocuments).set({ state: "extracting" }).where(eq(batchDocuments.batchId, reading.id));
+    expect(await deleteAllBatches(db)).toEqual({ deleted: 2, reading: 1 });
+    expect((await listBatches(db)).map((b) => b.name)).toEqual(["C"]);
   });
 });

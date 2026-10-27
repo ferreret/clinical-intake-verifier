@@ -76,7 +76,13 @@ export const en = {
     button: "Delete batch",
     buttonTitle: "Delete this batch and everything it left",
     title: (name: string) => `Delete “${name}”?`,
+    all: "Delete all",
+    allTitle: "Delete every batch and everything they left",
+    titleAll: (n: number) => `Delete all ${plural(n, "batch", "batches")}?`,
+    readingAll: (n: number) => `${plural(n, "batch", "batches")} still being read ${n === 1 ? "stays" : "stay"}.`,
+    confirmAll: "Delete them all",
     documents: (n: number) => `Its ${plural(n, "document")} and what was proposed for them are deleted.`,
+    documentsAll: (n: number) => `Their ${plural(n, "document")} and what was proposed for them are deleted.`,
     decided: (approved: number, rejected: number) =>
       `So are ${approved} approval${approved === 1 ? "" : "s"} and ${rejected} rejection${rejected === 1 ? "" : "s"}, and the requests the approvals registered in mock-lis.`,
     memory: "What the test mapping memory learned from its approvals stays.",

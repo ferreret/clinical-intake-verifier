@@ -131,7 +131,13 @@ export const es: Messages = {
     button: "Borrar lote",
     buttonTitle: "Borrar este lote y todo lo que dejó",
     title: (name) => `¿Borrar «${name}»?`,
+    all: "Borrar todos",
+    allTitle: "Borrar todos los lotes y todo lo que dejaron",
+    titleAll: (n) => (n === 1 ? "¿Borrar el único lote?" : `¿Borrar los ${n} lotes?`),
+    readingAll: (n) => (n === 1 ? "El lote que aún se está leyendo se queda." : `Los ${n} lotes que aún se están leyendo se quedan.`),
+    confirmAll: "Borrarlos todos",
     documents: (n) => `Se borran ${n === 1 ? "su documento" : `sus ${n} documentos`} y lo que se propuso para ${n === 1 ? "él" : "ellos"}.`,
+    documentsAll: (n) => `Se borran ${n === 1 ? "su documento" : `sus ${n} documentos`} y lo que se propuso para ${n === 1 ? "él" : "ellos"}.`,
     decided: (approved, rejected) =>
       `También ${approved} ${approved === 1 ? "aprobación" : "aprobaciones"} y ${rejected} ${rejected === 1 ? "rechazo" : "rechazos"}, y las peticiones que las aprobaciones registraron en mock-lis.`,
     memory: "Lo que la memoria del mapeo de pruebas aprendió de sus aprobaciones se conserva.",

@@ -5,7 +5,8 @@
  * mock LIS; then the PDFs uploaded for it. What the mapping memory learned from its
  * approvals stays: it cannot be told apart from what other approvals taught.
  *
- * A batch still being read cannot be deleted until its documents are read.
+ * A batch still being read cannot be deleted until its documents are read. Deleting them all
+ * leaves those, and says how many.
  */
 import { eq, inArray } from "drizzle-orm";
 
@@ -13,6 +14,7 @@ import type { LisDb } from "@/lib/lis/db";
 import { requests } from "@/lib/lis/schema";
 
 import { batchDocuments, batches, decisions, proposals } from "./schema";
+import { listBatches } from "./store";
 import { deleteUpload } from "./sources";
 
 export type DeleteResult = { ok: true } | { ok: false; reason: "missing" | "reading" };
@@ -39,4 +41,16 @@ export async function deleteBatch(db: LisDb, id: string): Promise<DeleteResult> 
   // The files go once the rows are gone; one already missing is not an error.
   for (const location of uploads) await deleteUpload(location).catch(() => undefined);
   return result;
+}
+
+/** Deletes every batch of the workspace but those still being read. */
+export async function deleteAllBatches(db: LisDb): Promise<{ deleted: number; reading: number }> {
+  let deleted = 0;
+  let reading = 0;
+  for (const b of await listBatches(db)) {
+    const r = await deleteBatch(db, b.id);
+    if (r.ok) deleted += 1;
+    else if (r.reason === "reading") reading += 1;
+  }
+  return { deleted, reading };
 }
