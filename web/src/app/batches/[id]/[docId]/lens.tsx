@@ -1,12 +1,13 @@
 "use client";
 
 /**
- * The lens: for the item in focus, a magnified window of the page where its value was read,
- * shown beside the item, and a line from that window to the value's box in the viewer. The
- * technician compares the reading with the source without looking for it.
+ * The lens: while the pointer is on a value in the Read column, a magnified window of the page
+ * where it was read, shown beside its row, and a line from that window to the value's box in
+ * the viewer. The technician compares the reading with the source without looking for it; it
+ * goes as soon as the pointer leaves the cell, so it never sits over the rows being worked on.
  *
  * Everything is positioned from the elements' boxes on screen (`data-row`, `data-read` in the
- * tables, `data-box` in the viewer), followed frame by frame while an item is in focus, so the
+ * tables, `data-box` in the viewer), followed frame by frame while it is shown, so the
  * window and the line stay right while either side scrolls. Wide layouts only: on a narrow
  * screen the viewer is above the tables and the line would cross them.
  */
@@ -60,7 +61,7 @@ export function Lens({
   pages,
   items,
   lights,
-  focused,
+  shown,
   labels,
   enabled,
 }: {
@@ -68,24 +69,25 @@ export function Lens({
   pages: { number: number; width_pt: number; height_pt: number }[];
   items: Item[];
   lights: Record<string, Light>;
-  focused: string | null;
+  /** The item to show: the one whose Read cell is under the pointer. */
+  shown: string | null;
   /** What to call each item, and the value read. */
   labels: Record<string, { label: string; read: string }>;
   enabled: boolean;
 }) {
-  const item = items.find((i) => i.key === focused) ?? null;
+  const item = items.find((i) => i.key === shown) ?? null;
   const place = item?.place ?? null;
   const page = place ? pages.find((p) => p.number === place.page) : undefined;
   const [geo, setGeo] = useState<Geometry | null>(null);
 
   useEffect(() => {
-    if (!enabled || !focused || !place || !page) return;
+    if (!enabled || !shown || !place || !page) return;
     let frame = 0;
     let last = "";
     const tick = () => {
       frame = requestAnimationFrame(tick);
       let next: Geometry | null = null;
-      const row = document.querySelector<HTMLElement>(`[data-row="${CSS.escape(focused)}"]`);
+      const row = document.querySelector<HTMLElement>(`[data-row="${CSS.escape(shown)}"]`);
       const rowScroller = row?.closest<HTMLElement>(".overflow-y-auto");
       if (row && window.innerWidth >= 1024) {
         const rowRect = row.getBoundingClientRect();
@@ -99,7 +101,7 @@ export function Lens({
           // Above the row when it fits in the panel, below it otherwise.
           const above = rowRect.top - total - GAP;
           const y = above >= within.top ? above : Math.min(rowRect.bottom + GAP, window.innerHeight - total - 8);
-          const box = document.querySelector<HTMLElement>(`[data-box="${CSS.escape(focused)}"]`);
+          const box = document.querySelector<HTMLElement>(`[data-box="${CSS.escape(shown)}"]`);
           const viewer = box?.closest<HTMLElement>(".overflow-auto")?.getBoundingClientRect();
           const boxRect = box?.getBoundingClientRect();
           const line =
@@ -120,7 +122,7 @@ export function Lens({
       cancelAnimationFrame(frame);
       setGeo(null);
     };
-  }, [enabled, focused, place, page]);
+  }, [enabled, shown, place, page]);
 
   if (!enabled || !item || !place || !page || !geo) return null;
   const { card, line } = geo;

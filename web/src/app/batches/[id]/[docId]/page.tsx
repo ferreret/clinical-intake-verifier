@@ -35,6 +35,8 @@ export default function VerifyPage() {
   const [chosen, setChosen] = useState<Chosen>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [focused, setFocused] = useState<string | null>(null);
+  // The item whose Read cell is under the pointer: what the lens shows.
+  const [peek, setPeek] = useState<string | null>(null);
   const [help, setHelp] = useState(false);
   // The lens (lens.tsx) is on unless the technician turned it off; remembered in this browser.
   const [lens, setLens] = useState(() => {
@@ -206,11 +208,19 @@ export default function VerifyPage() {
           items={items}
           lights={lights}
           focused={focused}
+          peek={lens ? peek : null}
           onFocus={(k) => focusItem(k, false)}
         />
       </div>
 
-      <div className="flex min-h-0 flex-col overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-200">
+      <div
+        className="flex min-h-0 flex-col overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-200"
+        onPointerOver={(e) => {
+          const read = (e.target as HTMLElement).closest("[data-read]");
+          setPeek(read?.closest("[data-row]")?.getAttribute("data-row") ?? null);
+        }}
+        onPointerLeave={() => setPeek(null)}
+      >
         <header className="border-b border-slate-200 bg-white px-4 py-3">
           <div className="flex items-center gap-2">
             <button
@@ -307,7 +317,7 @@ export default function VerifyPage() {
             <button
               type="button"
               onClick={toggleLens}
-              title="A magnified view of where the focused value was read, joined to it on the page (Alt+Z)"
+              title="Point at a value in Read to see where it was read, magnified and joined to the page (Alt+Z)"
               className={`hidden rounded-md px-2 py-1 text-xs font-medium ring-1 transition lg:inline-flex ${
                 lens ? "bg-brand-50 text-brand-700 ring-brand-200" : "text-slate-500 ring-slate-200 hover:bg-slate-50"
               }`}
@@ -343,7 +353,7 @@ export default function VerifyPage() {
         pages={view.proposal.prediction.pages}
         items={items}
         lights={lights}
-        focused={focused}
+        shown={peek}
         labels={labels}
         enabled={lens}
       />

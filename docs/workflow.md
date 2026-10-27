@@ -118,10 +118,12 @@ session shell and the state badges.
       model);
     - **Selected:** the codes kept, another catalog candidate, or the line dropped when it is
       not a test.
-  - **The lens** (`lens.tsx`). For the item in focus, a window shows the part of the page
-    where its value was read, magnified, with the box drawn. The window sits beside the item
-    in the table, and a line joins it to the box in the viewer, dashed when the box is
-    approximate. Both follow the scrolling of the table and of the viewer. It is shown on
+  - **The lens** (`lens.tsx`). While the pointer is on a value in the Read column, a window
+    shows the part of the page where it was read, magnified, with the box drawn. The window
+    sits beside the row, and a line joins it to the box in the viewer, dashed when the box is
+    approximate. If that box is out of view, the viewer moves to it once the pointer has
+    rested on the value for a moment. The window and the line follow the scrolling of the
+    table and of the viewer, and go as soon as the pointer leaves the cell. It is shown on
     wide layouts only, and turned on or off with Alt+Z or the "Lens" switch, which this
     browser remembers. Asked for by the product owner, after a pattern a colleague uses in
     their own applications.

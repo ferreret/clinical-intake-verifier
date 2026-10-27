@@ -233,10 +233,7 @@ function SourceCell({
     <button
       type="button"
       title={title ?? "Select this value"}
-      onClick={(e) => {
-        e.stopPropagation();
-        pick();
-      }}
+      onClick={pick}
       className={`${style} transition hover:bg-brand-50 hover:ring-1 hover:ring-brand-300`}
     >
       {body}

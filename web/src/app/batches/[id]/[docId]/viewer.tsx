@@ -4,7 +4,8 @@
  * The document's pages with a box on every value read from them. An exact box is drawn
  * tight; an approximate one (the local model's own, model.ts) dashed and with a margin, so
  * the technician knows which to trust (box_source, docs/extractor-contract.md). The focused item's
- * box is highlighted and scrolled into view; clicking a box focuses its item.
+ * box is highlighted and scrolled into view; clicking a box focuses its item. So is the box the
+ * lens points to (lens.tsx), once the pointer has rested on its value, if it is out of view.
  */
 import { useEffect, useRef, useState } from "react";
 
@@ -14,6 +15,8 @@ import { LIGHT_BOX, type Item, type Light } from "./model";
 /** Margin around an approximate box, as a share of the page. */
 const LOOSE = 0.012;
 const ZOOMS = [1, 1.25, 1.5, 2];
+/** How long the pointer rests on a value before the viewer moves to show its box. */
+const DWELL_MS = 150;
 
 export function Viewer({
   documentId,
@@ -21,6 +24,7 @@ export function Viewer({
   items,
   lights,
   focused,
+  peek,
   onFocus,
 }: {
   documentId: string;
@@ -28,6 +32,8 @@ export function Viewer({
   items: Item[];
   lights: Record<string, Light>;
   focused: string | null;
+  /** The item the lens is showing, if any. */
+  peek: string | null;
   onFocus: (key: string) => void;
 }) {
   const [zoom, setZoom] = useState(0);
@@ -39,6 +45,20 @@ export function Viewer({
     const box = scroller.current?.querySelector<HTMLElement>(`[data-box="${CSS.escape(focused)}"]`);
     box?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
   }, [focused, focusedPlace, zoom]);
+
+  useEffect(() => {
+    if (!peek) return;
+    const timer = window.setTimeout(() => {
+      const view = scroller.current;
+      const box = view?.querySelector<HTMLElement>(`[data-box="${CSS.escape(peek)}"]`);
+      if (!view || !box) return;
+      const r = box.getBoundingClientRect();
+      const v = view.getBoundingClientRect();
+      const inView = r.top >= v.top && r.bottom <= v.bottom && r.left >= v.left && r.right <= v.right;
+      if (!inView) box.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+    }, DWELL_MS);
+    return () => window.clearTimeout(timer);
+  }, [peek]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200">
@@ -93,7 +113,7 @@ export function Viewer({
                 .map((i) => {
                   const { bbox, exact } = i.place!;
                   const m = exact ? 0.002 : LOOSE;
-                  const on = i.key === focused;
+                  const on = i.key === focused || i.key === peek;
                   return (
                     <button
                       key={i.key}

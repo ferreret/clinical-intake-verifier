@@ -1508,7 +1508,9 @@ go on from it step by step.
 **The lens, 2026-10-27, at the product owner's request.** When an item is in focus, a
 magnified window of the page shows where its value was read. The window sits beside the item,
 and a line runs from it to the value's box in the viewer. It is switched with Alt+Z.
-Screenshots at 1920 and 2560 px checked it.
+Screenshots at 1920 and 2560 px checked it. On the first look it followed the focus, so it
+stayed on screen and covered rows being worked on. It now shows only while the pointer is on
+a value in the Read column; the viewer brings the value's box into view when it is off screen.
 
 **Open points found while building it, for later blocks:**
 
