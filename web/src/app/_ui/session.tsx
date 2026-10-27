@@ -42,9 +42,15 @@ export function SessionShell({ children }: { children: ReactNode }) {
   return (
     <SessionContext.Provider value={{ ...session, technician: session.technician }}>
       <Header session={session} technician={session.technician} />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
+      <Main>{children}</Main>
     </SessionContext.Provider>
   );
+}
+
+/** Pages are kept to a reading width, except the verification screen, which needs the room. */
+function Main({ children }: { children: ReactNode }) {
+  const wide = /^\/batches\/[^/]+\/[^/]+/.test(usePathname() ?? "");
+  return <main className={wide ? "px-4 py-4 sm:px-6" : "mx-auto max-w-6xl px-4 py-8 sm:px-6"}>{children}</main>;
 }
 
 function Header({ session, technician }: { session: SessionInfo; technician: Technician }) {

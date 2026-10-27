@@ -4,12 +4,13 @@
  * One batch: its documents in order, where each one is, and for those already read, who read
  * them and how their fields and lines came out. Refreshed while any document is moving.
  */
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ACTIVE_STATES, api, PROVIDER_LABEL, type BatchDetail, type DocumentState } from "../../_ui/api";
 import { Avatar } from "../../_ui/avatar";
-import { Clock, Cloud, Cpu, FileText, Retry, Upload } from "../../_ui/icons";
+import { ArrowRight, Clock, Cloud, Cpu, FileText, Retry, Upload } from "../../_ui/icons";
 import { usePolling } from "../../_ui/polling";
 import { BackLink, PageHeader, useSession } from "../../_ui/session";
 import { BAR_ORDER, LightCounts, StateBadge, StatesBar, StatesLegend } from "../../_ui/states";
@@ -116,7 +117,8 @@ export default function BatchPage() {
                 <th className="px-3 py-2.5 font-medium">State</th>
                 <th className="px-3 py-2.5 font-medium">Fields</th>
                 <th className="px-3 py-2.5 font-medium">Test lines</th>
-                <th className="px-3 py-2.5 pr-5 font-medium">Read</th>
+                <th className="px-3 py-2.5 font-medium">Read</th>
+                <th className="py-2.5 pr-5" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -151,7 +153,7 @@ export default function BatchPage() {
                   </td>
                   <td className="px-3 py-3">{d.summary ? <LightCounts counts={d.summary.fields} /> : <Pending state={d.state} />}</td>
                   <td className="px-3 py-3">{d.summary ? <LightCounts counts={d.summary.tests} /> : <Pending state={d.state} />}</td>
-                  <td className="px-3 py-3 pr-5 text-xs whitespace-nowrap text-slate-600">
+                  <td className="px-3 py-3 text-xs whitespace-nowrap text-slate-600">
                     {d.summary ? (
                       <span className="inline-flex items-center gap-1.5">
                         <Clock className="size-3.5 text-slate-400" />
@@ -171,6 +173,16 @@ export default function BatchPage() {
                       `attempt ${d.attempts}`
                     ) : (
                       <span className="text-slate-300">–</span>
+                    )}
+                  </td>
+                  <td className="py-3 pr-5 text-right">
+                    {(d.state === "awaiting_verification" || d.state === "in_verification") && (
+                      <Link
+                        href={`/batches/${batch.id}/${d.id}`}
+                        className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap text-white shadow-sm shadow-brand-600/20 transition hover:bg-brand-700"
+                      >
+                        Verify <ArrowRight className="size-3.5" />
+                      </Link>
                     )}
                   </td>
                 </tr>

@@ -182,3 +182,36 @@ export async function requeueInterrupted(db: LisDb): Promise<number> {
     .returning({ id: batchDocuments.id });
   return done.length;
 }
+
+export type OpenResult = { ok: true; document: BatchDocument } | { ok: false; reason: "missing" | "not_ready" | "locked"; document?: BatchDocument };
+
+/**
+ * A technician opens a document to verify it: it is locked to them while in verification.
+ * One locked by another technician stays theirs unless `takeOver` is asked for.
+ */
+export async function openDocument(db: LisDb, id: string, technician: string, takeOver = false): Promise<OpenResult> {
+  const doc = await getDocument(db, id);
+  if (!doc) return { ok: false, reason: "missing" };
+  if (doc.state === "in_verification" && doc.lockedBy !== technician && !takeOver) {
+    return { ok: false, reason: "locked", document: doc };
+  }
+  if (doc.state !== "awaiting_verification" && doc.state !== "in_verification") {
+    return { ok: false, reason: "not_ready", document: doc };
+  }
+  const at = now();
+  await db
+    .update(batchDocuments)
+    .set({ state: "in_verification", lockedBy: technician, lockedAt: at, updatedAt: at })
+    .where(eq(batchDocuments.id, id));
+  return { ok: true, document: { ...doc, state: "in_verification", lockedBy: technician, lockedAt: at, updatedAt: at } };
+}
+
+/** The technician leaves it unfinished: it waits for verification again. Only its holder can. */
+export async function releaseDocument(db: LisDb, id: string, technician: string): Promise<boolean> {
+  const done = await db
+    .update(batchDocuments)
+    .set({ state: "awaiting_verification", lockedBy: null, lockedAt: null, updatedAt: now() })
+    .where(and(eq(batchDocuments.id, id), eq(batchDocuments.state, "in_verification"), eq(batchDocuments.lockedBy, technician)))
+    .returning({ id: batchDocuments.id });
+  return done.length > 0;
+}

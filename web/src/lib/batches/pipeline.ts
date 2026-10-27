@@ -86,7 +86,8 @@ function mappingProvider(mode: AppMode): MappingProvider | null {
 
 const catalogs = new WeakMap<LisDb, Promise<{ catalog: Catalog; index: CatalogIndex }>>();
 
-function catalogOf(db: LisDb) {
+/** The workspace's catalog and its search index, read once. */
+export function catalogOf(db: LisDb) {
   let c = catalogs.get(db);
   if (!c) {
     c = readCatalog(db).then((catalog) => ({ catalog, index: new CatalogIndex(catalog) }));

@@ -90,6 +90,35 @@ session shell and the state badges.
   - for one already read, its fields and lines counted by traffic-light colour, the model
     and the latency, marked "(recorded)" in replay mode.
 
+- **`/batches/:id/:document`, verification:** the pages on the left, the proposal on the
+  right.
+  - **Pages.** They are rendered on the server (`/api/documents/:id/pages/:n`, 130 dpi, the
+    last 12 documents kept), so the browser needs no PDF library. Every value read has a box:
+    - **Exact:** placed by the page's OCR, or by Gemini (99.4% at IoU 0.5).
+    - **Approximate:** the local model's own boxes (15.6% where the OCR could not place the
+      value), drawn dashed with a margin.
+
+    The focused item's box is highlighted and scrolled into view; clicking a box focuses its
+    item.
+  - **The lab's records:** the patient, physician and insurer the document is linked to, or
+    the candidates, with why.
+  - **Fields by group,** each with its light and the reason for it. The focused field, and
+    every red one, shows what the document and the records say. A conflict proposes no value:
+    one click, or Alt+1 / Alt+2, takes the document's or the records'. Every field can be
+    typed over, and a change is marked "edited".
+  - **The requested lines,** with the codes proposed and their names, and where the proposal
+    came from (memory, search or model). They can be kept, replaced by another catalog
+    candidate, or removed when the line is not a test.
+  - **Keyboard:** Alt+↓/↑ next and previous item, Alt+→/← next and previous document of the
+    batch, Esc to leave an input, ? for the list.
+  - **Footer:** what is left to resolve (a red or required field still empty, a line with no
+    codes), "Leave for later", and the approval, which comes with block 4.
+
+  Opening a document locks it to the technician (`POST /api/documents/:id/open`); another
+  technician sees it read-only and can take it over. Leaving it for later, or moving to
+  another document, releases it (`POST /api/documents/:id/release`). The technician's
+  changes stay in the page until approval: leaving with changes asks first.
+
 **The look.** It is defined in `globals.css`:
 - Geist type, downloaded by `next/font` at build time and served by the app;
 - an indigo brand colour and soft white cards on a light grey ground;
@@ -127,5 +156,8 @@ sandbox.
 | `POST /api/batches` | JSON `{ "provider", "name"?, "documents": [names] }`; in live mode also multipart with `files`. Up to 50 documents; queued at once. |
 | `GET /api/batches/:id` | The batch and its documents in order; a ready one with its summary (model, latency, recorded, pages, fields and lines by colour). |
 | `POST /api/documents/:id/retry` | A failed document back to the queue (409 otherwise). |
-| `GET /api/documents/:id/proposal` | The prediction, the fusion and each line's codes (409 until ready). |
+| `GET /api/documents/:id/proposal` | The prediction, the fusion and each line's codes (409 until ready); with the catalog names of the codes, the linked and candidate LIS records, and the batch's documents in order. |
+| `POST /api/documents/:id/open` | Lock the document for verification to the technician (409 if another has it, unless `{ "takeOver": true }`, or if it is not ready). |
+| `POST /api/documents/:id/release` | Leave it for later: back to awaiting verification (only its holder). |
+| `GET /api/documents/:id/pages/:n` | Page n as a PNG, for the viewer. |
 | `GET /api/documents/:id/pdf` | The PDF, for the viewer. |

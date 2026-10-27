@@ -14,7 +14,7 @@ Last updated: 2026-10-27.
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
 | F4 | Mock LIS, fusion engine and test mapping | done: blocks 1 to 6, measured end to end on real readings (below) |
-| F5 | Batches and verification UI | blocks 1 and 2 of 4 done: batches, queue and their screens (section 5) |
+| F5 | Batches and verification UI | blocks 1 to 3 of 4 done: batches, queue, their screens and the verification screen (section 5) |
 | F6 | Public demo on a self-hosted Dokploy | not started |
 
 Local open-weight vision models were approved on 2026-10-26 as the top priority, ahead of
@@ -1465,6 +1465,31 @@ generated three illustrations from prompts written for the project:
 They are optimised to WebP and JPEG, about 140 KB in all. Only the share image needed a
 `.gitignore` exception, since image formats are ignored by default to keep real documents
 out.
+
+**Block 3 done on 2026-10-27: the verification screen** (`docs/workflow.md`, "Screens").
+
+- **The pages,** rendered on the server, with a box on every value. The focused one is
+  highlighted and scrolled to; clicking a box focuses its item.
+- **The links** to patient, physician and insurer.
+- **Fields by group,** with their light, the reason, and what the document and the records
+  say. A conflict is resolved with one click or Alt+1/Alt+2, and any field can be typed over.
+- **The requested lines,** with their codes, names and source; they can be changed to another
+  candidate or removed.
+- **Moving around:** keyboard navigation, and moving between the batch's documents.
+- **Locks:** opening a document locks it to the technician; leaving or moving on releases it,
+  and another technician can take it over.
+
+Decided while building it: Gemini's own boxes are drawn exact, like the OCR's, since they are
+as good (99.4%); only the local model's own boxes are approximate. The roadmap's earlier note
+said "model boxes" in general, written when only Qwen's had been measured that way.
+
+The changes stay in the page until block 4's approval records them. Checked in the browser:
+- three Gemini documents, one of four pages;
+- a date-of-birth conflict resolved with Alt+2, and Alt+↓ to the next field;
+- moving to the next document, which released the previous one;
+- phone width, and no console errors.
+
+One test for the locks; 156 in all.
 
 **Open points found while building it, for later blocks:**
 

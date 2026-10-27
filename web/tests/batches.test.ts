@@ -9,7 +9,17 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BatchQueue } from "@/lib/batches/queue";
 import { batchDocuments } from "@/lib/batches/schema";
 import { describeBundled, listBundled } from "@/lib/batches/sources";
-import { createBatch, getBatch, getProposal, listBatches, requeueInterrupted, retryDocument, summarise } from "@/lib/batches/store";
+import {
+  createBatch,
+  getBatch,
+  getProposal,
+  listBatches,
+  openDocument,
+  releaseDocument,
+  requeueInterrupted,
+  retryDocument,
+  summarise,
+} from "@/lib/batches/store";
 import { createSandbox, isWorkspaceId, listWorkspaces, openWorkspace, sweepSandboxes } from "@/lib/batches/workspace";
 import { sha256Hex } from "@/lib/extractor/pdf";
 import { loadLis, openLis } from "@/lib/lis/db";
@@ -203,5 +213,25 @@ describe("the queue", () => {
     await db.update(batchDocuments).set({ state: "extracting" }).where(eq(batchDocuments.batchId, batch.id));
     expect(await requeueInterrupted(db)).toBe(1);
     expect((await getBatch(db, batch.id))!.documents[0].state).toBe("queued");
+  });
+});
+
+describe("verification locks", () => {
+  it("locks a ready document to the technician who opens it, until they leave it", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    const [doc] = (await getBatch(db, batch.id))!.documents;
+    expect(await openDocument(db, doc.id, "T01")).toMatchObject({ ok: false, reason: "not_ready" });
+
+    await db.update(batchDocuments).set({ state: "awaiting_verification" }).where(eq(batchDocuments.id, doc.id));
+    expect(await openDocument(db, doc.id, "T01")).toMatchObject({ ok: true, document: { state: "in_verification", lockedBy: "T01" } });
+    expect(await openDocument(db, doc.id, "T01")).toMatchObject({ ok: true });
+    expect(await openDocument(db, doc.id, "T02")).toMatchObject({ ok: false, reason: "locked" });
+    expect(await releaseDocument(db, doc.id, "T02")).toBe(false);
+    expect(await openDocument(db, doc.id, "T02", true)).toMatchObject({ ok: true, document: { lockedBy: "T02" } });
+    expect(await releaseDocument(db, doc.id, "T02")).toBe(true);
+    expect((await getBatch(db, batch.id))!.documents[0]).toMatchObject({ state: "awaiting_verification", lockedBy: null });
+    expect(await openDocument(db, "nope", "T01")).toEqual({ ok: false, reason: "missing" });
   });
 });

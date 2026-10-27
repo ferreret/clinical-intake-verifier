@@ -4,7 +4,7 @@
  */
 import type { DocumentState } from "@/lib/batches/schema";
 import type { BundledInfo } from "@/lib/batches/sources";
-import type { Batch, BatchDocument, BatchSummary, DocumentSummary } from "@/lib/batches/store";
+import type { Batch, BatchDocument, BatchSummary, DocumentSummary, StoredProposal } from "@/lib/batches/store";
 import type { Technician } from "@/lib/batches/technicians";
 
 export type { BatchSummary, BundledInfo, DocumentState, Technician };
@@ -21,6 +21,24 @@ export interface SessionInfo {
 export interface BatchDetail {
   batch: Batch;
   documents: (BatchDocument & { summary: DocumentSummary | null })[];
+}
+
+export interface RecordView {
+  id: string;
+  title: string;
+  detail: string;
+}
+
+/** A document's proposal, with what the verification screen shows around it. */
+export interface ProposalView {
+  document: BatchDocument;
+  batch: Batch | null;
+  proposal: StoredProposal;
+  /** Catalog name of each code proposed or offered. */
+  codes: Record<string, string>;
+  /** LIS records linked or offered as candidates, by id. */
+  records: Record<string, RecordView>;
+  siblings: Pick<BatchDocument, "id" | "position" | "fileName" | "state">[];
 }
 
 export class ApiError extends Error {
@@ -63,6 +81,11 @@ export const api = {
     return call<{ batch: Batch }>("/api/batches", { method: "POST", body: form });
   },
   retry: (documentId: string) => call<unknown>(`/api/documents/${documentId}/retry`, { method: "POST" }),
+  proposal: (documentId: string) => call<ProposalView>(`/api/documents/${documentId}/proposal`),
+  open: (documentId: string, takeOver = false) =>
+    call<{ document: BatchDocument }>(`/api/documents/${documentId}/open`, postJson({ takeOver })),
+  release: (documentId: string) => call<{ released: boolean }>(`/api/documents/${documentId}/release`, { method: "POST" }),
+  pageUrl: (documentId: string, page: number) => `/api/documents/${documentId}/pages/${page}`,
 };
 
 export const PROVIDER_LABEL: Record<Provider, string> = {
