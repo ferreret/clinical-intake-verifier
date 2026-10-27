@@ -96,6 +96,17 @@ export function catalogOf(db: LisDb) {
   return c;
 }
 
+/**
+ * Whose approvals a document's lines are looked up in, and taught to: its insurer's record
+ * when linked, else the insurer as printed, else none. The same for proposing and learning.
+ */
+export function memoryScope(fused: FusedDocument, prediction: Prediction): string {
+  const insurer = prediction.fields.NombreMutua?.value ?? null;
+  const link = fused.links.insurer;
+  if (link.status === "linked" && link.recordId) return link.recordId;
+  return insurer ? `name:${compareKey(insurer, "casefold")}` : "none";
+}
+
 /** The fusion and the codes proposed for each line, from what the workspace knows now. */
 export async function proposeFor(
   db: LisDb,
@@ -105,11 +116,8 @@ export async function proposeFor(
   const fused = fuse(prediction, await readSnapshot(db));
   const { catalog, index } = await catalogOf(db);
   const insurer = prediction.fields.NombreMutua?.value ?? null;
-  const link = fused.links.insurer;
-  const scope =
-    link.status === "linked" && link.recordId ? link.recordId : insurer ? `name:${compareKey(insurer, "casefold")}` : "none";
   // The form's language is not read by the extractor; the model is told Spanish.
-  const ctx = { scope, insurer, language: "es" };
+  const ctx = { scope: memoryScope(fused, prediction), insurer, language: "es" };
   const lines = prediction.tests.map((t) => t.value);
   const memory = new DbMemory(db);
   const provider = mappingProvider(mode);

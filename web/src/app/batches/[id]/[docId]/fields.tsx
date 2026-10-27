@@ -15,7 +15,8 @@ import type { RecordKind } from "@/lib/fusion/types";
 
 import type { ProposalView } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
-import { GROUPS, LIGHT_DOT, LINK_STYLE, type Item } from "./model";
+import { Check as CheckIcon } from "../../../_ui/icons";
+import { GROUPS, LIGHT_DOT, LINK_STYLE, type Check, type Item } from "./model";
 
 type FieldItem = Extract<Item, { kind: "field" }>;
 
@@ -64,8 +65,11 @@ interface FieldsProps {
   focused: string | null;
   readOnly: boolean;
   inputs: RefObject<Map<string, HTMLElement>>;
+  checks: Record<string, Check>;
+  confirmed: Set<string>;
   onFocus: (key: string) => void;
   onChange: (key: string, value: string) => void;
+  onConfirm: (key: string) => void;
 }
 
 export function Fields(props: FieldsProps) {
@@ -107,7 +111,20 @@ export function Fields(props: FieldsProps) {
   );
 }
 
-function FieldRow({ view, item, values, touched, focused, readOnly, inputs, onFocus, onChange }: FieldsProps & { item: FieldItem }) {
+function FieldRow({
+  view,
+  item,
+  values,
+  touched,
+  focused,
+  readOnly,
+  inputs,
+  checks,
+  confirmed,
+  onFocus,
+  onChange,
+  onConfirm,
+}: FieldsProps & { item: FieldItem }) {
   const { t } = useI18n();
   const f = t.fields;
   const { fused, spec, key } = item;
@@ -186,8 +203,11 @@ function FieldRow({ view, item, values, touched, focused, readOnly, inputs, onFo
               on ? "border-brand-400 ring-2 ring-brand-100" : "border-slate-200"
             } ${readOnly ? "bg-slate-50" : "bg-white"} ${!value.trim() && (fused.state === "red" || spec.required) ? "border-red-300 bg-red-50/40" : ""}`}
           />
-          {touched.has(key) && (
+          {touched.has(key) && !checks[key]?.confirmable && (
             <span className="size-1.5 shrink-0 rounded-full bg-brand-600" title={f.changed} aria-label={f.changed} />
+          )}
+          {checks[key]?.confirmable && (
+            <ConfirmToggle on={confirmed.has(key)} readOnly={readOnly} onClick={() => onConfirm(key)} />
           )}
         </div>
       </td>
@@ -243,6 +263,35 @@ function SourceCell({
       className={`${style} transition hover:bg-brand-50 hover:ring-1 hover:ring-brand-300`}
     >
       {body}
+    </button>
+  );
+}
+
+/**
+ * Confirming a red or orange item as proposed: the explicit act that resolves it without
+ * changing it. Once confirmed, a green check; clicking again undoes it.
+ */
+export function ConfirmToggle({ on, readOnly, onClick }: { on: boolean; readOnly: boolean; onClick: () => void }) {
+  const { t } = useI18n();
+  const label = on ? t.verify.confirmedTitle : t.verify.confirm;
+  return (
+    <button
+      type="button"
+      disabled={readOnly}
+      title={label}
+      aria-label={label}
+      aria-pressed={on}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={`flex size-6 shrink-0 items-center justify-center rounded-md ring-1 transition disabled:cursor-default ${
+        on
+          ? "bg-emerald-500 text-white ring-emerald-500 hover:bg-emerald-600 disabled:hover:bg-emerald-500"
+          : "bg-white text-slate-400 ring-amber-300 hover:bg-emerald-50 hover:text-emerald-700 hover:ring-emerald-400"
+      }`}
+    >
+      <CheckIcon className="size-3.5" strokeWidth={2.5} />
     </button>
   );
 }

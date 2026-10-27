@@ -5,22 +5,24 @@
  * the proposal on the right, field by field and line by line, each with its traffic light and
  * provenance. Opening it locks it to the technician; leaving it for later releases it.
  *
- * The technician's changes are kept here until approval, which comes with block 4 and records
- * exactly what was approved.
+ * The technician's changes are kept here until they approve (block 4): every red and orange
+ * item resolved or confirmed, then one approval of the whole request, recorded with exactly
+ * what was approved. Or they reject it, saying why. A decided document opens read-only, as
+ * the decision recorded it.
  */
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ApiError, api, type ProposalView } from "../../../_ui/api";
+import { ApiError, api, type Decision, type ProposalView, type RejectReason } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
 import type { Messages } from "../../../_ui/messages/en";
-import { ArrowLeft, ArrowRight, FileText } from "../../../_ui/icons";
+import { ArrowLeft, ArrowRight, Check as CheckIcon, FileText } from "../../../_ui/icons";
 import { useSession } from "../../../_ui/session";
 import { StateBadge } from "../../../_ui/states";
 import { Fields, Links } from "./fields";
 import { Lens } from "./lens";
-import { itemsOf, type Light } from "./model";
+import { checkOf, itemsOf, type Check, type Light } from "./model";
 import { Tests, type AddedLine, type Chosen } from "./tests";
 import { Viewer } from "./viewer";
 
@@ -42,6 +44,11 @@ export default function VerifyPage() {
   // Catalog names of the codes on screen: the proposal's, and those found by searching.
   const [names, setNames] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
+  // Red and orange items confirmed as proposed.
+  const [confirmed, setConfirmed] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState<"approving" | "rejecting" | null>(null);
+  const [problems, setProblems] = useState<string[] | null>(null);
+  const [rejecting, setRejecting] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
   // The item whose Read cell is under the pointer: what the lens shows.
   const [peek, setPeek] = useState<string | null>(null);
@@ -79,11 +86,36 @@ export default function VerifyPage() {
         if (!current) return;
         const items = itemsOf(v);
         setView(v);
-        setValues(Object.fromEntries(items.flatMap((i) => (i.kind === "field" ? [[i.key, i.fused.value ?? ""]] : []))));
-        setChosen(Object.fromEntries(items.flatMap((i) => (i.kind === "test" ? [[i.key, v.proposal.tests[i.index].mapping.codes ?? []]] : []))));
-        setAdded([]);
+        // A decided document shows what was approved; one to verify, what was proposed.
+        const record = v.decision?.approved ?? null;
+        const approvedField = new Map(record?.fields.map((f) => [f.name, f.value]) ?? []);
+        setValues(
+          Object.fromEntries(
+            items.flatMap((i) => (i.kind === "field" ? [[i.key, (record ? approvedField.get(i.spec.name) : i.fused.value) ?? ""]] : [])),
+          ),
+        );
+        setChosen(
+          Object.fromEntries(
+            items.flatMap((i) =>
+              i.kind === "test" ? [[i.key, record ? record.tests[i.index].codes : (v.proposal.tests[i.index].mapping.codes ?? [])]] : [],
+            ),
+          ),
+        );
+        setAdded(
+          (record?.tests ?? [])
+            .filter((l) => l.action === "added")
+            .map((l, n) => ({ key: `a:${n}`, text: l.text, codes: l.codes ?? [] })),
+        );
+        setConfirmed(
+          new Set([
+            ...(record?.fields.filter((f) => f.action === "confirmed").map((f) => `f:${f.name}`) ?? []),
+            ...(record?.tests.flatMap((l, n) => (l.action === "confirmed" ? [`t:${n}`] : [])) ?? []),
+          ]),
+        );
         setNames(v.codes);
         setTouched(new Set());
+        setProblems(null);
+        setRejecting(false);
         setFocused(items[0]?.key ?? null);
       },
       (e: Error) => current && setError(e.message),
@@ -119,6 +151,23 @@ export default function VerifyPage() {
   const focusItem = useCallback((key: string, moveCaret = true) => {
     setFocused(key);
     if (moveCaret) inputs.current.get(key)?.focus({ preventScroll: false });
+  }, []);
+
+  const checks = useMemo(
+    () =>
+      Object.fromEntries(
+        view ? items.map((i) => [i.key, checkOf(i, view, values[i.key], chosen[i.key], confirmed.has(i.key))]) : [],
+      ) as Record<string, Check>,
+    [items, view, values, chosen, confirmed],
+  );
+
+  const toggleConfirm = useCallback((key: string) => {
+    setConfirmed((c) => {
+      const next = new Set(c);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   }, []);
 
   function setField(key: string, value: string) {
@@ -165,13 +214,57 @@ export default function VerifyPage() {
   const prev = at > 0 ? siblings[at - 1] : null;
   const next = at >= 0 && at < siblings.length - 1 ? siblings[at + 1] : null;
 
+  const unresolved = items.filter((i) => checks[i.key]?.pending).length + added.filter((a) => a.codes.length === 0).length;
+  const canApprove = !readOnly && !busy && view !== null && !view.decision && unresolved === 0;
+
+  /** After a decision: the batch's next document to verify, or the batch. */
+  const goOn = useCallback(
+    (nextId: string | null) => {
+      setTouched(new Set());
+      setConfirmed(new Set());
+      router.push(nextId ? `/batches/${batchId}/${nextId}` : `/batches/${batchId}`);
+    },
+    [router, batchId],
+  );
+
+  const approve = useCallback(async () => {
+    if (!view) return;
+    setBusy("approving");
+    setProblems(null);
+    try {
+      const r = await api.approve(docId, {
+        fields: Object.fromEntries(items.flatMap((i) => (i.kind === "field" ? [[i.spec.name, values[i.key]?.trim() || null]] : []))),
+        lines: items.flatMap((i) => (i.kind === "test" ? [chosen[i.key] === undefined ? [] : chosen[i.key]] : [])),
+        added: added.map((a) => ({ text: a.text, codes: a.codes })),
+        confirmed: [...confirmed],
+      });
+      goOn(r.next);
+    } catch (e) {
+      const err = e as ApiError;
+      setProblems(Array.isArray(err.body?.problems) ? (err.body.problems as string[]) : [err.message]);
+      setBusy(null);
+    }
+  }, [view, docId, items, values, chosen, added, confirmed, goOn]);
+
+  async function reject(reason: RejectReason, note: string) {
+    setBusy("rejecting");
+    setProblems(null);
+    try {
+      const r = await api.reject(docId, reason, note);
+      goOn(r.next);
+    } catch (e) {
+      setProblems([(e as Error).message]);
+      setBusy(null);
+    }
+  }
+
   const leave = useCallback(
     async (to: string) => {
-      if (touched.size > 0 && !window.confirm(m.confirmLeave)) return;
+      if ((touched.size > 0 || confirmed.size > 0) && !view?.decision && !window.confirm(m.confirmLeave)) return;
       if (lock?.status === "mine") await api.release(docId).catch(() => undefined);
       router.push(to);
     },
-    [touched, lock, docId, router, m],
+    [touched, confirmed, view, lock, docId, router, m],
   );
 
   // Keyboard: Alt+↓/↑ next and previous item, Alt+1/2 take the document's or the records'
@@ -191,6 +284,20 @@ export default function VerifyPage() {
       if (e.altKey && (e.key === "z" || e.key === "Z" || e.code === "KeyZ")) {
         e.preventDefault();
         toggleLens();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (canApprove) void approve();
+        return;
+      }
+      if (e.altKey && e.key === "Enter" && !readOnly) {
+        // Confirm the item in focus as proposed, then on to the next one still in the way.
+        e.preventDefault();
+        const here = Math.max(0, items.findIndex((i) => i.key === focused));
+        if (checks[items[here]?.key]?.confirmable && !confirmed.has(items[here].key)) toggleConfirm(items[here].key);
+        const after = [...items.slice(here + 1), ...items.slice(0, here)].find((i) => checks[i.key]?.pending);
+        if (after) focusItem(after.key);
         return;
       }
       if (!e.altKey || items.length === 0) return;
@@ -215,7 +322,7 @@ export default function VerifyPage() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [items, focused, readOnly, next, prev, batchId, leave, focusItem, toggleLens]);
+  }, [items, focused, readOnly, next, prev, batchId, leave, focusItem, toggleLens, checks, confirmed, toggleConfirm, canApprove, approve]);
 
   if (error) return <p className="text-sm text-rose-700">{error}</p>;
   if (!view) {
@@ -229,14 +336,6 @@ export default function VerifyPage() {
 
   const fields = items.filter((i) => i.kind === "field");
   const tests = items.filter((i) => i.kind === "test");
-  // Left to resolve: a red field still empty, a required one empty, a line with no codes
-  // (one read and kept, or one added).
-  const unresolved =
-    items.filter((i) =>
-      i.kind === "field"
-        ? !values[i.key]?.trim() && (i.fused.state === "red" || i.spec.required)
-        : Array.isArray(chosen[i.key]) && chosen[i.key]!.length === 0,
-    ).length + added.filter((a) => a.codes.length === 0).length;
   const extractor = view.proposal.prediction.extractor;
 
   return (
@@ -300,7 +399,8 @@ export default function VerifyPage() {
               {view.proposal.recorded && m.recorded}
             </span>
           </div>
-          {lock && lock.status !== "mine" && (
+          {view.decision && <DecisionBanner decision={view.decision} />}
+          {lock && lock.status !== "mine" && !view.decision && (
             <div className="mt-2 flex items-center gap-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
               <span className="flex-1">
                 {m.readOnly(lock.status === "locked" ? m.lockedBy(technicians.find((p) => p.id === lock.holder)?.name ?? lock.holder) : m.closed(lock.message))}
@@ -331,8 +431,11 @@ export default function VerifyPage() {
             focused={focused}
             readOnly={readOnly}
             inputs={inputs}
+            checks={checks}
+            confirmed={confirmed}
             onFocus={(k) => setFocused(k)}
             onChange={setField}
+            onConfirm={toggleConfirm}
                 />
               </section>
             </div>
@@ -350,7 +453,10 @@ export default function VerifyPage() {
               focused={focused}
               readOnly={readOnly}
               inputs={inputs}
+              checks={checks}
+              confirmed={confirmed}
               onFocus={(k) => setFocused(k)}
+              onConfirm={toggleConfirm}
               onChoose={chooseCodes}
               onAdd={addLine}
               onEditAdded={editAdded}
@@ -364,12 +470,13 @@ export default function VerifyPage() {
         <footer className="border-t border-slate-200 bg-white px-4 py-3">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs text-slate-500">
-              {unresolved > 0 ? (
+              {view.decision ? null : unresolved > 0 ? (
                 <span className="font-medium text-red-700">{m.leftToResolve(unresolved)}</span>
               ) : (
                 <span className="font-medium text-emerald-700">{m.nothingLeft}</span>
               )}
-              {touched.size > 0 && <> · {m.changes(touched.size)}</>}
+              {!view.decision && touched.size > 0 && <> · {m.changes(touched.size)}</>}
+              {!view.decision && confirmed.size > 0 && <> · {m.confirmedCount(confirmed.size)}</>}
             </span>
             <button
               type="button"
@@ -385,23 +492,56 @@ export default function VerifyPage() {
               {m.shortcuts} <kbd className="rounded bg-slate-100 px-1 font-mono">?</kbd>
             </button>
             <span className="ml-auto inline-flex gap-2">
-              <button
-                type="button"
-                onClick={() => leave(`/batches/${batchId}`)}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
-              >
-                {m.leave}
-              </button>
-              <button
-                type="button"
-                disabled
-                title={m.approveTitle}
-                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white opacity-40"
-              >
-                {m.approve}
-              </button>
+              {view.decision || readOnly ? (
+                <button
+                  type="button"
+                  onClick={() => leave(`/batches/${batchId}`)}
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
+                >
+                  {m.backToBatch}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setRejecting((r) => !r)}
+                    disabled={busy !== null}
+                    className="rounded-lg px-3 py-2 text-sm font-medium text-rose-700 ring-1 ring-rose-200 transition hover:bg-rose-50 disabled:opacity-40"
+                  >
+                    {m.reject}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => leave(`/batches/${batchId}`)}
+                    className="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
+                  >
+                    {m.leave}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void approve()}
+                    disabled={!canApprove}
+                    title={canApprove ? m.approveReady : m.approveBlocked}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                  >
+                    <CheckIcon className="size-4" strokeWidth={2.25} />
+                    {busy === "approving" ? m.approving : m.approve}
+                  </button>
+                </>
+              )}
             </span>
           </div>
+          {problems && (
+            <div className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800 ring-1 ring-rose-200">
+              <p className="font-medium">{m.notApproved}</p>
+              <ul className="mt-1 list-disc pl-4">
+                {problems.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {rejecting && !readOnly && <RejectPanel busy={busy === "rejecting"} onCancel={() => setRejecting(false)} onReject={reject} />}
           {help && <Shortcuts m={m} switchLabel={t.common.switchTechnician} />}
         </footer>
       </div>
@@ -424,6 +564,86 @@ function lockedBy(e: unknown): Lock {
   return err.status === 409 && typeof err.body.lockedBy === "string"
     ? { status: "locked", holder: err.body.lockedBy }
     : { status: "closed", message: err.message };
+}
+
+/** Who decided on the document, when, and how: approved as shown, or rejected and why. */
+function DecisionBanner({ decision }: { decision: Decision }) {
+  const { t } = useI18n();
+  const { technicians } = useSession();
+  const m = t.verify;
+  const who = technicians.find((p) => p.id === decision.technician)?.name ?? decision.technician;
+  const when = new Date(decision.at).toLocaleString(t.locale, { dateStyle: "medium", timeStyle: "short" });
+  if (decision.decision === "approved") {
+    return (
+      <div className="mt-2 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-900 ring-1 ring-emerald-200">
+        <CheckIcon className="size-4 shrink-0" strokeWidth={2.25} />
+        <span>
+          <span className="font-medium">{m.approvedBy(who, when)}</span> {m.approvedNote}
+        </span>
+      </div>
+    );
+  }
+  const [code, ...note] = (decision.reason ?? "").split(": ");
+  const reason = m.rejectReasons[code as RejectReason] ?? code;
+  return (
+    <div className="mt-2 rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-800 ring-1 ring-neutral-200">
+      <span className="font-medium">{m.rejectedBy(who, when)}</span>: {reason}
+      {note.length > 0 && <> · {note.join(": ")}</>}
+    </div>
+  );
+}
+
+const REASONS: RejectReason[] = ["illegible", "not_a_request", "duplicate", "other"];
+
+/** Rejecting asks why: one of a few reasons, and a note, required with "other". */
+function RejectPanel({ busy, onCancel, onReject }: { busy: boolean; onCancel: () => void; onReject: (reason: RejectReason, note: string) => void }) {
+  const { t } = useI18n();
+  const m = t.verify;
+  const [reason, setReason] = useState<RejectReason>("illegible");
+  const [note, setNote] = useState("");
+  const ready = !busy && (reason !== "other" || note.trim() !== "");
+  return (
+    <div className="mt-3 rounded-lg bg-rose-50/60 p-3 ring-1 ring-rose-200">
+      <p className="text-sm font-medium text-rose-900">{m.rejectTitle}</p>
+      <p className="text-xs text-rose-800/80">{m.rejectNote}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {REASONS.map((r) => (
+          <label
+            key={r}
+            className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium ring-1 transition ${
+              reason === r ? "bg-rose-600 text-white ring-rose-600" : "bg-white text-slate-700 ring-slate-200 hover:ring-rose-300"
+            }`}
+          >
+            <input type="radio" name="reject-reason" value={r} checked={reason === r} onChange={() => setReason(r)} className="sr-only" />
+            {m.rejectReasons[r]}
+          </label>
+        ))}
+      </div>
+      <label className="mt-2 block">
+        <span className="sr-only">{m.note}</span>
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder={m.notePlaceholder}
+          maxLength={500}
+          className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm focus:border-rose-300 focus:ring-2 focus:ring-rose-100 focus:outline-none"
+        />
+      </label>
+      <div className="mt-2 flex justify-end gap-2">
+        <button type="button" onClick={onCancel} className="rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-white">
+          {m.cancel}
+        </button>
+        <button
+          type="button"
+          disabled={!ready}
+          onClick={() => onReject(reason, note)}
+          className="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-40"
+        >
+          {busy ? m.rejecting : m.rejectTitle}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /** Moving between the batch's documents: labelled, so that it is found at a glance. */

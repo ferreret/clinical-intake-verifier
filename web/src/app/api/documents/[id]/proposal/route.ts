@@ -4,10 +4,12 @@
  * screen needs around it:
  * - `codes`: the catalog name of every code proposed or offered as a candidate;
  * - `records`: the LIS records the document is linked to or offered as candidates, as shown;
- * - `siblings`: the batch's documents in order, for moving between them.
+ * - `siblings`: the batch's documents in order, for moving between them;
+ * - `decision`: the technician's decision, once approved or rejected.
  */
 import { NextResponse } from "next/server";
 
+import { getDecision } from "@/lib/batches/decide";
 import { catalogOf } from "@/lib/batches/pipeline";
 import { getSession, noSession } from "@/lib/batches/session";
 import { getBatch, getDocument, getProposal } from "@/lib/batches/store";
@@ -37,6 +39,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     for (const c of t.mapping.codes ?? []) wanted.add(c);
     for (const cand of t.mapping.candidates) for (const c of cand.codes) wanted.add(c);
   }
+  const decision = await getDecision(session.db, id);
+  for (const t of decision?.approved?.tests ?? []) for (const c of t.codes ?? []) wanted.add(c);
   const codes = codeNames(catalog, wanted);
 
   const lis = await readSnapshot(session.db);
@@ -58,5 +62,5 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const batch = await getBatch(session.db, doc.batchId);
   const siblings = (batch?.documents ?? []).map((d) => ({ id: d.id, position: d.position, fileName: d.fileName, state: d.state }));
-  return NextResponse.json({ document: doc, batch: batch?.batch ?? null, proposal, codes, records, siblings });
+  return NextResponse.json({ document: doc, batch: batch?.batch ?? null, proposal, codes, records, siblings, decision });
 }

@@ -13,7 +13,8 @@ import type { ProposalView } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
 import { Plus, Retry, X } from "../../../_ui/icons";
 import { CodeEditor } from "./codes";
-import { LIGHT_DOT, type Item } from "./model";
+import { ConfirmToggle } from "./fields";
+import { LIGHT_DOT, type Check, type Item } from "./model";
 
 type TestItem = Extract<Item, { kind: "test" }>;
 
@@ -37,7 +38,10 @@ export function Tests({
   focused,
   readOnly,
   inputs,
+  checks,
+  confirmed,
   onFocus,
+  onConfirm,
   onChoose,
   onAdd,
   onEditAdded,
@@ -53,7 +57,10 @@ export function Tests({
   focused: string | null;
   readOnly: boolean;
   inputs: RefObject<Map<string, HTMLElement>>;
+  checks: Record<string, Check>;
+  confirmed: Set<string>;
   onFocus: (key: string) => void;
+  onConfirm: (key: string) => void;
   onChoose: (key: string, codes: string[] | null) => void;
   onAdd: () => void;
   onEditAdded: (key: string, patch: Partial<Omit<AddedLine, "key">>) => void;
@@ -87,7 +94,7 @@ export function Tests({
             <th className="px-2 py-2">{m.columns.read}</th>
             <th className="hidden w-[32%] px-2 py-2 @min-[44rem]:table-cell">{m.columns.proposed}</th>
             <th className="w-[40%] px-2 py-2">{m.columns.selected}</th>
-            <th className="w-9 py-2" />
+            <th className="w-16 py-2" />
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -146,7 +153,11 @@ export function Tests({
                     {edited(i.key)}
                   </div>
                 </td>
-                <td className="py-1.5 pr-2 text-right">
+                <td className="py-1.5 pr-2">
+                  <div className="flex items-center justify-end gap-1">
+                  {checks[i.key]?.confirmable && (
+                    <ConfirmToggle on={confirmed.has(i.key)} readOnly={readOnly} onClick={() => onConfirm(i.key)} />
+                  )}
                   {!readOnly &&
                     (dropped ? (
                       <RowAction label={m.undo} onClick={() => onChoose(i.key, mapping.codes ?? [])}>
@@ -157,6 +168,7 @@ export function Tests({
                         <X className="size-3.5" />
                       </RowAction>
                     ))}
+                  </div>
                 </td>
               </tr>
             );

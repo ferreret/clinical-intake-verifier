@@ -139,14 +139,36 @@ session shell and the state badges.
     side by side, and from about 2300 px of viewer the pages go two by two. The tables narrow
     with their container: the records go under what was read, then the proposed column goes.
   - **Keyboard:** Alt+↓/↑ next and previous item, Alt+→/← next and previous document of the
-    batch, Alt+Z the lens, Esc to leave an input, ? for the list.
-  - **Footer:** what is left to resolve (a red or required field still empty, a line with no
-    codes), "Leave for later", and the approval, which comes with block 4.
+    batch, Alt+Enter confirm and go to the next item to check, Ctrl+Enter approve, Alt+Z the
+    lens, Esc to leave an input, ? for the list.
+  - **Footer:** what is left to resolve or confirm, the confirmations made, Reject, "Leave
+    for later" and Approve.
+
+  **Approving** (`lib/batches/decide.ts`, F4 decision 9). A red or orange field or line is
+  resolved one by one: by changing it, or by confirming it as proposed with its check
+  button (Alt+Enter). A green one is covered by the approval itself. Required fields need a
+  value and every kept line its codes. Approve stays disabled until nothing is left, and the
+  server checks it all again. Then, in one transaction:
+  - the decision, written once: who, when, and per field and line what was proposed, what
+    was approved and how (kept, confirmed, changed; for lines also corrected, chosen,
+    dropped, added);
+  - the request in the mock LIS, with the approved values and codes, and the patient,
+    physician and insurer records the document was linked to (a candidate is not);
+  - the memory of approved mappings, taught the approved lines: a green line approved as
+    proposed counts as passive, one confirmed or chosen as active, and a replaced proposal
+    as a correction. Dropped and added lines teach nothing. Documents already processed keep
+    their proposals; what the memory learns shows in documents read afterwards.
+
+  The screen then opens the batch's next document to verify, or goes back to the batch.
+  **Rejecting** asks for a reason (illegible, not a lab request, a duplicate, other with a
+  note) and keeps the document and its proposal. A decided document opens read-only, showing
+  what was approved as recorded, or who rejected it and why.
 
   Opening a document locks it to the technician (`POST /api/documents/:id/open`); another
   technician sees it read-only and can take it over. Leaving it for later, or moving to
   another document, releases it (`POST /api/documents/:id/release`). The technician's
-  changes stay in the page until approval: leaving with changes asks first.
+  changes stay in the page until they approve: leaving with changes or confirmations asks
+  first.
 
 **The look.** It is defined in `globals.css`:
 - Geist type, downloaded by `next/font` at build time and served by the app;
@@ -201,6 +223,8 @@ sandbox.
 | `GET /api/catalog?q=` | The workspace's catalog searched by a typed name or code: codes that start with it first, then the trigram search; with each code's name. |
 | `GET /api/documents/:id/proposal` | The prediction, the fusion and each line's codes (409 until ready); with the catalog names of the codes, the linked and candidate LIS records, and the batch's documents in order. |
 | `POST /api/documents/:id/open` | Lock the document for verification to the technician (409 if another has it, unless `{ "takeOver": true }`, or if it is not ready). |
+| `POST /api/documents/:id/approve` | Approve it: `{ fields, lines, added, confirmed }`. 422 with the problems when something is unresolved; 409 when it is not in verification by this technician. Returns the decision and the next document to verify. |
+| `POST /api/documents/:id/reject` | Reject it: `{ reason, note }`, the note required with `other`. Returns the decision and the next document to verify. |
 | `POST /api/documents/:id/release` | Leave it for later: back to awaiting verification (only its holder). |
 | `GET /api/documents/:id/pages/:n` | Page n as a PNG, for the viewer. |
 | `GET /api/documents/:id/pdf` | The PDF, for the viewer. |

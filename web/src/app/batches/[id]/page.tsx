@@ -61,6 +61,7 @@ export default function BatchPage() {
   const ProviderIcon = batch.provider === "gemini" ? Cloud : Cpu;
   const read = documents.filter((d) => d.summary);
   const meanSeconds = read.length ? read.reduce((a, d) => a + d.summary!.latencyMs, 0) / read.length / 1000 : null;
+  const seconds = (s: number) => `${s.toLocaleString(t.locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
   const done = documents.length - states.queued - states.extracting;
 
   return (
@@ -98,7 +99,7 @@ export default function BatchPage() {
             </div>
             <div>
               <dt className="text-xs text-slate-500">{m.meanTime}</dt>
-              <dd className="text-xl font-semibold tabular-nums">{meanSeconds === null ? "–" : `${meanSeconds.toFixed(1)} s`}</dd>
+              <dd className="text-xl font-semibold tabular-nums">{meanSeconds === null ? "–" : seconds(meanSeconds)}</dd>
             </div>
           </dl>
         </div>
@@ -160,7 +161,7 @@ export default function BatchPage() {
                     {d.summary ? (
                       <span className="inline-flex items-center gap-1.5">
                         <Clock className="size-3.5 text-slate-400" />
-                        <span className="tabular-nums">{(d.summary.latencyMs / 1000).toFixed(1)} s</span>
+                        <span className="tabular-nums">{seconds(d.summary.latencyMs / 1000)}</span>
                         <span className="text-slate-400">·</span>
                         <span>{d.summary.model}</span>
                         {d.summary.recorded && (
@@ -185,6 +186,14 @@ export default function BatchPage() {
                         className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap text-white shadow-sm shadow-brand-600/20 transition hover:bg-brand-700"
                       >
                         {m.verify} <ArrowRight className="size-3.5" />
+                      </Link>
+                    )}
+                    {(d.state === "approved" || d.state === "rejected") && (
+                      <Link
+                        href={`/batches/${batch.id}/${d.id}`}
+                        className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap text-slate-700 ring-1 ring-slate-200 transition hover:bg-white"
+                      >
+                        {m.view} <ArrowRight className="size-3.5" />
                       </Link>
                     )}
                   </td>

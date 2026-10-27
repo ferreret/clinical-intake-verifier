@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { PDFDocument } from "pdf-lib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { approveDocument, getDecision, rejectDocument, type ApprovalInput } from "@/lib/batches/decide";
 import { BatchQueue } from "@/lib/batches/queue";
 import { batchDocuments } from "@/lib/batches/schema";
 import { describeBundled, listBundled } from "@/lib/batches/sources";
@@ -23,8 +24,11 @@ import {
 import { createSandbox, isWorkspaceId, listWorkspaces, openWorkspace, sweepSandboxes } from "@/lib/batches/workspace";
 import { sha256Hex } from "@/lib/extractor/pdf";
 import { loadLis, openLis } from "@/lib/lis/db";
+import { requests } from "@/lib/lis/schema";
 import { loadCatalog } from "@/lib/mapping/catalog";
-import { FIELD_NAMES } from "@/lib/schema/fields";
+import { DbMemory } from "@/lib/mapping/memory";
+import { textKey } from "@/lib/mapping/propose";
+import { FIELD_NAMES, FIELDS } from "@/lib/schema/fields";
 import type { Prediction } from "@/lib/schema/prediction";
 
 let root: string;
@@ -233,5 +237,84 @@ describe("verification locks", () => {
     expect(await releaseDocument(db, doc.id, "T02")).toBe(true);
     expect((await getBatch(db, batch.id))!.documents[0]).toMatchObject({ state: "awaiting_verification", lockedBy: null });
     expect(await openDocument(db, "nope", "T01")).toEqual({ ok: false, reason: "missing" });
+  });
+});
+
+describe("decisions", () => {
+  it("approves only what is resolved, records it once, registers the request and teaches the memory", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const batch = await createBatch(db, {
+      name: "B",
+      provider: "gemini",
+      createdBy: "T01",
+      documents: [await newDoc("doc-a.pdf"), await newDoc("doc-a.pdf")],
+    });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [first, second] = (await getBatch(db, batch.id))!.documents;
+    const proposal = (await getProposal(db, first.id))!;
+
+    // Not opened by this technician: not theirs to approve.
+    const asProposed: ApprovalInput = {
+      fields: Object.fromEntries(proposal.fused.fields.map((f) => [f.name, f.value])),
+      lines: proposal.tests.map((t) => t.mapping.codes ?? []),
+      added: [],
+      confirmed: [],
+    };
+    expect(await approveDocument(db, first.id, "T01", asProposed)).toMatchObject({ ok: false, reason: "not_yours" });
+    await openDocument(db, first.id, "T01");
+
+    // As proposed: required fields empty, orange and red items neither changed nor confirmed.
+    const refused = await approveDocument(db, first.id, "T01", asProposed);
+    expect(refused).toMatchObject({ ok: false, reason: "invalid" });
+    const problems = refused.ok ? [] : refused.problems!;
+    expect(problems).toContain("line 1 (Glucosa) is orange: change or confirm it");
+    expect(problems).toContain("line 2 (Hemograma) has no codes");
+    expect(problems.some((p) => /is required/.test(p))).toBe(true);
+
+    // Resolved: required fields filled, the other red and orange ones confirmed, a code chosen
+    // for the red line, the first line confirmed, a test added.
+    const fused = new Map(proposal.fused.fields.map((f) => [f.name, f]));
+    const fields = Object.fromEntries(FIELDS.map((f) => [f.name, fused.get(f.name)!.value ?? (f.required ? "X" : null)]));
+    const confirmed = FIELDS.filter((f) => ["red", "orange"].includes(fused.get(f.name)!.state) && fields[f.name] === fused.get(f.name)!.value).map(
+      (f) => `f:${f.name}`,
+    );
+    const approved = await approveDocument(db, first.id, "T01", {
+      fields,
+      lines: [["BQ0001"], ["BQ0001"]],
+      added: [{ text: "", codes: ["BQ0001"] }],
+      confirmed: [...confirmed, "t:0"],
+    });
+    expect(approved).toMatchObject({ ok: true, next: second.id, decision: { decision: "approved", technician: "T01" } });
+
+    const decision = (await getDecision(db, first.id))!;
+    expect(decision.approved!.tests.map((t) => t.action)).toEqual(["confirmed", "chosen", "added"]);
+    expect(decision.approved!.links).toMatchObject({ patient: "P1", insurer: "A1" });
+    const [request] = await db.select().from(requests).where(eq(requests.decisionId, decision.id));
+    expect(request).toMatchObject({ patientId: "P1", insurerId: "A1" });
+    expect(request.tests).toEqual([
+      { text: "Glucosa", codes: ["BQ0001"] },
+      { text: "Hemograma", codes: ["BQ0001"] },
+      { text: "", codes: ["BQ0001"] },
+    ]);
+    const memory = new DbMemory(db);
+    expect(await memory.lookup("A1", textKey("Glucosa"))).toEqual([{ codes: ["BQ0001"], active: 1, passive: 0, corrections: 0 }]);
+    expect(await memory.lookup("A1", textKey("Hemograma"))).toEqual([{ codes: ["BQ0001"], active: 1, passive: 0, corrections: 0 }]);
+    expect((await getBatch(db, batch.id))!.documents[0]).toMatchObject({ state: "approved", lockedBy: null });
+
+    // Written once: the document is no longer anyone's to approve.
+    expect(await approveDocument(db, first.id, "T01", asProposed)).toMatchObject({ ok: false, reason: "not_yours" });
+
+    // Rejecting keeps the document and its proposal, and says why; nothing left to verify after it.
+    await openDocument(db, second.id, "T02");
+    expect(await rejectDocument(db, second.id, "T02", "illegible", " smudged ")).toMatchObject({
+      ok: true,
+      next: null,
+      decision: { decision: "rejected", technician: "T02", reason: "illegible: smudged", approved: null },
+    });
+    expect((await getBatch(db, batch.id))!.documents[1].state).toBe("rejected");
+    expect(await getProposal(db, second.id)).not.toBeNull();
   });
 });

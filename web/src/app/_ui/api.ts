@@ -3,12 +3,13 @@
  * Types only are taken from the server's modules; nothing of theirs reaches the browser.
  */
 import type { DocumentState } from "@/lib/batches/schema";
+import type { Decision, RejectReason } from "@/lib/batches/decide";
 import type { BundledInfo } from "@/lib/batches/sources";
 import type { Batch, BatchDocument, BatchSummary, DocumentSummary, StoredProposal } from "@/lib/batches/store";
 import type { Technician } from "@/lib/batches/technicians";
 import type { Candidate } from "@/lib/mapping/search";
 
-export type { BatchSummary, BundledInfo, Candidate, DocumentState, Technician };
+export type { BatchSummary, BundledInfo, Candidate, Decision, DocumentState, RejectReason, Technician };
 export type Provider = Batch["provider"];
 
 export interface SessionInfo {
@@ -40,6 +41,16 @@ export interface ProposalView {
   /** LIS records linked or offered as candidates, by id. */
   records: Record<string, RecordView>;
   siblings: Pick<BatchDocument, "id" | "position" | "fileName" | "state">[];
+  /** The technician's decision, once the document is approved or rejected. */
+  decision: Decision | null;
+}
+
+/** What approving sends (lib/batches/decide.ts, ApprovalInput). */
+export interface Approval {
+  fields: Record<string, string | null>;
+  lines: (string[] | null)[];
+  added: { text: string; codes: string[] }[];
+  confirmed: string[];
 }
 
 export class ApiError extends Error {
@@ -87,6 +98,10 @@ export const api = {
   proposal: (documentId: string) => call<ProposalView>(`/api/documents/${documentId}/proposal`),
   open: (documentId: string, takeOver = false) =>
     call<{ document: BatchDocument }>(`/api/documents/${documentId}/open`, postJson({ takeOver })),
+  approve: (documentId: string, approval: Approval) =>
+    call<{ decision: Decision; next: string | null }>(`/api/documents/${documentId}/approve`, postJson(approval)),
+  reject: (documentId: string, reason: RejectReason, note: string) =>
+    call<{ decision: Decision; next: string | null }>(`/api/documents/${documentId}/reject`, postJson({ reason, note })),
   release: (documentId: string) => call<{ released: boolean }>(`/api/documents/${documentId}/release`, { method: "POST" }),
   catalog: (q: string, signal?: AbortSignal) =>
     call<{ results: Candidate[]; names: Record<string, string> }>(`/api/catalog?q=${encodeURIComponent(q)}`, { signal }),

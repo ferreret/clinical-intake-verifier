@@ -1524,6 +1524,26 @@ entry page and in the header; every text in both languages, field labels from fi
 the server's explanations translated by pattern (docs/workflow.md). The README and the docs
 stay in English.
 
+**Block 4 done on 2026-10-27: approval and rejection** (`docs/workflow.md`, "Approving").
+
+- **Decision 9 as settled:** red and orange items resolved one by one, by a change or an
+  explicit confirmation (one keystroke, Alt+Enter, which also moves to the next item to
+  check); green ones covered by the single approval, disabled until nothing is left.
+- **One transaction:** the immutable decision with, per field and line, what was proposed,
+  approved and done; the request in `mock-lis` with the linked records; the memory taught
+  the approved lines (passive for green kept, active for confirmed or chosen, a correction
+  for a replaced proposal); the document approved and released.
+- **Rejection** with a reason and an optional note, required with "other".
+- **On to the next document** of the batch after either; a decided document opens read-only
+  with its decision.
+- **Checked:** a test of the whole path (refused while unresolved, approved once, the
+  request and the memory written, rejected); in the browser, a document approved with
+  Alt+Enter and Ctrl+Enter, the next one opened, rejected, and the approved one shown as
+  recorded.
+- **Found:** a patient linked only as a candidate goes to the request without a patient
+  record, even when the technician confirms every value. Confirming the link itself belongs
+  with the open proposal of candidates by birth date and a similar name.
+
 **Proposed: a decision log.** Per document, why each value and code was proposed: the
 reading (model, attempts, boxes, warnings), the links to the records and on what keys, each
 field's comparison and the rule that set its colour, and each line through memory, search

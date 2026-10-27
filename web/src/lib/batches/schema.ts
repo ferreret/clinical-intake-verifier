@@ -10,7 +10,7 @@
  */
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-import type { FusedDocument } from "@/lib/fusion/types";
+import type { FusedDocument, TrafficLight } from "@/lib/fusion/types";
 import type { Proposal } from "@/lib/mapping/propose";
 import type { BBox, BoxSource, Prediction } from "@/lib/schema/prediction";
 
@@ -86,6 +86,24 @@ export const proposals = sqliteTable("proposals", {
   createdAt: text("created_at").notNull(),
 });
 
+/** What the technician did with each field and line, as the approval records it. */
+export type FieldAction = "kept" | "confirmed" | "changed";
+export type LineAction = "kept" | "confirmed" | "corrected" | "chosen" | "dropped" | "added";
+
+/** The approval as recorded: each value and line with what was proposed and what was done. */
+export interface ApprovalRecord {
+  links: { patient: string | null; physician: string | null; insurer: string | null };
+  fields: { name: string; value: string | null; proposed: string | null; state: TrafficLight; action: FieldAction }[];
+  tests: {
+    text: string;
+    page: number | null;
+    proposed: string[] | null;
+    state: TrafficLight | null;
+    codes: string[] | null;
+    action: LineAction;
+  }[];
+}
+
 /**
  * A technician's decision on a document. Written once and never updated: who, when, and the
  * exact values and codes approved, or why the document was rejected.
@@ -99,7 +117,7 @@ export const decisions = sqliteTable("decisions", {
   technician: text("technician").notNull(),
   at: text("at").notNull(),
   /** Approved: the field values and each line's codes, exactly as approved. */
-  approved: text("approved", { mode: "json" }),
+  approved: text("approved", { mode: "json" }).$type<ApprovalRecord>(),
   /** Rejected: why. */
   reason: text("reason"),
 });
