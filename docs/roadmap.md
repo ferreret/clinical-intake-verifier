@@ -1621,9 +1621,14 @@ demo's data comes from a release archive. The details are in [deploy.md](deploy.
   downloads it and checks its sha256 when building.
 - **At most `MAX_SANDBOXES` sandboxes** (500): a new visitor beyond it takes the place of the
   one unused for longest, so that visits cannot fill the disk.
-- **Not done yet, each asked first:** the release with the archive, the `production` branch,
-  and the two Dokploy applications. The image itself has not been built here (no Docker on
-  the development machine); its download step was tested on its own.
+- **The portfolio's deployment, live on 2026-10-27:** the release `demo-data-2026-10-27`, the
+  `production` branch, and an application in the shared demos project, as in
+  [deploy.md](deploy.md): Strip path off, plain HTTP behind the tunnel, its route pointing at
+  the service's tasks as the other apps there. Built in about a minute. Checked on the public
+  address: the entry, a batch of two documents replayed in 4 s, page images, approval going on
+  to the next document; the other demo on the same address unaffected.
+- **The company's deployment:** next, in replay mode as decided, at the root of its own
+  subdomain; the subdomain and a temporary key to come from the product owner.
 
 **Open points found while building it, for later blocks:**
 
