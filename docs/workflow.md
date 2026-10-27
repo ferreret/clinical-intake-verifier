@@ -93,7 +93,14 @@ session shell and the state badges.
 **The look.** It is defined in `globals.css`:
 - Geist type, downloaded by `next/font` at build time and served by the app;
 - an indigo brand colour and soft white cards on a light grey ground;
-- icons and the logo drawn inline (`_ui/icons.tsx`), so no icon package is needed.
+- icons and the logo drawn inline (`_ui/icons.tsx`), so no icon package is needed;
+- three illustrations, generated with an image model from prompts written for this project
+  and optimised here:
+  - `public/hero-intake.webp`, the entry's hero. Its white ground is blended away with
+    `mix-blend-multiply`.
+  - `public/empty-batches.webp`, the empty batch list.
+  - `src/app/opengraph-image.jpg`, the share image, with the title set in Inter Display.
+    `PUBLIC_URL` makes its address absolute.
 
 Three families of colour never stand in for each other:
 - the brand, for actions and navigation;

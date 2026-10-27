@@ -5,6 +5,7 @@
  * technician to work as. Picking one is not a login (decision of 2026-10-27); it is who the
  * audit trail will say approved each request.
  */
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ComponentType, type SVGProps } from "react";
 
@@ -70,7 +71,7 @@ export default function Home() {
           )}
         </nav>
 
-        <section className="grid items-center gap-10 pt-10 pb-12 sm:pt-16 lg:grid-cols-[1.15fr_1fr]">
+        <section className="grid items-center gap-10 pt-10 pb-12 sm:pt-16 lg:grid-cols-[1fr_1.1fr]">
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-brand-700 ring-1 ring-brand-200 backdrop-blur">
               <Sparkles className="size-3.5" />
@@ -84,7 +85,15 @@ export default function Home() {
               light and its provenance; the model is one source among several, never the source of truth.
             </p>
           </div>
-          <HeroPreview />
+          <Image
+            src="/hero-intake.webp"
+            alt="A scanned lab request whose fields flow into a verification panel, each with a green, amber or red light and a check"
+            width={1400}
+            height={788}
+            priority
+            sizes="(min-width: 1024px) 45vw, 100vw"
+            className="w-full mix-blend-multiply lg:scale-110"
+          />
         </section>
 
         <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -176,51 +185,3 @@ export default function Home() {
   );
 }
 
-/** A glimpse of the verification screen: synth-000000's values, with a disagreement added to show red. */
-function HeroPreview() {
-  const rows: { field: string; value: string; light: string; note?: string }[] = [
-    { field: "Patient", value: "Rosario Torrecilla Tovar", light: "bg-emerald-500" },
-    { field: "Date of birth", value: "02/04/2006", light: "bg-emerald-500" },
-    { field: "Sex", value: "M", light: "bg-red-500", note: "records say H" },
-    { field: "Insurer card", value: "266880212888", light: "bg-amber-500", note: "model only" },
-  ];
-  return (
-    <div className="relative hidden lg:block" aria-hidden>
-      <div className="card absolute -top-4 right-10 h-64 w-48 rotate-6 p-4 opacity-80">
-        <div className="h-2 w-20 rounded bg-slate-200" />
-        <div className="mt-3 space-y-2">
-          {[24, 32, 28, 36, 20, 30, 26].map((w, i) => (
-            <div key={i} className="h-1.5 rounded bg-slate-100" style={{ width: `${w * 4}px` }} />
-          ))}
-        </div>
-        <div className="mt-4 h-10 rounded-md border-2 border-dashed border-brand-300 bg-brand-50/60" />
-      </div>
-      <div className="card relative mr-16 -rotate-1 p-5 shadow-[var(--shadow-lift)]">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold tracking-wide text-slate-400 uppercase">Request 2026/696634</span>
-          <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-800">To verify</span>
-        </div>
-        <ul className="mt-4 divide-y divide-slate-100">
-          {rows.map((r) => (
-            <li key={r.field} className="flex items-center gap-3 py-2.5">
-              <span className={`size-2.5 rounded-full ${r.light}`} />
-              <span className="w-28 text-xs text-slate-500">{r.field}</span>
-              <span className="flex-1 truncate text-sm font-medium">{r.value}</span>
-              {r.note && <span className="text-[11px] text-slate-500">{r.note}</span>}
-            </li>
-          ))}
-        </ul>
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {["UREA SÉRICA → BQ1231", "CREAT → BQ1558", "GGT → BQ7296"].map((t) => (
-            <span key={t} className="rounded-md bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-600 ring-1 ring-slate-200">
-              {t}
-            </span>
-          ))}
-        </div>
-        <div className="mt-5 flex justify-end">
-          <span className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white">Approve request</span>
-        </div>
-      </div>
-    </div>
-  );
-}

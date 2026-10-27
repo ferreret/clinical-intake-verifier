@@ -1,11 +1,12 @@
 "use client";
 
 /** The workspace's batches, newest first, each with its progress; refreshed while any is moving. */
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { ACTIVE_STATES, api, PROVIDER_LABEL, type BatchSummary, type DocumentState } from "../_ui/api";
-import { ArrowRight, Cloud, Cpu, Layers, Plus } from "../_ui/icons";
+import { ArrowRight, Cloud, Cpu, Plus } from "../_ui/icons";
 import { usePolling } from "../_ui/polling";
 import { PageHeader } from "../_ui/session";
 import { StatesBar, StatesLegend } from "../_ui/states";
@@ -57,11 +58,9 @@ export default function BatchesPage() {
       {batches === null && !error && <div className="card h-28 animate-pulse" />}
 
       {batches?.length === 0 && (
-        <div className="card flex flex-col items-center px-6 py-16 text-center">
-          <span className="flex size-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 ring-1 ring-brand-100">
-            <Layers className="size-7" />
-          </span>
-          <p className="mt-5 text-lg font-semibold">No batches yet</p>
+        <div className="card flex flex-col items-center px-6 py-12 text-center">
+          <Image src="/empty-batches.webp" alt="" width={440} height={418} priority className="w-44 sm:w-52" />
+          <p className="mt-4 text-lg font-semibold">No batches yet</p>
           <p className="mt-1 max-w-sm text-sm text-slate-600">
             Put a few synthetic requests in a batch and watch them being read, checked and mapped.
           </p>

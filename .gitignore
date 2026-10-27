@@ -11,6 +11,8 @@
 *.jpeg
 *.png
 !docs/**/*.png
+# The app's share image: synthetic artwork, never a document.
+!web/src/app/opengraph-image.jpg
 
 # Salidas del generador sintetico (se regeneran)
 /generated/

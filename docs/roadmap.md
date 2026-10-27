@@ -1456,8 +1456,15 @@ the latency measured when it was recorded. Six Gemini documents now take 4 s.
 - A new-batch screen in steps, with model cards and a summary at the side.
 - A batch page with its progress, mean read time and each document's colours as small bars.
 
-Checked at desktop and phone width, with no console errors. Images that would add to it were
-offered as prompts; none is needed for the screens to work.
+Checked at desktop and phone width, with no console errors. The product owner then
+generated three illustrations from prompts written for the project:
+- the entry's hero;
+- the empty batch list;
+- the image shown when a link to the demo is shared, with its title set over it.
+
+They are optimised to WebP and JPEG, about 140 KB in all. Only the share image needed a
+`.gitignore` exception, since image formats are ignored by default to keep real documents
+out.
 
 **Open points found while building it, for later blocks:**
 
