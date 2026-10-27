@@ -4,7 +4,7 @@ Where the project stands, what has been decided and what is only proposed. Read 
 starting a work session. Anything marked **proposed** is a design that has not been approved or
 implemented; it changes only after an explicit decision.
 
-Last updated: 2026-10-26.
+Last updated: 2026-10-27.
 
 ## Where things stand
 
@@ -408,8 +408,8 @@ version, seed, generator version, `fields.json` version and IoU threshold.
 ### 3. Local open-weight vision models (approved)
 
 **Status: proposed on 2026-10-22; approved by the product owner on 2026-10-26 as the top
-priority. Not implemented.** Until now the local model has only chosen lab codes (F4
-block 5); it has never read a document. The public demo will replay recorded replies of both
+priority. Steps 1 to 4 done, and the four proposals that followed (below).** Before this
+track the local model had only chosen lab codes (F4 block 5); it had never read a document. The public demo will replay recorded replies of both
 providers for a fixed set of synthetic documents, so it needs a local extraction to replay
 (design in section 5).
 
@@ -602,7 +602,8 @@ well (recall 99.6% against 99.9%), but invents where a field is absent and place
 loosely to highlight them reliably; at about nine times the time. Its case is privacy: a
 demo on real documents from this machine sends nothing out.
 
-Proposed after the comparison, not approved:
+Proposed after the comparison; all four approved by the product owner on 2026-10-26 and done
+the same night (next part):
 
 1. **Prompt v5 with two rules**: the insurer is never the centre that issues the form, and a
    sex that is not printed is null, U only when the form says unknown or other. Aimed at 41 of
@@ -614,6 +615,88 @@ Proposed after the comparison, not approved:
 4. **Boxes for the local model** are the open problem. Options to measure: a second, short
    grounding call per value, which placed every value correctly in the manual check;
    rendering at a higher resolution; or Gemma 4, the other vision model in LM Studio.
+
+**The four proposals, done on 2026-10-26 and 27.** One commit each:
+
+- **Raw replies kept** (`484f468`): every reply of every attempt is written beside its
+  prediction as `<id>.raw.json`, before parsing. It diagnosed the next point within minutes.
+- **The new garbled form caught** (`ab4930e`): a lone consonant between two words ("s crum")
+  is flagged as garbled text and the reply retried, like the forms already caught.
+- **Prompt v5** (`4f83215`) with the two rules. Qwen's inventions fell from 50 to 1, but it
+  now missed the insurer on 9 forms where the insurer's name is the letterhead of its own form,
+  reading it as the issuing centre; and 4 documents failed because Qwen wrote `Sexo` as a bare
+  `"M"` instead of an item (seen in the raw replies, deterministic).
+- **Prompt v6** (`5b69030`): the insurer is often the letterhead of its own form, never the
+  centre where the patient is seen; and a bare string is read at the boundary as a value with
+  no page or box, so the field is kept and its box reported as missing.
+- **Two box experiments for the local model** (`b46b045`), opt-in flags of `npm run extract`
+  recorded in `run.json`: `--dpi` for the render resolution, and `--grounding`, a second call
+  per page that asks only to locate the values already read, in the wording of the manual
+  check. It only replaces boxes; values are never touched.
+
+**Prompt versions on the 200 documents.**
+
+| Measure | Gemini v4 | Gemini v5 | Gemini v6 | Qwen v4 | Qwen v5 | Qwen v6 |
+|---|---|---|---|---|---|---|
+| Documents failed | 0 | 0 | 0 | 2 | 4 | **0** |
+| Fields correct / wrong / missed | 2,048 / 2 / 0 | 2,050 / 0 / 0 | 2,045 / 5 / 0 | 2,025 / 9 / 0 | 1,995 / 8 / 10 | 2,042 / 7 / 1 |
+| Precision / recall | 99.9 / 99.9 | 100 / 100 | 99.8 / 99.8 | 97.2 / 99.6 | 99.6 / 99.1 | **99.5 / 99.6** |
+| Invented values | 0 | 0 | 0 | 50 | 1 | **3** |
+| Tests F1 | 99.6 | 99.7 | 99.7 | 99.5 | 99.5 | 99.4 |
+| Boxes at IoU ≥ 0.5 | 98.7% | 98.7% | 99.4% | 25.9% | 26.3% | 26.0% |
+| Time per document | 9.4 s | 8.5 s | 8.7 s | 84 s | 86 s | 84 s |
+
+Runs `20261026-<model>-p<version>` in `data/runs`, each scored with `--baseline` against the
+one before.
+
+- **Qwen v6 against v4:** 50 values fixed, 4 broken, 47 fewer inventions, no failures. The
+  insurer is now right on all 149 forms that print one. What remains: 2 authorisation-like
+  numbers given as the insurer's request number (`synth-000034`, `-000068`), a sex on 3
+  documents, "Γ-GT" read as "G-GT" (5 documents), and single digit or letter slips.
+- **Gemini v6 against v5:** 7 fixed and 12 broken, with no rule aimed at the broken ones: a
+  digit dropped in two values, one garbled `%` that the boundary flagged. Differences of this
+  size between two runs are noise, not an effect of the prompt.
+- **Qwen v6 against Gemini v6**, on the same 200: values almost level (3 inventions against
+  0; 2,042 correct against 2,045; tests 99.4% against 99.7%); boxes still far apart (26%
+  against 99%).
+
+**Box experiments, on the first 20 documents** (`20261027-qwen3.6-35b-a3b-p6-grounding` and
+`-dpi200`, against the same 20 of the Qwen v6 run):
+
+| Measure | Qwen v6 | + 200 dpi | + grounding | Gemini v6 |
+|---|---|---|---|---|
+| Boxes at IoU ≥ 0.5 | 23.3% (87 of 373) | 27.0% | **51.7%** (193) | 99.5% |
+| Median IoU | 0.19 | 0.26 | **0.52** | 0.78 |
+| Fields / tests at IoU ≥ 0.5 | 30% / 15% | 35% / 17% | 62% / 39% | — |
+| Centre inside the value's box | 38.5% | 43.2% | **64.8%** | 100% |
+| Centre on the value's line | 42.8% | 49.3% | 68.5% | 100% |
+| Median centre distance | 1.9% of the page | 1.5% | **0.8%** | 0.1% |
+| Time per document | 83 s | 122 s | 175 s | 8.7 s |
+| Values | — | same | same | — |
+
+The centre measures are computed ad hoc, as in step 3. The one value that changed in both
+experiments (the sex of `synth-000006`, M read as H) cannot come from grounding, which never
+touches values: the local model at temperature 0 is not fully repeatable from run to run.
+
+**Reading.** Grounding more than doubles the boxes that land on their value, at about twice
+the time; it does more for fields than for tests, which are long lists of short texts. A
+higher resolution alone adds little. Neither brings the local model near Gemini's boxes: with
+grounding, one value in three would still be highlighted in the wrong place.
+
+**Verdict.** Gemini stays the default. Local Qwen on prompt v6 now reads values about as well
+as Gemini, so its case for privacy holds on values; for the boxes the UI depends on, it is not
+yet good enough.
+
+Proposed after the experiments, not approved:
+
+1. **Grounding on by default for the local provider**, and the 200 documents rerun with it
+   (about 10 hours on this machine) to confirm the 20-document result.
+2. **The verification UI tolerates a loose box**: for the local model, highlight the line or a
+   margin around the box instead of the exact rectangle, and say the box is approximate. A
+   design question for F5, not the extractor.
+3. **Gemma 4 26B-A4B** on the same 20 documents, the comparison proposed earlier and not run.
+4. **"Γ-GT" read as "G-GT"** is left to the test mapping (F4), which matches candidates by
+   trigrams and should land on the same code; to be checked there rather than in the prompt.
 
 
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
