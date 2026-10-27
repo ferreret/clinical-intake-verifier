@@ -267,15 +267,21 @@ export default function VerifyPage() {
             >
               <ArrowLeft className="size-3.5" /> {view.batch?.name ?? "Batch"}
             </button>
-            <span className="ml-auto inline-flex items-center gap-1">
-              <NavButton disabled={!prev} onClick={() => prev && leave(`/batches/${batchId}/${prev.id}`)} label="Previous document (Alt+←)">
-                <ArrowLeft className="size-4" />
+            <span className="ml-auto inline-flex items-center gap-2">
+              <NavButton disabled={!prev} onClick={() => prev && leave(`/batches/${batchId}/${prev.id}`)} label="Previous document" keys="Alt+←">
+                <ArrowLeft className="size-4" /> Previous
               </NavButton>
-              <span className="px-1 text-xs tabular-nums text-slate-500">
-                {at + 1} / {siblings.length}
+              <span className="px-1 text-sm text-slate-500 tabular-nums">
+                <span className="font-semibold text-slate-900">{at + 1}</span> of {siblings.length}
               </span>
-              <NavButton disabled={!next} onClick={() => next && leave(`/batches/${batchId}/${next.id}`)} label="Next document (Alt+→)">
-                <ArrowRight className="size-4" />
+              <NavButton
+                primary
+                disabled={!next}
+                onClick={() => next && leave(`/batches/${batchId}/${next.id}`)}
+                label={next ? `Next document: ${next.fileName.replace(/\.pdf$/, "")}` : "Last document of the batch"}
+                keys="Alt+→"
+              >
+                Next <ArrowRight className="size-4" />
               </NavButton>
             </span>
           </div>
@@ -413,15 +419,34 @@ function lockedBy(e: unknown): Lock {
     : { status: "closed", message: err.message };
 }
 
-function NavButton({ disabled, onClick, label, children }: { disabled: boolean; onClick: () => void; label: string; children: React.ReactNode }) {
+/** Moving between the batch's documents: labelled, so that it is found at a glance. */
+function NavButton({
+  disabled,
+  onClick,
+  label,
+  keys,
+  primary = false,
+  children,
+}: {
+  disabled: boolean;
+  onClick: () => void;
+  label: string;
+  keys: string;
+  primary?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      title={label}
+      title={`${label} (${keys})`}
       aria-label={label}
-      className="rounded-md p-1 text-slate-600 transition hover:bg-slate-100 disabled:opacity-30"
+      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium shadow-sm ring-1 transition disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none ${
+        primary
+          ? "bg-brand-600 text-white ring-brand-600 hover:bg-brand-700 disabled:hover:bg-brand-600"
+          : "bg-white text-slate-700 ring-slate-300 hover:bg-slate-50 hover:ring-slate-400 disabled:hover:bg-white"
+      }`}
     >
       {children}
     </button>
