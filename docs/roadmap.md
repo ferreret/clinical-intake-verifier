@@ -1446,6 +1446,19 @@ pace took minutes with local Qwen (about 80 s per document), so replies are now 
 times faster by default (`REPLAY_SPEED`). The screens say so, and each document still shows
 the latency measured when it was recorded. Six Gemini documents now take 4 s.
 
+**A modern look, 2026-10-27, at the product owner's request.** The screens were redesigned
+(`docs/workflow.md`, "Screens"):
+- Geist type, an indigo brand, white cards, inline icons and logo, and the logo as the tab icon.
+- An entry page with the product's four steps, the traffic light, measured figures (99.8%
+  field precision, no reading error shown green, 1.5% of lines left to the technician, no
+  wrong patient link) and a glimpse of the verification screen.
+- Batches as cards with a progress bar and counts by state.
+- A new-batch screen in steps, with model cards and a summary at the side.
+- A batch page with its progress, mean read time and each document's colours as small bars.
+
+Checked at desktop and phone width, with no console errors. Images that would add to it were
+offered as prompts; none is needed for the screens to work.
+
 **Open points found while building it, for later blocks:**
 
 - **Form language.** The extractor does not report it, so the mapping model is told

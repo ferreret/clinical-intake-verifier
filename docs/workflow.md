@@ -90,6 +90,19 @@ session shell and the state badges.
   - for one already read, its fields and lines counted by traffic-light colour, the model
     and the latency, marked "(recorded)" in replay mode.
 
+**The look.** It is defined in `globals.css`:
+- Geist type, downloaded by `next/font` at build time and served by the app;
+- an indigo brand colour and soft white cards on a light grey ground;
+- icons and the logo drawn inline (`_ui/icons.tsx`), so no icon package is needed.
+
+Three families of colour never stand in for each other:
+- the brand, for actions and navigation;
+- the traffic light, for how sure a proposal is;
+- the workflow's states.
+
+The entry page shows the product's four steps, the traffic light, the measured figures and a
+glimpse of the verification screen.
+
 Pages showing documents still queued or reading poll every two seconds, and stop when
 nothing moves. The workflow's states have their own colours, kept apart from the traffic
 light's: green, orange and red say how sure a proposal is, never where a document is. In

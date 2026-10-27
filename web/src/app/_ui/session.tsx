@@ -6,10 +6,12 @@
  * the visitor is sent back to the picker.
  */
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 import { api, type SessionInfo, type Technician } from "./api";
+import { Avatar } from "./avatar";
+import { Logo } from "./icons";
 
 const SessionContext = createContext<(SessionInfo & { technician: Technician }) | null>(null);
 
@@ -30,48 +32,103 @@ export function SessionShell({ children }: { children: ReactNode }) {
     });
   }, [router]);
 
-  if (!session?.technician) return <div className="p-8 text-sm text-neutral-500">Loading…</div>;
+  if (!session?.technician) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Logo className="size-10 animate-pulse" />
+      </div>
+    );
+  }
   return (
     <SessionContext.Provider value={{ ...session, technician: session.technician }}>
       <Header session={session} technician={session.technician} />
-      <ModeNote session={session} />
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
     </SessionContext.Provider>
   );
 }
 
 function Header({ session, technician }: { session: SessionInfo; technician: Technician }) {
+  const path = usePathname();
   return (
-    <header className="border-b border-neutral-200 bg-white">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3 sm:px-6">
-        <Link href="/batches" className="whitespace-nowrap font-semibold tracking-tight">
-          clinical-intake-verifier
+    <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 backdrop-blur-md">
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:gap-6 sm:px-6">
+        <Link href="/batches" className="flex items-center gap-2.5">
+          <Logo className="size-7" />
+          <span className="hidden font-semibold tracking-tight sm:inline">Intake Verifier</span>
         </Link>
-        <span
-          className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
-            session.mode === "replay" ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200" : "bg-sky-50 text-sky-800 ring-1 ring-sky-200"
-          }`}
-        >
-          {session.mode === "replay" ? "Demo · recorded replies" : "Live"}
-        </span>
-        <span className="ml-auto whitespace-nowrap text-sm text-neutral-600">
-          <span className="hidden sm:inline">Working as </span>
-          <span className="font-medium text-neutral-900">{technician.name}</span>
-          <Link href="/" className="ml-3 text-neutral-500 underline-offset-2 hover:underline">
-            Switch
+        <nav className="flex items-center gap-1 text-sm">
+          <Link
+            href="/batches"
+            className={`rounded-md px-2.5 py-1.5 font-medium transition ${
+              path?.startsWith("/batches") ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Batches
           </Link>
-        </span>
+        </nav>
+        {session.mode === "replay" ? (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 ring-1 ring-amber-200"
+            title={`The models' real replies, recorded beforehand and replayed ${session.replaySpeed}× faster. Nothing is sent to a model; your work stays in a sandbox of your own.`}
+          >
+            <span className="size-1.5 rounded-full bg-amber-500" />
+            <span className="md:hidden">Demo</span>
+            <span className="hidden md:inline">Demo · recorded replies, {session.replaySpeed}× faster</span>
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-800 ring-1 ring-sky-200">
+            <span className="size-1.5 animate-pulse rounded-full bg-sky-500" />
+            <span className="md:hidden">Live</span>
+            <span className="hidden md:inline">Live · models called now</span>
+          </span>
+        )}
+        <Link
+          href="/"
+          className="ml-auto flex items-center gap-2.5 rounded-full py-1 pr-1 pl-3 text-sm transition hover:bg-slate-100"
+          title="Switch technician"
+        >
+          <span className="hidden text-right leading-tight sm:block">
+            <span className="block font-medium">{technician.name}</span>
+            <span className="block text-[11px] text-slate-500">Switch technician</span>
+          </span>
+          <Avatar name={technician.name} className="size-8 text-xs" />
+        </Link>
       </div>
     </header>
   );
 }
 
-function ModeNote({ session }: { session: SessionInfo }) {
-  if (session.mode === "live") return null;
+/** A page's title, a line under it, and its main action. */
+export function PageHeader({
+  title,
+  subtitle,
+  action,
+  back,
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  action?: ReactNode;
+  back?: ReactNode;
+}) {
   return (
-    <p className="border-b border-amber-100 bg-amber-50/60 px-4 py-2 text-center text-xs text-amber-900">
-      This demo replays what the models really answered for these synthetic documents, {session.replaySpeed}× faster
-      than they took. Nothing is sent to a model, and your work stays in a sandbox of your own.
-    </p>
+    <div className="mb-6">
+      {back}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          {subtitle && <div className="mt-1 text-sm text-slate-600">{subtitle}</div>}
+        </div>
+        {action}
+      </div>
+    </div>
+  );
+}
+
+/** "← Batches" and the like, above a page's title. */
+export function BackLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link href={href} className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 transition hover:text-slate-900">
+      <span aria-hidden>←</span> {children}
+    </Link>
   );
 }
