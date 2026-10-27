@@ -160,7 +160,10 @@ session shell and the state badges.
     as a correction. Dropped and added lines teach nothing. Documents already processed keep
     their proposals; what the memory learns shows in documents read afterwards.
 
-  The screen then opens the batch's next document to verify, or goes back to the batch.
+  The screen then opens the batch's next document still to decide on, after this one and
+  wrapping round: first one nobody has open or the technician has; else one another
+  technician left open, shown read-only with the offer to take it over. With none left, it
+  goes back to the batch.
   **Rejecting** asks for a reason (illegible, not a lab request, a duplicate, other with a
   note) and keeps the document and its proposal. A decided document opens read-only, showing
   what was approved as recorded, or who rejected it and why.

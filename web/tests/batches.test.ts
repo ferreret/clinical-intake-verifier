@@ -240,7 +240,40 @@ describe("verification locks", () => {
   });
 });
 
+/** An approval that resolves everything as proposed: required fields filled, red and orange confirmed. */
+function resolved(proposal: NonNullable<Awaited<ReturnType<typeof getProposal>>>): ApprovalInput {
+  const fused = new Map(proposal.fused.fields.map((f) => [f.name, f]));
+  const fields = Object.fromEntries(FIELDS.map((f) => [f.name, fused.get(f.name)!.value ?? (f.required ? "X" : null)]));
+  const confirmed = FIELDS.filter((f) => fields[f.name] === fused.get(f.name)!.value && ["red", "orange"].includes(fused.get(f.name)!.state));
+  return {
+    fields,
+    lines: proposal.tests.map(() => ["BQ0001"]),
+    added: [],
+    confirmed: [...confirmed.map((f) => `f:${f.name}`), ...proposal.tests.map((_, i) => `t:${i}`)],
+  };
+}
+
 describe("decisions", () => {
+  it("goes on to the next document to decide on: one free or the technician's own first, else one another has open", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const doc = await newDoc("doc-a.pdf");
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [doc, doc, doc] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [one, two, three] = (await getBatch(db, batch.id))!.documents;
+    await openDocument(db, two.id, "T02"); // left open by another technician
+
+    await openDocument(db, one.id, "T01");
+    const first = await approveDocument(db, one.id, "T01", resolved((await getProposal(db, one.id))!));
+    expect(first).toMatchObject({ ok: true, next: three.id });
+
+    await openDocument(db, three.id, "T01");
+    const second = await approveDocument(db, three.id, "T01", resolved((await getProposal(db, three.id))!));
+    expect(second).toMatchObject({ ok: true, next: two.id });
+  });
+
   it("approves only what is resolved, records it once, registers the request and teaches the memory", async () => {
     const ws = await createSandbox();
     const db = await openWorkspace(ws);

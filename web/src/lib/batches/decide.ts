@@ -16,7 +16,7 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 import type { TrafficLight } from "@/lib/fusion/types";
 import type { LisDb } from "@/lib/lis/db";
@@ -113,14 +113,20 @@ async function decidable(db: LisDb, id: string, technician: string) {
   return { doc };
 }
 
-/** The batch's next document waiting for verification, after this one, wrapping round. */
-async function nextToVerify(db: LisDb, doc: BatchDocument): Promise<string | null> {
-  const waiting = await db
-    .select({ id: batchDocuments.id, position: batchDocuments.position })
+/**
+ * The batch's next document still to decide on, after this one, wrapping round: first one
+ * nobody has open or this technician has; else one another technician has open, which the
+ * screen shows read-only, offering to take it over. A lock is never left behind silently.
+ */
+async function nextToVerify(db: LisDb, doc: BatchDocument, technician: string): Promise<string | null> {
+  const open = await db
+    .select({ id: batchDocuments.id, position: batchDocuments.position, state: batchDocuments.state, lockedBy: batchDocuments.lockedBy })
     .from(batchDocuments)
-    .where(and(eq(batchDocuments.batchId, doc.batchId), eq(batchDocuments.state, "awaiting_verification")))
+    .where(and(eq(batchDocuments.batchId, doc.batchId), inArray(batchDocuments.state, ["awaiting_verification", "in_verification"])))
     .orderBy(asc(batchDocuments.position));
-  return (waiting.find((d) => d.position > doc.position) ?? waiting[0])?.id ?? null;
+  const after = [...open.filter((d) => d.position > doc.position), ...open.filter((d) => d.position < doc.position)];
+  const free = (d: (typeof open)[number]) => d.state === "awaiting_verification" || d.lockedBy === technician;
+  return (after.find(free) ?? after[0])?.id ?? null;
 }
 
 /** Moves a document from in verification to its decision; false if it was not this technician's any more. */
@@ -176,7 +182,7 @@ export async function approveDocument(db: LisDb, id: string, technician: string,
     if (err instanceof Superseded) return { ok: false, reason: "not_yours" };
     throw err;
   }
-  return { ok: true, decision, next: await nextToVerify(db, doc) };
+  return { ok: true, decision, next: await nextToVerify(db, doc, technician) };
 }
 
 export async function rejectDocument(
@@ -200,7 +206,7 @@ export async function rejectDocument(
     if (err instanceof Superseded) return { ok: false, reason: "not_yours" };
     throw err;
   }
-  return { ok: true, decision, next: await nextToVerify(db, found.doc) };
+  return { ok: true, decision, next: await nextToVerify(db, found.doc, technician) };
 }
 
 export async function getDecision(db: LisDb, documentId: string): Promise<Decision | null> {
