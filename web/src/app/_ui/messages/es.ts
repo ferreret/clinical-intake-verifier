@@ -124,6 +124,9 @@ export const es: Messages = {
     replayNote: (speed) =>
       `Las respuestas reales de los modelos se grabaron antes y se reproducen ${speed}× más rápido. Tus lotes quedan un día en un espacio aislado solo tuyo.`,
     opening: "Abriendo…",
+    startOver: "Empezar de cero",
+    startOverNote: "Un espacio nuevo: sin lotes, y con la memoria que tendría un laboratorio con algo de historial.",
+    startOverConfirm: "Se borrarán tus lotes y todo lo que hayas aprobado aquí. ¿Empezar de cero?",
     continue: "Seguir donde lo dejaste",
     role: "Técnico de laboratorio",
     footer:

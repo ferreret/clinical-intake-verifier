@@ -39,7 +39,7 @@ import { itemsOf } from "@/app/batches/[id]/[docId]/model";
 import type { Prediction } from "@/lib/schema/prediction";
 
 let root: string;
-const ENV = ["APP_MODE", "APP_DATA_DIR", "LIS_TEMPLATE", "DEMO_DOCUMENTS", "REPLAY_GEMINI_RUN", "REPLAY_SPEED", "MAPPING_MODEL_CACHE"];
+const ENV = ["APP_MODE", "APP_DATA_DIR", "LIS_TEMPLATE", "DEMO_DOCUMENTS", "REPLAY_GEMINI_RUN", "REPLAY_SPEED", "MAPPING_MODEL_CACHE", "REPLAY_MAPPING"];
 const saved = Object.fromEntries(ENV.map((k) => [k, process.env[k]]));
 
 async function pdf(): Promise<Uint8Array> {
@@ -126,6 +126,7 @@ beforeAll(async () => {
     REPLAY_GEMINI_RUN: run,
     REPLAY_SPEED: "1000",
     MAPPING_MODEL_CACHE: path.join(root, "model-cache"),
+    REPLAY_MAPPING: path.join(root, "no-recording.json"),
   });
 });
 

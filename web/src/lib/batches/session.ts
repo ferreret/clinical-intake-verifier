@@ -11,7 +11,7 @@ import type { LisDb } from "@/lib/lis/db";
 
 import { appMode } from "./config";
 import { technician, type Technician } from "./technicians";
-import { createSandbox, LIVE_WORKSPACE, openWorkspace, touchWorkspace, workspaceExists } from "./workspace";
+import { createSandbox, deleteSandbox, LIVE_WORKSPACE, openWorkspace, touchWorkspace, workspaceExists } from "./workspace";
 
 const SANDBOX_COOKIE = "civ_sandbox";
 const TECHNICIAN_COOKIE = "civ_technician";
@@ -51,6 +51,18 @@ export async function startSession(tech: Technician): Promise<Session> {
   }
   jar.set(TECHNICIAN_COOKIE, tech.id, { httpOnly: true, sameSite: "lax", path: "/" });
   return { workspace, technician: tech, db: await openWorkspace(workspace) };
+}
+
+/**
+ * Replay mode: the visitor starts from scratch. Their sandbox is deleted and the technician
+ * forgotten; picking one again makes a new sandbox from the template.
+ */
+export async function endSession(): Promise<void> {
+  const jar = await cookies();
+  const workspace = await currentWorkspace();
+  if (workspace && workspace !== LIVE_WORKSPACE) await deleteSandbox(workspace);
+  jar.delete(SANDBOX_COOKIE);
+  jar.delete(TECHNICIAN_COOKIE);
 }
 
 export function noSession(): NextResponse {

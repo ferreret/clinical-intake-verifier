@@ -29,6 +29,8 @@ export interface ModelOptions {
   catalog: Catalog;
   /** Where replies are cached; null for no cache. */
   cacheDir: string | null;
+  /** In replay mode: the recorded answers instead of asking the provider (recorded.ts). */
+  replay?: (lines: ModelLine[]) => Consultation;
 }
 
 export interface DocumentProposals {
@@ -57,12 +59,9 @@ export async function proposeDocument(
   if (needs.length === 0) return { proposals, model: sent, consultation: null };
 
   const asked: ModelLine[] = needs.map(({ p, i }) => ({ id: `L${i + 1}`, text: lines[i], candidates: p.candidates }));
-  const consultation = await consult(
-    { insurer: ctx.insurer, language: ctx.language, formLines: lines, lines: asked },
-    model.catalog,
-    model.provider,
-    model.cacheDir,
-  );
+  const consultation = model.replay
+    ? model.replay(asked)
+    : await consult({ insurer: ctx.insurer, language: ctx.language, formLines: lines, lines: asked }, model.catalog, model.provider, model.cacheDir);
   for (const { p, i } of needs) {
     const codes = consultation.choices.get(`L${i + 1}`) ?? null;
     sent.set(i, codes);

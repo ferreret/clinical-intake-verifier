@@ -14,7 +14,9 @@
     "fuse": "tsx src/scripts/fuse-batch.ts",
     "map-simulate": "tsx src/scripts/map-simulate.ts",
     "search-compare": "tsx src/scripts/search-compare.ts",
-    "relocate": "tsx src/scripts/relocate-batch.ts"
+    "relocate": "tsx src/scripts/relocate-batch.ts",
+    "seed-memory": "tsx src/scripts/seed-memory.ts",
+    "record-mapping": "tsx src/scripts/record-mapping.ts"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",

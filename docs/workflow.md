@@ -41,9 +41,9 @@ how many stay.
 | | replay (default; the public demo) | live (the development machine) |
 |---|---|---|
 | Reading | The recorded prediction for the PDF's hash, from an extractor run (`REPLAY_GEMINI_RUN`, `REPLAY_LOCAL_RUN`). Served after the latency measured when it was recorded, divided by `REPLAY_SPEED` (5 by default: about 2 s for Gemini, 16 s for local Qwen). The screens say the replay is faster and show the measured latency. | `extract()`: Gemini, or the local model with OCR boxes. |
-| Mapping model | Recorded replies only (`MAPPING_MODEL_CACHE`). Without one, red lines stay red. | `MAPPING_MODEL_PROVIDER`, with the same cache. |
+| Mapping model | Recorded replies, per line (`REPLAY_MAPPING`, `npm run record-mapping`): the model was asked about every line of each demo document, so whichever lines are red find their answer. A line not recorded stays red, and the decision log says why. | `MAPPING_MODEL_PROVIDER`, cached by request (`MAPPING_MODEL_CACHE`). |
 | Documents | The bundled synthetic set (`DEMO_DOCUMENTS`) that has a recording for the provider. | The bundled set, and uploaded PDFs; one batch may mix them. |
-| Workspaces | A sandbox per visitor, deleted `SANDBOX_TTL_HOURS` after its last use. | One workspace, `live`. |
+| Workspaces | A sandbox per visitor, deleted `SANDBOX_TTL_HOURS` after its last use, or when the visitor chooses "Start from scratch" on the entry page (`DELETE /api/session`). | One workspace, `live`. |
 
 The queue, the chain and the stored proposal are the same in both modes. Only what answers
 the extractor's call changes. The proposal records whether its reading was recorded.
@@ -52,7 +52,10 @@ the extractor's call changes. The proposal records whether its reading was recor
 
 A workspace is one SQLite database, kept in `APP_DATA_DIR/workspaces/`. It starts as a copy
 of `LIS_TEMPLATE` (the mock LIS, the catalog and the mapping memory), and migrations add the
-workflow's tables. A workspace therefore holds:
+workflow's tables. The demo's template (`npm run seed-memory`, `data/lis/seed-42-demo.sqlite`)
+starts with the memory of 400 earlier requests: synthetic documents 200 to 999 of the
+1,000-document set, which the demo never shows, each line taken as approved with its right
+codes under its insurer. A sandbox thus starts where a lab with some history would. A workspace therefore holds:
 
 - its own batches;
 - its own decisions;

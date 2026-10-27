@@ -79,6 +79,7 @@ const postJson = (body: unknown): RequestInit => ({
 export const api = {
   session: () => call<SessionInfo>("/api/session"),
   pickTechnician: (technician: string) => call<SessionInfo>("/api/session", postJson({ technician })),
+  startOver: () => call<SessionInfo>("/api/session", { method: "DELETE" }),
   bundled: (provider: Provider) => call<{ documents: BundledInfo[] }>(`/api/bundled?provider=${provider}`),
   batches: () => call<{ batches: BatchSummary[] }>("/api/batches"),
   batch: (id: string) => call<BatchDetail>(`/api/batches/${id}`),

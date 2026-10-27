@@ -12,12 +12,13 @@ import { readSnapshot } from "@/lib/lis/snapshot";
 import { readCatalog, type Catalog } from "@/lib/mapping/catalog";
 import { proposeDocument, type ModelOptions } from "@/lib/mapping/document";
 import { DbMemory } from "@/lib/mapping/memory";
-import { resolveProvider, type Provider as MappingProvider } from "@/lib/mapping/model";
+import { resolveProvider, type ModelLine, type Provider as MappingProvider } from "@/lib/mapping/model";
+import { loadRecordedMapping, replayConsultation } from "@/lib/mapping/recorded";
 import { CatalogIndex } from "@/lib/mapping/search";
 import { compareKey } from "@/lib/schema/compare";
 import type { Prediction } from "@/lib/schema/prediction";
 
-import { appMode, modelCacheDir, replaySpeed, type AppMode, type Provider } from "./config";
+import { appMode, modelCacheDir, replayMapping, replaySpeed, type AppMode, type Provider } from "./config";
 import type { ProcessingTrace, TestProposal } from "./schema";
 import { recordedPrediction } from "./sources";
 
@@ -58,7 +59,7 @@ export async function readDocument(
   return { prediction, recorded: mode === "replay" };
 }
 
-/** In replay mode, the mapping model answers from its recorded replies only. */
+/** In replay mode with no recording, the mapping model cannot answer. */
 class RecordedReplies implements MappingProvider {
   constructor(
     readonly name: "gemini" | "local",
@@ -120,9 +121,17 @@ export async function proposeFor(
   const ctx = { scope: memoryScope(fused, prediction), insurer, language: "es" };
   const lines = prediction.tests.map((t) => t.value);
   const memory = new DbMemory(db);
-  const provider = mappingProvider(mode);
+  // In replay mode the model answers from its recording, per line (mapping/recorded.ts).
+  const recording = mode === "replay" ? await loadRecordedMapping(replayMapping()) : null;
+  const provider = recording ? new RecordedReplies(recording.provider, recording.model) : mappingProvider(mode);
   const model: ModelOptions | undefined = provider
-    ? { provider, policy: "red", catalog, cacheDir: modelCacheDir() }
+    ? {
+        provider,
+        policy: "red",
+        catalog,
+        cacheDir: modelCacheDir(),
+        ...(recording ? { replay: (asked: ModelLine[]) => replayConsultation(recording, prediction.sha256, asked) } : {}),
+      }
     : undefined;
 
   let proposals;

@@ -77,6 +77,15 @@ export async function listWorkspaces(): Promise<string[]> {
     .filter(isWorkspaceId);
 }
 
+/** Deletes a sandbox and everything in it: the visitor starting from scratch, or the sweep. */
+export async function deleteSandbox(id: string): Promise<void> {
+  if (id === LIVE_WORKSPACE) throw new Error("the live workspace is not a sandbox");
+  const db = opened.get(id);
+  opened.delete(id);
+  if (db) (await db.catch(() => null))?.$client.close();
+  for (const suffix of ["", "-journal", "-wal", "-shm"]) await fs.rm(fileOf(id) + suffix, { force: true });
+}
+
 /** Deletes the sandboxes unused for longer than SANDBOX_TTL_HOURS; returns their ids. */
 export async function sweepSandboxes(now: Date = new Date()): Promise<string[]> {
   const limit = now.getTime() - sandboxTtlHours() * 3600 * 1000;
@@ -85,10 +94,7 @@ export async function sweepSandboxes(now: Date = new Date()): Promise<string[]> 
     if (id === LIVE_WORKSPACE) continue;
     const stat = await fs.stat(fileOf(id)).catch(() => null);
     if (!stat || stat.mtimeMs >= limit) continue;
-    const db = opened.get(id);
-    opened.delete(id);
-    if (db) (await db).$client.close();
-    for (const suffix of ["", "-journal", "-wal", "-shm"]) await fs.rm(fileOf(id) + suffix, { force: true });
+    await deleteSandbox(id);
     deleted.push(id);
   }
   return deleted;

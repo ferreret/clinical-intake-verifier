@@ -66,6 +66,9 @@ export const en = {
     replayNote: (speed: number | null) =>
       `The models' real replies were recorded beforehand and are replayed ${speed}× faster. Your batches stay in a sandbox of your own for a day.`,
     opening: "Opening…",
+    startOver: "Start from scratch",
+    startOverNote: "A new sandbox: no batches, and the memory a lab with some history would have.",
+    startOverConfirm: "Your batches and everything you approved here will be deleted. Start from scratch?",
     continue: "Continue where you left off",
     role: "Laboratory technician",
     footer:

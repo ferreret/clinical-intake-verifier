@@ -1570,6 +1570,40 @@ under its row or in a panel for the whole document. What changes over time (the 
 model's consultation) is recorded when the document is processed; the rest is derived from
 what is stored. Checked with a test of the steps and in the browser at 1920 px.
 
+### F6 block 1 done on 2026-10-27: recorded replies and the starting memory
+
+- **The starting memory** (`npm run seed-memory`): the demo's LIS template now holds what
+  technicians approved before the visitor arrived. The history is synthetic documents 200 to
+  999 of the 1,000-document set, which the demo never shows (its 200 are the set's first),
+  each line approved with its right codes under its insurer. Measured on the demo set (memory
+  and catalog only, no model), by documents of history:
+
+  | history | green | orange | red | wrong greens |
+  |---|---|---|---|---|
+  | 0 | 0.0% | 90.5% | 9.5% | 0 |
+  | 100 | 43.8% | 53.2% | 2.9% | 0 |
+  | 200 | 63.1% | 34.6% | 2.3% | 0 |
+  | 400 | 75.8% | 22.8% | 1.4% | 0 |
+  | 800 | 84.0% | 15.2% | 0.8% | 0 |
+
+  400 is the default: most lines green, and still orange and red ones for the visitor to work
+  on. Same figures with the local model's readings, within 0.2 points.
+- **The mapping model's recorded replies** (`npm run record-mapping`, Gemini): which lines are
+  red depends on the memory, and so on the visitor's approvals, so a reply recorded for one
+  set of red lines would not answer another. The model was asked about every line of each
+  demo document, with the whole form as context, and replay serves each red line its own
+  answer (`lib/mapping/recorded.ts`). 200 documents and 1,611 lines; the local model's
+  readings asked only about the lines they read differently; about 670,000 input and 23,000
+  output tokens.
+- **End to end as the demo runs it**, 400 documents of history, Gemini readings: 75.8% green,
+  24.0% orange, 0.2% red, no wrong green; 22 red lines went to the model, 19 answered, 17 of
+  them right. Local readings: 75.9%, 23.9%, 0.2%; 25, 22, 20.
+- **Starting from scratch:** the entry page offers it in replay mode; the visitor's sandbox is
+  deleted and the next one starts from the template (`DELETE /api/session`).
+- **For block 2:** `data/` is outside version control, so the image needs the bundled PDFs,
+  both extractor runs, the demo template and the recording from somewhere: built in, or
+  fetched at build time.
+
 **Open points found while building it, for later blocks:**
 
 - **Form language.** The extractor does not report it, so the mapping model is told

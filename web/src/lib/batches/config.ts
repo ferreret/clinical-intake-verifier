@@ -37,9 +37,13 @@ export function dataDir(): string {
   return dir("APP_DATA_DIR", path.join(os.homedir(), ".clinical-intake-verifier"));
 }
 
-/** The database every workspace starts as a copy of: the mock LIS and the catalog, seeded. */
+/**
+ * The database every workspace starts as a copy of: the mock LIS and the catalog, seeded, with
+ * the memory of earlier approved requests (scripts/seed-memory.ts), so that a sandbox starts
+ * where a lab with some history would.
+ */
 export function templateDb(): string {
-  return dir("LIS_TEMPLATE", "../data/lis/seed-42.sqlite");
+  return dir("LIS_TEMPLATE", "../data/lis/seed-42-demo.sqlite");
 }
 
 /** The bundled synthetic documents a batch can be made of. */
@@ -66,9 +70,14 @@ export function replaySpeed(): number {
   return n > 0 ? n : DEFAULT_REPLAY_SPEED;
 }
 
-/** Cached replies of the mapping model; in replay mode, the only ones it has. */
+/** Cached replies of the mapping model, by request. */
 export function modelCacheDir(): string {
   return dir("MAPPING_MODEL_CACHE", "../data/model-cache");
+}
+
+/** The mapping model's recorded replies, which replay mode serves (mapping/recorded.ts). */
+export function replayMapping(): string {
+  return dir("REPLAY_MAPPING", "../data/replay/mapping-gemini.json");
 }
 
 /** Hours a sandbox lives after its last use. */

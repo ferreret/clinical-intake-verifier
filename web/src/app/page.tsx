@@ -171,6 +171,22 @@ export default function Home() {
               );
             })}
           </ul>
+          {session?.mode === "replay" && session.technician && (
+            <p className="mt-4 text-xs text-slate-500">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm(m.startOverConfirm)) return;
+                  api.startOver().then(setSession, (e: Error) => setError(e.message));
+                }}
+                className="font-medium text-slate-700 underline underline-offset-2 hover:text-slate-900"
+              >
+                {m.startOver}
+              </button>
+              {" · "}
+              {m.startOverNote}
+            </p>
+          )}
           {error && <p className="mt-4 text-sm text-rose-700">{error}</p>}
         </section>
 

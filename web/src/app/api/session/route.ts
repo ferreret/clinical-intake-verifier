@@ -4,11 +4,13 @@
  * once the sandbox has expired).
  * POST /api/session: JSON `{ "technician": "T01" }`; starts working as that technician, in a
  * new sandbox if the visitor has none.
+ * DELETE /api/session: replay mode only; the visitor starts from scratch, their sandbox
+ * deleted with all its batches.
  */
 import { NextResponse } from "next/server";
 
 import { appMode, replaySpeed } from "@/lib/batches/config";
-import { getSession, startSession } from "@/lib/batches/session";
+import { endSession, getSession, startSession } from "@/lib/batches/session";
 import { technician, TECHNICIANS } from "@/lib/batches/technicians";
 
 export const runtime = "nodejs";
@@ -26,6 +28,12 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
   const session = await startSession(tech);
   return NextResponse.json({ ...modeInfo(), technicians: TECHNICIANS, technician: session.technician });
+}
+
+export async function DELETE(): Promise<NextResponse> {
+  if (appMode() !== "replay") return NextResponse.json({ error: "only a sandbox can be started over" }, { status: 400 });
+  await endSession();
+  return NextResponse.json({ ...modeInfo(), technicians: TECHNICIANS, technician: null });
 }
 
 function modeInfo() {
