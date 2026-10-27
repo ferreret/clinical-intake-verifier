@@ -12,6 +12,8 @@ export type Provider = Batch["provider"];
 
 export interface SessionInfo {
   mode: "replay" | "live";
+  /** Replay mode: how many times faster than measured the recorded replies come. */
+  replaySpeed: number | null;
   technicians: Technician[];
   technician: Technician | null;
 }

@@ -43,8 +43,9 @@ export default function Home() {
 
       {session?.mode === "replay" && (
         <p className="mt-6 rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
-          Demo mode: the documents are synthetic, and the models&apos; replies were recorded beforehand and are served
-          at the latency measured then. Your batches and approvals stay in a sandbox of your own for a day.
+          Demo mode: the documents are synthetic, and the models&apos; replies were recorded beforehand. They are
+          replayed {session.replaySpeed}× faster than the models took; each document still shows the time it really
+          took. Your batches and approvals stay in a sandbox of your own for a day.
         </p>
       )}
 

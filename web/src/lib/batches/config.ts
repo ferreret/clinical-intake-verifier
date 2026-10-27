@@ -54,10 +54,16 @@ export function replayRun(provider: Provider): string {
     : dir("REPLAY_LOCAL_RUN", "../data/runs/20261026-qwen3.6-35b-a3b-p6-ocr");
 }
 
-/** How much faster than recorded a replayed reply comes: 1 is the measured latency. */
+/**
+ * How much faster than recorded a replayed reply comes: 1 is the measured latency. Five times
+ * by default, so a demo batch does not take minutes (product owner, 2026-10-27); the measured
+ * latency is still what each document shows.
+ */
+export const DEFAULT_REPLAY_SPEED = 5;
+
 export function replaySpeed(): number {
-  const n = Number(process.env.REPLAY_SPEED ?? "1");
-  return n > 0 ? n : 1;
+  const n = Number(process.env.REPLAY_SPEED ?? DEFAULT_REPLAY_SPEED);
+  return n > 0 ? n : DEFAULT_REPLAY_SPEED;
 }
 
 /** Cached replies of the mapping model; in replay mode, the only ones it has. */

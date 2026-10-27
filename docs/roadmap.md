@@ -1441,6 +1441,11 @@ light. Pages poll while anything is moving.
 an uploaded PDF, read by local Qwen (70 s and 60 s). Its boxes came from the OCR and one line
 was mapped by the model. The upload was kept under the data directory.
 
+**Replay sped up, 2026-10-27, at the product owner's request.** A demo batch at the recorded
+pace took minutes with local Qwen (about 80 s per document), so replies are now replayed five
+times faster by default (`REPLAY_SPEED`). The screens say so, and each document still shows
+the latency measured when it was recorded. Six Gemini documents now take 4 s.
+
 **Open points found while building it, for later blocks:**
 
 - **Form language.** The extractor does not report it, so the mapping model is told

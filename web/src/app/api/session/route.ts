@@ -1,12 +1,13 @@
 /**
- * GET /api/session: the mode, the technicians to pick from, and who is working now (null
- * before one is picked, or once the sandbox has expired).
+ * GET /api/session: the mode (with how much faster than recorded replies come, in replay
+ * mode), the technicians to pick from, and who is working now (null before one is picked, or
+ * once the sandbox has expired).
  * POST /api/session: JSON `{ "technician": "T01" }`; starts working as that technician, in a
  * new sandbox if the visitor has none.
  */
 import { NextResponse } from "next/server";
 
-import { appMode } from "@/lib/batches/config";
+import { appMode, replaySpeed } from "@/lib/batches/config";
 import { getSession, startSession } from "@/lib/batches/session";
 import { technician, TECHNICIANS } from "@/lib/batches/technicians";
 
@@ -14,11 +15,7 @@ export const runtime = "nodejs";
 
 export async function GET(): Promise<NextResponse> {
   const session = await getSession();
-  return NextResponse.json({
-    mode: appMode(),
-    technicians: TECHNICIANS,
-    technician: session?.technician ?? null,
-  });
+  return NextResponse.json({ ...modeInfo(), technicians: TECHNICIANS, technician: session?.technician ?? null });
 }
 
 export async function POST(req: Request): Promise<NextResponse> {
@@ -28,5 +25,10 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: `technician must be one of ${TECHNICIANS.map((t) => t.id).join(", ")}` }, { status: 400 });
   }
   const session = await startSession(tech);
-  return NextResponse.json({ mode: appMode(), technicians: TECHNICIANS, technician: session.technician });
+  return NextResponse.json({ ...modeInfo(), technicians: TECHNICIANS, technician: session.technician });
+}
+
+function modeInfo() {
+  const mode = appMode();
+  return { mode, replaySpeed: mode === "replay" ? replaySpeed() : null };
 }

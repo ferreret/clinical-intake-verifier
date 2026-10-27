@@ -15,7 +15,7 @@ import { describe, LightCounts, StateBadge, StatesBar } from "../../_ui/states";
 
 export default function BatchPage() {
   const { id } = useParams<{ id: string }>();
-  const { technicians } = useSession();
+  const { technicians, replaySpeed } = useSession();
   const [detail, setDetail] = useState<BatchDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
@@ -105,7 +105,14 @@ export default function BatchPage() {
                   {d.summary ? (
                     <>
                       {d.summary.model}, {(d.summary.latencyMs / 1000).toFixed(1)} s
-                      {d.summary.recorded && <span className="ml-1 text-amber-800">(recorded)</span>}
+                      {d.summary.recorded && (
+                        <span
+                          className="ml-1 text-amber-800"
+                          title={`The time the model took when recorded; replayed ${replaySpeed ?? 1}× faster here.`}
+                        >
+                          (recorded)
+                        </span>
+                      )}
                     </>
                   ) : d.attempts > 1 ? (
                     `attempt ${d.attempts}`

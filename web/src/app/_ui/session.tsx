@@ -34,7 +34,7 @@ export function SessionShell({ children }: { children: ReactNode }) {
   return (
     <SessionContext.Provider value={{ ...session, technician: session.technician }}>
       <Header session={session} technician={session.technician} />
-      <ModeNote mode={session.mode} />
+      <ModeNote session={session} />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">{children}</main>
     </SessionContext.Provider>
   );
@@ -66,12 +66,12 @@ function Header({ session, technician }: { session: SessionInfo; technician: Tec
   );
 }
 
-function ModeNote({ mode }: { mode: SessionInfo["mode"] }) {
-  if (mode === "live") return null;
+function ModeNote({ session }: { session: SessionInfo }) {
+  if (session.mode === "live") return null;
   return (
     <p className="border-b border-amber-100 bg-amber-50/60 px-4 py-2 text-center text-xs text-amber-900">
-      This demo replays what the models really answered for these synthetic documents, at the latency measured
-      when it was recorded. Nothing is sent to a model, and your work stays in a sandbox of your own.
+      This demo replays what the models really answered for these synthetic documents, {session.replaySpeed}× faster
+      than they took. Nothing is sent to a model, and your work stays in a sandbox of your own.
     </p>
   );
 }

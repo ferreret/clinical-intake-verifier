@@ -32,7 +32,7 @@ A batch has no state of its own: its progress is its documents counted by state.
 
 | | replay (default; the public demo) | live (the development machine) |
 |---|---|---|
-| Reading | The recorded prediction for the PDF's hash, from an extractor run (`REPLAY_GEMINI_RUN`, `REPLAY_LOCAL_RUN`). Served after the latency measured when it was recorded, divided by `REPLAY_SPEED`. | `extract()`: Gemini, or the local model with OCR boxes. |
+| Reading | The recorded prediction for the PDF's hash, from an extractor run (`REPLAY_GEMINI_RUN`, `REPLAY_LOCAL_RUN`). Served after the latency measured when it was recorded, divided by `REPLAY_SPEED` (5 by default: about 2 s for Gemini, 16 s for local Qwen). The screens say the replay is faster and show the measured latency. | `extract()`: Gemini, or the local model with OCR boxes. |
 | Mapping model | Recorded replies only (`MAPPING_MODEL_CACHE`). Without one, red lines stay red. | `MAPPING_MODEL_PROVIDER`, with the same cache. |
 | Documents | The bundled synthetic set (`DEMO_DOCUMENTS`) that has a recording for the provider. | The bundled set, and uploaded PDFs; one batch may mix them. |
 | Workspaces | A sandbox per visitor, deleted `SANDBOX_TTL_HOURS` after its last use. | One workspace, `live`. |
