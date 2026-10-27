@@ -212,7 +212,7 @@ export const es: Messages = {
     confirmedCount: (n) => `${n} ${n === 1 ? "confirmado" : "confirmados"}`,
     lens: (on) => `Lupa ${on ? "activada" : "desactivada"}`,
     lensTitle: "Pasa el puntero por un valor de «Leído» para ver dónde se leyó, ampliado y unido a la página (Alt+Z)",
-    shortcuts: "Atajos",
+    shortcuts: "Atajos de teclado",
     leave: "Dejar para luego",
     approve: "Aprobar",
     approving: "Aprobando…",
@@ -234,15 +234,34 @@ export const es: Messages = {
     rejectedBy: (name, when) => `Rechazado por ${name} el ${when}`,
     backToBatch: "Volver al lote",
     confirmLeave: "Tus cambios en este documento aún no están aprobados y se perderán. ¿Salir de todos modos?",
-    keys: [
-      ["Alt + ↓ / ↑", "Campo o línea siguiente o anterior"],
-      ["Tab / Mayús + Tab", "Casilla siguiente o anterior"],
-      ["Alt + 1 / Alt + 2", "En un conflicto, tomar el valor del documento o el de los registros"],
-      ["Alt + Intro", "Confirmar el elemento tal como se propone e ir al siguiente por revisar"],
-      ["Ctrl + Intro", "Aprobar, cuando no quede nada por resolver ni confirmar"],
-      ["Alt + → / ←", "Documento siguiente o anterior del lote"],
-      ["Alt + Z", "Activar o desactivar la lupa: el origen del valor, ampliado y unido a la página"],
-      ["Esc", "Salir de la casilla; cerrar esta lista"],
+    shortcutsTitle: "Atajos de teclado",
+    shortcutsHint: "Pulsa ? en cualquier momento para abrir o cerrar esta lista.",
+    close: "Cerrar",
+    keyGroups: [
+      {
+        title: "Moverse",
+        keys: [
+          ["Alt+↓ / Alt+↑", "Campo o línea siguiente o anterior"],
+          ["Tab / Mayús+Tab", "Casilla siguiente o anterior"],
+          ["Alt+→ / Alt+←", "Documento siguiente o anterior del lote"],
+        ],
+      },
+      {
+        title: "Decidir",
+        keys: [
+          ["Alt+1 / Alt+2", "En un conflicto, tomar el valor del documento o el de los registros"],
+          ["Alt+Intro", "Confirmar el elemento tal como se propone e ir al siguiente por revisar"],
+          ["Ctrl+Intro", "Aprobar, cuando no quede nada por resolver ni confirmar"],
+        ],
+      },
+      {
+        title: "Ver",
+        keys: [
+          ["Alt+Z", "Activar o desactivar la lupa: el origen del valor, ampliado y unido a la página"],
+          ["?", "Abrir o cerrar esta lista"],
+          ["Esc", "Salir de la casilla; cerrar esta lista"],
+        ],
+      },
     ],
     keysNote: "En una página, pincha una caja para ir a su campo.",
     keysSwitch: "desde la cabecera.",

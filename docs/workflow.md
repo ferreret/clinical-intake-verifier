@@ -140,7 +140,8 @@ session shell and the state badges.
     with their container: the records go under what was read, then the proposed column goes.
   - **Keyboard:** Alt+↓/↑ next and previous item, Alt+→/← next and previous document of the
     batch, Alt+Enter confirm and go to the next item to check, Ctrl+Enter approve, Alt+Z the
-    lens, Esc to leave an input, ? for the list.
+    lens, Esc to leave an input. All of them, grouped, in a window opened from the footer's
+    "Keyboard shortcuts" button or with ? (`shortcuts.tsx`).
   - **Footer:** what is left to resolve or confirm, the confirmations made, Reject, "Leave
     for later" and Approve.
 

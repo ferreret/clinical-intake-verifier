@@ -10,18 +10,17 @@
  * what was approved. Or they reject it, saying why. A decided document opens read-only, as
  * the decision recorded it.
  */
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, api, type Decision, type ProposalView, type RejectReason } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
-import type { Messages } from "../../../_ui/messages/en";
-import { ArrowLeft, ArrowRight, Check as CheckIcon, FileText } from "../../../_ui/icons";
+import { ArrowLeft, ArrowRight, Check as CheckIcon, FileText, Keyboard } from "../../../_ui/icons";
 import { useSession } from "../../../_ui/session";
 import { StateBadge } from "../../../_ui/states";
 import { Fields, Links } from "./fields";
 import { Lens } from "./lens";
+import { ShortcutsDialog } from "./shortcuts";
 import { checkOf, itemsOf, type Check, type Light } from "./model";
 import { Tests, type AddedLine, type Chosen } from "./tests";
 import { Viewer } from "./viewer";
@@ -488,8 +487,15 @@ export default function VerifyPage() {
             >
               {m.lens(lens)}
             </button>
-            <button type="button" onClick={() => setHelp((h) => !h)} className="text-xs text-slate-500 underline-offset-2 hover:underline">
-              {m.shortcuts} <kbd className="rounded bg-slate-100 px-1 font-mono">?</kbd>
+            <button
+              type="button"
+              onClick={() => setHelp((h) => !h)}
+              aria-haspopup="dialog"
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50 hover:text-slate-900"
+            >
+              <Keyboard className="size-4" />
+              {m.shortcuts}
+              <kbd className="rounded bg-slate-100 px-1 font-mono text-[10px]">?</kbd>
             </button>
             <span className="ml-auto inline-flex gap-2">
               {view.decision || readOnly ? (
@@ -542,9 +548,9 @@ export default function VerifyPage() {
             </div>
           )}
           {rejecting && !readOnly && <RejectPanel busy={busy === "rejecting"} onCancel={() => setRejecting(false)} onReject={reject} />}
-          {help && <Shortcuts m={m} switchLabel={t.common.switchTechnician} />}
         </footer>
       </div>
+      {help && <ShortcutsDialog onClose={() => setHelp(false)} />}
       <Lens
         documentId={docId}
         pages={view.proposal.prediction.pages}
@@ -677,27 +683,5 @@ function NavButton({
     >
       {children}
     </button>
-  );
-}
-
-function Shortcuts({ m, switchLabel }: { m: Messages["verify"]; switchLabel: string }) {
-  return (
-    <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-lg bg-slate-50 p-3 text-xs ring-1 ring-slate-200">
-      {m.keys.map(([k, v]) => (
-        <div key={k} className="contents">
-          <dt>
-            <kbd className="rounded bg-white px-1.5 py-0.5 font-mono text-[11px] ring-1 ring-slate-200">{k}</kbd>
-          </dt>
-          <dd className="text-slate-600">{v}</dd>
-        </div>
-      ))}
-      <p className="col-span-2 mt-1 text-[11px] text-slate-500">
-        {m.keysNote}{" "}
-        <Link href="/" className="underline">
-          {switchLabel}
-        </Link>{" "}
-        {m.keysSwitch}
-      </p>
-    </dl>
   );
 }
