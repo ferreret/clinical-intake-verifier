@@ -153,6 +153,29 @@ session shell and the state badges.
   - **Footer:** what is left to resolve or confirm, the confirmations made, Reject, "Leave
     for later" and Approve.
 
+  **The decision log** (`explain.ts`, `log.tsx`). Why each value and code was proposed, step
+  by step, and what the technician did with it. Clicking a field's reason, or "Why?" under a
+  test line, unfolds its steps below the row:
+  - a field: what was read and on which page, with its warnings; what the linked record
+    holds; how the two were compared (the compare mode of fields.json and both values as
+    compared); the rule that set the colour; what is proposed and from where (an age kept as
+    a number); and the technician's change or confirmation;
+  - a test line: what this insurer's approvals held for it, and other insurers'; the
+    catalog's closest entries with their scores and the thresholds; whether the model was
+    asked and what it answered, or why it could not be; the result; the technician's codes.
+
+  "Decision log" in the footer (Alt+L) opens the whole document's log in a panel: the
+  reading (model, prompt, attempts, latency, where the boxes came from, warnings, fields
+  left empty), the record links and on what keys, every field and line, and the decision
+  (who, when and what was done), or the technician's unsaved work.
+
+  What could not be told later is recorded when the document is processed: per line, the
+  memory as it was and the model's answer (`seen`, in the proposal's tests), and for the
+  document the memory scope, the language the model was told and how the model was
+  consulted (`proposals.trace`, migration 0003). The rest is derived from what is stored,
+  the way the engine did it, so it also holds once a record is linked by hand. Documents
+  processed before the log say what is not known.
+
   **Searching the records** (`records.tsx`, `lib/lis/records.ts`). Each record card (patient,
   physician, insurer) has a magnifier that searches the lab's records of its kind: every
   word of a name, accents and case aside, or an identifying number (identity document,

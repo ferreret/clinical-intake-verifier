@@ -66,10 +66,13 @@ export async function proposeDocument(
   for (const { p, i } of needs) {
     const codes = consultation.choices.get(`L${i + 1}`) ?? null;
     sent.set(i, codes);
+    const seen = { ...p.seen, model: { answer: codes } };
     if (codes) {
-      proposals[i] = { ...p, state: "orange", codes, source: "model", reason: "chosen by the model among the catalog candidates" };
+      proposals[i] = { ...p, seen, state: "orange", codes, source: "model", reason: "chosen by the model among the catalog candidates" };
     } else if (model.policy === "all") {
-      proposals[i] = { ...p, state: "red", codes: null, source: null, reason: "the model found no candidate that fits" };
+      proposals[i] = { ...p, seen, state: "red", codes: null, source: null, reason: "the model found no candidate that fits" };
+    } else {
+      proposals[i] = { ...p, seen };
     }
   }
   return { proposals, model: sent, consultation };

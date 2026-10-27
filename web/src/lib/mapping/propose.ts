@@ -31,6 +31,18 @@ export const LEXICAL_SETTINGS: SearchSettings = { minScore: 0.55, minLead: 0.05 
 
 export type MappingSource = "memory" | "memory_elsewhere" | "model" | "search" | null;
 
+/** What each layer saw for a line, kept for the decision log: the memory as it was then. */
+export interface Seen {
+  /** This insurer's approved meanings of the line, trusted (active) or not. */
+  memory: MemoryEntry[];
+  /** Other insurers' approved meanings, merged; null when this insurer's settled it. */
+  elsewhere: MemoryEntry[] | null;
+  /** What a search candidate had to reach to be proposed. */
+  search: SearchSettings;
+  /** The model's answer, when the line was sent to it: codes, or null for "none fits". */
+  model?: { answer: string[] | null };
+}
+
 export interface Proposal {
   state: "green" | "orange" | "red";
   /** The proposed codes, or null when the technician has to choose. */
@@ -41,6 +53,7 @@ export interface Proposal {
   evidence: MemoryEntry | null;
   /** Catalog candidates, best first, for the technician to choose from. */
   candidates: Candidate[];
+  seen: Seen;
 }
 
 /** The line as the memory keys it. */
@@ -57,15 +70,17 @@ export async function propose(
 ): Promise<Proposal> {
   const key = textKey(line);
   const candidates = await index.search(line, CANDIDATES);
+  const here = await memory.lookup(scope, key);
+  let elsewhere: MemoryEntry[] | null = null;
   const out = (
     state: Proposal["state"],
     codes: string[] | null,
     source: MappingSource,
     reason: string,
     evidence: MemoryEntry | null = null,
-  ): Proposal => ({ state, codes, source, reason, evidence, candidates });
+  ): Proposal => ({ state, codes, source, reason, evidence, candidates, seen: { memory: here, elsewhere, search: settings } });
 
-  const trusted = (await memory.lookup(scope, key)).filter((e) => e.active > 0);
+  const trusted = here.filter((e) => e.active > 0);
   if (trusted.length > 1) {
     return out("red", null, null, `approved with ${trusted.length} different meanings for this insurer`);
   }
@@ -78,9 +93,8 @@ export async function propose(
     return out("orange", e.codes, "memory", `approved ${e.active} time(s) for this insurer${why}`, e);
   }
 
-  const other = (await memory.elsewhere(scope, key))
-    .filter((e) => e.active > 0)
-    .sort((a, b) => b.active - a.active);
+  elsewhere = await memory.elsewhere(scope, key);
+  const other = elsewhere.filter((e) => e.active > 0).sort((a, b) => b.active - a.active);
   if (other.length > 0) {
     return out("orange", other[0].codes, "memory_elsewhere", `approved ${other[0].active} time(s) for other insurers`, other[0]);
   }

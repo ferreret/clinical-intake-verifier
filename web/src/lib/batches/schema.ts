@@ -73,6 +73,27 @@ export interface TestProposal {
   mapping: Proposal;
 }
 
+/**
+ * How the chain worked out a document's proposal, kept for the decision log: what cannot be
+ * derived later from the prediction and the fusion. Each line's memory and model answer are
+ * in its mapping (`seen`); this is what is common to the document.
+ */
+export interface ProcessingTrace {
+  mapping: {
+    /** Whose approvals the lines were looked up in (pipeline.ts, memoryScope). */
+    scope: string;
+    insurer: string | null;
+    /** The form's language the model was told: not read, assumed. */
+    language: string;
+    /** Which lines go to the model: `red`, those the memory and the search left red. */
+    policy: "red" | "all";
+    model:
+      | { status: "asked"; provider: string; model: string; lines: number; cached: boolean; latencyMs: number }
+      | { status: "not_needed" }
+      | { status: "unavailable"; provider: string | null; model: string | null; error: string };
+  };
+}
+
 /** What the chain proposed for a document, kept as it was: the technician's input. */
 export const proposals = sqliteTable("proposals", {
   documentId: text("document_id")
@@ -83,6 +104,8 @@ export const proposals = sqliteTable("proposals", {
   tests: text("tests", { mode: "json" }).$type<TestProposal[]>().notNull(),
   /** True when the extractor's reply was a recorded one, served in replay mode. */
   recorded: integer("recorded", { mode: "boolean" }).notNull(),
+  /** How it was worked out; null for proposals made before the decision log. */
+  trace: text("trace", { mode: "json" }).$type<ProcessingTrace>(),
   createdAt: text("created_at").notNull(),
 });
 

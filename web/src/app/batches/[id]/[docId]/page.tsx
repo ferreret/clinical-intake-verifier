@@ -15,11 +15,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, api, type ChosenLinks, type Decision, type ProposalView, type RecordKind, type RejectReason } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
-import { ArrowLeft, ArrowRight, Check as CheckIcon, FileText, Keyboard, Lock as LockIcon } from "../../../_ui/icons";
+import { ArrowLeft, ArrowRight, Check as CheckIcon, FileText, Keyboard, List as ListIcon, Lock as LockIcon } from "../../../_ui/icons";
 import { useSession } from "../../../_ui/session";
 import { StateBadge } from "../../../_ui/states";
 import { Fields, Links } from "./fields";
+import { explainField, explainLine, type Work } from "./explain";
 import { Lens } from "./lens";
+import { DecisionLog } from "./log";
 import { RecordSearch } from "./records";
 import { ShortcutsDialog } from "./shortcuts";
 import { checkOf, itemsOf, type Check, type Light } from "./model";
@@ -52,6 +54,9 @@ export default function VerifyPage() {
   // Links the technician set by searching the records, and the search open, if any.
   const [chosenLinks, setChosenLinks] = useState<ChosenLinks>({});
   const [searching, setSearching] = useState<RecordKind | null>(null);
+  // The decision log: one item's steps unfolded under its row, and the whole log open.
+  const [why, setWhy] = useState<string | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
   // The item whose Read cell is under the pointer: what the lens shows.
   const [peek, setPeek] = useState<string | null>(null);
@@ -121,6 +126,8 @@ export default function VerifyPage() {
         setRejecting(false);
         setChosenLinks(record?.chosen ?? {});
         setSearching(null);
+        setWhy(null);
+        setLogOpen(false);
         setFocused(items[0]?.key ?? null);
       },
       (e: Error) => current && setError(e.message),
@@ -220,6 +227,13 @@ export default function VerifyPage() {
   const next = at >= 0 && at < siblings.length - 1 ? siblings[at + 1] : null;
 
   const unresolved = items.filter((i) => checks[i.key]?.pending).length + added.filter((a) => a.codes.length === 0).length;
+  // What the decision log tells the technician's work from.
+  const work: Work | null = view ? { view, values, chosen, added, confirmed, checks, names } : null;
+  const explain = (key: string) => {
+    const item = items.find((i) => i.key === key);
+    if (!item || !work) return [];
+    return item.kind === "field" ? explainField(item, work, t) : explainLine(item, work, t);
+  };
   const canApprove = !readOnly && !busy && view !== null && !view.decision && unresolved === 0;
 
   /** After a decision: the batch's next document to verify, or the batch. */
@@ -314,12 +328,18 @@ export default function VerifyPage() {
       }
       if (e.key === "Escape") {
         setHelp(false);
+        setLogOpen(false);
         (document.activeElement as HTMLElement | null)?.blur();
         return;
       }
       if (e.altKey && (e.key === "z" || e.key === "Z" || e.code === "KeyZ")) {
         e.preventDefault();
         toggleLens();
+        return;
+      }
+      if (e.altKey && (e.key === "l" || e.key === "L" || e.code === "KeyL")) {
+        e.preventDefault();
+        setLogOpen((o) => !o);
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
@@ -477,6 +497,9 @@ export default function VerifyPage() {
             onFocus={(k) => setFocused(k)}
             onChange={setField}
             onConfirm={toggleConfirm}
+            why={why}
+            onWhy={(k) => setWhy((w) => (w === k ? null : k))}
+            explain={explain}
                 />
               </section>
             </div>
@@ -503,6 +526,9 @@ export default function VerifyPage() {
               onEditAdded={editAdded}
               onRemoveAdded={removeAdded}
               onNames={(n) => setNames((all) => ({ ...all, ...n }))}
+              why={why}
+              onWhy={(k) => setWhy((w) => (w === k ? null : k))}
+              explain={explain}
               />
             </section>
           </div>
@@ -528,6 +554,16 @@ export default function VerifyPage() {
               }`}
             >
               {m.lens(lens)}
+            </button>
+            <button
+              type="button"
+              onClick={() => setLogOpen(true)}
+              title={t.log.buttonTitle}
+              aria-haspopup="dialog"
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50 hover:text-slate-900"
+            >
+              <ListIcon className="size-4" />
+              {t.log.button}
             </button>
             <button
               type="button"
@@ -593,6 +629,17 @@ export default function VerifyPage() {
         </footer>
       </div>
       {help && <ShortcutsDialog onClose={() => setHelp(false)} />}
+      {logOpen && (
+        <DecisionLog
+          work={work!}
+          items={items}
+          onFocus={(k) => {
+            setLogOpen(false);
+            focusItem(k);
+          }}
+          onClose={() => setLogOpen(false)}
+        />
+      )}
       {searching && (
         <RecordSearch
           kind={searching}

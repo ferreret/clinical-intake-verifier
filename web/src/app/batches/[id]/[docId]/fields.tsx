@@ -16,6 +16,8 @@ import type { RecordKind } from "@/lib/fusion/types";
 import type { ProposalView } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
 import { Check as CheckIcon, Search } from "../../../_ui/icons";
+import type { Step } from "./explain";
+import { Steps } from "./log";
 import { GROUPS, LIGHT_DOT, LINK_STYLE, type Check, type Item } from "./model";
 
 type FieldItem = Extract<Item, { kind: "field" }>;
@@ -86,6 +88,10 @@ interface FieldsProps {
   onFocus: (key: string) => void;
   onChange: (key: string, value: string) => void;
   onConfirm: (key: string) => void;
+  /** The item whose steps are unfolded under its row, and how to get an item's steps. */
+  why: string | null;
+  onWhy: (key: string) => void;
+  explain: (key: string) => Step[];
 }
 
 export function Fields(props: FieldsProps) {
@@ -140,6 +146,9 @@ function FieldRow({
   onFocus,
   onChange,
   onConfirm,
+  why,
+  onWhy,
+  explain,
 }: FieldsProps & { item: FieldItem }) {
   const { t } = useI18n();
   const f = t.fields;
@@ -170,6 +179,7 @@ function FieldRow({
     />
   );
   return (
+    <>
     <tr data-row={key} className={`align-top transition ${on ? "bg-brand-50/60" : "hover:bg-slate-50/60"}`} onClick={() => onFocus(key)}>
       <td className="relative py-2.5 pl-3">
         {on && <span className="absolute inset-y-0 left-0 w-0.5 bg-brand-600" aria-hidden />}
@@ -180,9 +190,24 @@ function FieldRow({
           {t.fieldLabel(spec)}
           {spec.required && <span className="text-slate-400"> *</span>}
         </label>
-        <span className={`block truncate text-[11px] ${fused.state === "red" ? "text-red-700" : "text-slate-500"}`} title={t.reasons[fused.reason]}>
-          {t.reasons[fused.reason]}
-        </span>
+        {/* The reason opens the item's steps of the decision log (log.tsx). */}
+        <button
+          type="button"
+          aria-expanded={why === key}
+          onClick={(e) => {
+            e.stopPropagation();
+            onWhy(key);
+          }}
+          title={`${t.reasons[fused.reason]} · ${why === key ? t.log.hide : t.log.why}`}
+          className={`flex w-full min-w-0 items-center gap-1 text-left text-[11px] underline-offset-2 hover:underline ${
+            fused.state === "red" ? "text-red-700" : "text-slate-500 hover:text-brand-700"
+          }`}
+        >
+          <span className="truncate">{t.reasons[fused.reason]}</span>
+          <span className={`shrink-0 transition ${why === key ? "rotate-90" : ""}`} aria-hidden>
+            ›
+          </span>
+        </button>
       </td>
       <td className="px-2 py-2" data-read>
         {read ?? <Empty />}
@@ -228,6 +253,15 @@ function FieldRow({
         </div>
       </td>
     </tr>
+    {why === key && (
+      <tr className="bg-slate-50/70">
+        <td />
+        <td colSpan={5} className="px-2 pt-1 pb-3">
+          <Steps steps={explain(key)} />
+        </td>
+      </tr>
+    )}
+    </>
   );
 }
 

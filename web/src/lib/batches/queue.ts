@@ -70,8 +70,8 @@ export class BatchQueue {
     try {
       const pdf = new Uint8Array(doc.origin === "bundled" ? await readBundled(doc.location) : await readUpload(doc.location));
       const { prediction, recorded } = await readDocument(pdf, doc, doc.provider);
-      const { fused, tests } = await proposeFor(db, prediction);
-      await completeDocument(db, doc.id, { prediction, fused, tests, recorded });
+      const { fused, tests, trace } = await proposeFor(db, prediction);
+      await completeDocument(db, doc.id, { prediction, fused, tests, recorded, trace });
     } catch (err) {
       await failDocument(db, doc.id, err instanceof Error ? err.message : String(err));
     }

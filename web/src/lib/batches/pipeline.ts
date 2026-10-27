@@ -18,7 +18,7 @@ import { compareKey } from "@/lib/schema/compare";
 import type { Prediction } from "@/lib/schema/prediction";
 
 import { appMode, modelCacheDir, replaySpeed, type AppMode, type Provider } from "./config";
-import type { TestProposal } from "./schema";
+import type { ProcessingTrace, TestProposal } from "./schema";
 import { recordedPrediction } from "./sources";
 
 export class ProcessingError extends Error {
@@ -112,7 +112,7 @@ export async function proposeFor(
   db: LisDb,
   prediction: Prediction,
   mode: AppMode = appMode(),
-): Promise<{ fused: FusedDocument; tests: TestProposal[] }> {
+): Promise<{ fused: FusedDocument; tests: TestProposal[]; trace: ProcessingTrace }> {
   const fused = fuse(prediction, await readSnapshot(db));
   const { catalog, index } = await catalogOf(db);
   const insurer = prediction.fields.NombreMutua?.value ?? null;
@@ -126,14 +126,24 @@ export async function proposeFor(
     : undefined;
 
   let proposals;
+  let consulted: ProcessingTrace["mapping"]["model"];
   try {
-    ({ proposals } = await proposeDocument(lines, ctx, memory, index, undefined, model));
+    const out = await proposeDocument(lines, ctx, memory, index, undefined, model);
+    proposals = out.proposals;
+    const c = out.consultation;
+    consulted = c
+      ? { status: "asked", provider: provider!.name, model: provider!.model, lines: out.model.size, cached: c.cached, latencyMs: c.latencyMs }
+      : provider || !out.proposals.some((p) => p.state === "red")
+        ? { status: "not_needed" }
+        : { status: "unavailable", provider: null, model: null, error: "no mapping model is configured" };
   } catch (err) {
     // Without the model, red lines stay red: the technician chooses their codes. In replay
     // mode that is what a request with no recorded reply gets, and says nothing worth logging.
     if (!model) throw err;
-    if (mode === "live") console.warn(`test mapping without its model: ${err instanceof Error ? err.message : String(err)}`);
+    const error = err instanceof Error ? err.message : String(err);
+    if (mode === "live") console.warn(`test mapping without its model: ${error}`);
     ({ proposals } = await proposeDocument(lines, ctx, memory, index));
+    consulted = { status: "unavailable", provider: provider!.name, model: provider!.model, error };
   }
   const tests = prediction.tests.map((t, i) => ({
     text: t.value,
@@ -142,5 +152,5 @@ export async function proposeFor(
     ...(t.box_source ? { box_source: t.box_source } : {}),
     mapping: proposals[i],
   }));
-  return { fused, tests };
+  return { fused, tests, trace: { mapping: { ...ctx, policy: "red", model: consulted } } };
 }

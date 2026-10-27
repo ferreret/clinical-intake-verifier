@@ -1564,12 +1564,11 @@ everything a batch left goes with it, except what the mapping memory learned
 (`docs/workflow.md`). In a real lab, approved requests would not be deletable; here the
 sandbox is a place to try things out.
 
-**Proposed: a decision log.** Per document, why each value and code was proposed: the
-reading (model, attempts, boxes, warnings), the links to the records and on what keys, each
-field's comparison and the rule that set its colour, and each line through memory, search
-(candidates and scores) and model. Part of it is not stored today (search scores, the model
-consultation), so it has to be recorded when the document is processed. Next, after the
-tests editing.
+**The decision log, 2026-10-27, at the product owner's request** (`docs/workflow.md`): for each
+field and line, the steps from the reading to the proposal and what the technician did,
+under its row or in a panel for the whole document. What changes over time (the memory, the
+model's consultation) is recorded when the document is processed; the rest is derived from
+what is stored. Checked with a test of the steps and in the browser at 1920 px.
 
 **Open points found while building it, for later blocks:**
 

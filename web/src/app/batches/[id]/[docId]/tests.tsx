@@ -7,13 +7,15 @@
  * approval records that it was read and left out. Tests the form asks for but the reading
  * missed are added by hand, with no page or box.
  */
-import type { ReactNode, RefObject } from "react";
+import { Fragment, type ReactNode, type RefObject } from "react";
 
 import type { ProposalView } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
 import { Plus, Retry, X } from "../../../_ui/icons";
 import { CodeEditor } from "./codes";
 import { ConfirmToggle } from "./fields";
+import type { Step } from "./explain";
+import { Steps, WhyButton } from "./log";
 import { LIGHT_DOT, type Check, type Item } from "./model";
 
 type TestItem = Extract<Item, { kind: "test" }>;
@@ -47,6 +49,9 @@ export function Tests({
   onEditAdded,
   onRemoveAdded,
   onNames,
+  why,
+  onWhy,
+  explain,
 }: {
   view: ProposalView;
   items: TestItem[];
@@ -66,6 +71,9 @@ export function Tests({
   onEditAdded: (key: string, patch: Partial<Omit<AddedLine, "key">>) => void;
   onRemoveAdded: (key: string) => void;
   onNames: (names: Record<string, string>) => void;
+  why: string | null;
+  onWhy: (key: string) => void;
+  explain: (key: string) => Step[];
 }) {
   const { t } = useI18n();
   const m = t.tests;
@@ -113,7 +121,8 @@ export function Tests({
             const dropped = codes === null;
             const source = mapping.source ? t.mappingSource[mapping.source] : t.server(mapping.reason);
             return (
-              <tr key={i.key} data-row={i.key} className={rowStyle(on)} onClick={() => onFocus(i.key)}>
+              <Fragment key={i.key}>
+              <tr data-row={i.key} className={rowStyle(on)} onClick={() => onFocus(i.key)}>
                 <td className="relative py-2.5 pl-3">
                   {marker(on)}
                   <span className={`mt-1 block size-2.5 rounded-full ${dropped ? "bg-slate-200" : LIGHT_DOT[mapping.state]}`} title={source} />
@@ -122,7 +131,10 @@ export function Tests({
                   <div className={`truncate text-[13px] font-medium ${dropped ? "text-slate-400 line-through" : "text-slate-800"}`} title={line.text}>
                     {line.text}
                   </div>
-                  <div className="text-[11px] text-slate-400">{line.page ? t.fields.page(line.page) : m.noPage}</div>
+                  <div className="flex items-baseline gap-2 text-[11px] text-slate-400">
+                    {line.page ? t.fields.page(line.page) : m.noPage}
+                    <WhyButton open={why === i.key} onClick={() => onWhy(i.key)} />
+                  </div>
                 </td>
                 <td className={`hidden px-2 py-2 @min-[44rem]:table-cell ${dropped ? "opacity-40" : ""}`}>
                   <div className="flex flex-wrap gap-1">{mapping.codes ? mapping.codes.map(codeChip) : <span className="text-xs font-medium text-red-700">{m.noneChoose}</span>}</div>
@@ -171,6 +183,15 @@ export function Tests({
                   </div>
                 </td>
               </tr>
+              {why === i.key && (
+                <tr className="bg-slate-50/70">
+                  <td />
+                  <td colSpan={4} className="px-2 pt-1 pb-3">
+                    <Steps steps={explain(i.key)} />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             );
           })}
           {added.map((a) => {

@@ -32,6 +32,10 @@ import { loadCatalog } from "@/lib/mapping/catalog";
 import { DbMemory } from "@/lib/mapping/memory";
 import { textKey } from "@/lib/mapping/propose";
 import { FIELD_NAMES, FIELDS } from "@/lib/schema/fields";
+
+import { en } from "@/app/_ui/messages/en";
+import { explainField, explainLine } from "@/app/batches/[id]/[docId]/explain";
+import { itemsOf } from "@/app/batches/[id]/[docId]/model";
 import type { Prediction } from "@/lib/schema/prediction";
 
 let root: string;
@@ -185,6 +189,11 @@ describe("the queue", () => {
       ["Glucosa", ["BQ0001"]],
       ["Hemograma", null],
     ]);
+    // What the decision log needs and cannot derive later: the memory as it was, the model's consultation.
+    expect(proposal.tests[0].mapping.seen).toMatchObject({ memory: [], elsewhere: [], search: { minScore: 0.55 } });
+    expect(proposal.trace).toMatchObject({
+      mapping: { scope: "A1", language: "es", policy: "red", model: { status: "unavailable", error: "no recorded reply for this request" } },
+    });
     const [summary] = await listBatches(db);
     expect(summary).toMatchObject({ documents: 1, states: { awaiting_verification: 1, queued: 0 } });
     expect((await summarise(db, [documents[0].id])).get(documents[0].id)).toMatchObject({
@@ -220,6 +229,36 @@ describe("the queue", () => {
     await db.update(batchDocuments).set({ state: "extracting" }).where(eq(batchDocuments.batchId, batch.id));
     expect(await requeueInterrupted(db)).toBe(1);
     expect((await getBatch(db, batch.id))!.documents[0].state).toBe("queued");
+  });
+});
+
+describe("the decision log", () => {
+  it("tells each field and line's steps from what was recorded when the document was processed", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [doc] = (await getBatch(db, batch.id))!.documents;
+    const proposal = (await getProposal(db, doc.id))!;
+    const view = { document: doc, batch: null, proposal, codes: { BQ0001: "Glucosa" }, records: { P1: { id: "P1", kind: "patient" as const, title: "María García López", detail: "" } }, siblings: [], decision: null };
+    const work = { view, values: {}, chosen: {}, added: [], confirmed: new Set<string>(), checks: {}, names: view.codes };
+    const items = itemsOf(view);
+    const step = (steps: { kind: string; text: string }[], kind: string) => steps.filter((s) => s.kind === kind).map((s) => s.text);
+
+    const name = explainField(items.find((i) => i.key === "f:Paciente") as Extract<(typeof items)[number], { kind: "field" }>, work, en);
+    expect(step(name, "records")).toEqual(["María García López holds “María García López”."]);
+    expect(step(name, "compare")[0]).toMatch(/^as names, in any order: .*the same\.$/);
+    expect(step(name, "rule")).toEqual(["The document and the lab's records agree: green."]);
+
+    const glucosa = explainLine(items.find((i) => i.key === "t:0") as Extract<(typeof items)[number], { kind: "test" }>, work, en);
+    expect(step(glucosa, "memory")).toEqual(["Never approved for this insurer."]);
+    expect(step(glucosa, "search")[1]).toMatch(/it stands out, orange\.$/);
+    expect(step(glucosa, "model")).toEqual(["Not asked: only lines left red go to the model."]);
+    const hemograma = explainLine(items.find((i) => i.key === "t:1") as Extract<(typeof items)[number], { kind: "test" }>, work, en);
+    expect(step(hemograma, "model")).toEqual(["Could not be asked (no recorded reply for this request): the line stays red."]);
+    expect(step(hemograma, "result")).toEqual(["Red: no codes proposed."]);
   });
 });
 
