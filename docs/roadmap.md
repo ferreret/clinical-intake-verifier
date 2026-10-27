@@ -687,7 +687,7 @@ grounding, one value in three would still be highlighted in the wrong place.
 as Gemini, so its case for privacy holds on values; for the boxes the UI depends on, it is not
 yet good enough.
 
-Proposed after the experiments, not approved:
+Proposed after the experiments; the product owner's answers of 2026-10-27 are in the next part:
 
 1. **Grounding on by default for the local provider**, and the 200 documents rerun with it
    (about 10 hours on this machine) to confirm the 20-document result.
@@ -697,6 +697,63 @@ Proposed after the experiments, not approved:
 3. **Gemma 4 26B-A4B** on the same 20 documents, the comparison proposed earlier and not run.
 4. **"Γ-GT" read as "G-GT"** is left to the test mapping (F4), which matches candidates by
    trigrams and should land on the same code; to be checked there rather than in the prompt.
+
+**Decisions of 2026-10-27.** Instead of grounding (1), the product owner proposed locating the
+values with a plain OCR of the page, matching texts by similarity and distance; to be looked at
+first, and the UI question (2) after it. Gemma 4 (3) approved, not started. "Γ-GT" left to the
+test mapping (4): approved.
+
+**OCR boxes, measured on 2026-10-27.** A prototype, outside the repository, that rewrites only
+the boxes of an existing run, so the 200 Qwen v6 predictions were reused without calling the
+model again:
+
+1. Each page rendered at 300 dpi and read by Tesseract (tesseract.js 7, WebAssembly from npm,
+   Spanish and Catalan data from npm too: no system tool, nothing downloaded at run time).
+2. For each value the model read: every run of consecutive words on an OCR line, compared with
+   the value on letters and digits only (accents, case, spaces and punctuation ignored), by
+   edit distance. Score = similarity − 2 × distance from the model's own box centre. The best
+   run with similarity ≥ 0.7 gives the box.
+3. Values of three characters or fewer ("TSH", "37", "M") must match exactly and lie within 15%
+   of the page of the model's box, since they occur everywhere.
+4. The normalised fields are also looked for as printed: a date as `1985-05-09` or
+   `01-maig-1971`, sex as "Mujer", "Home", "Dona", "[X] Masculí", the doctor with "Dr." or "Dra.".
+5. The model's page first; when nothing matches there, the other pages without the distance
+   term. No match anywhere: the model's box stays.
+
+Tuned on the first 20 documents (23% → 85% on the first try, 92% after points 3 to 5), then run
+once on all 200:
+
+| Measure | Qwen v6 | **Qwen v6 + OCR boxes** | Gemini v6 |
+|---|---|---|---|
+| Boxes at IoU ≥ 0.5, 200 documents | 26.0% | **92.4%** (3,356 of 3,632) | 99.4% |
+| The 180 not used for tuning | 26.4% | **92.5%** | — |
+| Median IoU | 0.20 | **0.77** | 0.76 |
+| Fields / tests at IoU ≥ 0.5 | — | 93.9% / 90.5% | — |
+| Scanned / clean / handwritten (fields) | 36% / 29% / 26% | 92.5% / 95.5% / 91.6% | 99.4% / 99.9% / 99.0% |
+| Centre inside the value's box | 41.7% | **91.6%** | 99.6% |
+| Values | — | unchanged (0 flipped) | — |
+| Added time | — | about 1.3 s per document on 8 CPU workers | — |
+
+What is still missed: short tests on scanned pages that the OCR did not read at all, a few
+dates in a format not listed, a value printed twice with the near one taken, and pages the
+model got wrong where the OCR also missed the value. The synthetic handwriting is a script
+font; real handwriting will be harder for Tesseract, and there the model's box stays.
+
+**Reading.** Better than grounding (52%) at about a hundredth of its time, and it needs no
+model call: the model reads, the OCR places. It also fits the project's stance: the box is
+evidence from a second source, not the model's word.
+
+Proposed, not approved: **OCR boxes in the extractor.**
+
+- `ocr.ts` (pages to words with tesseract.js) and `locate.ts` (the matching above) next to
+  `grounding.ts`; on by default for the local provider, `--ocr-boxes` to measure it on Gemini
+  too. tesseract.js and the two language packages as dependencies, pinned.
+- The printed forms of the normalised fields (date formats, sex words, doctor's titles) in
+  `schema/fields.json`, the single place for field configuration, not in code.
+- The prediction records where each box came from (`model` or `ocr`), since provenance is part
+  of the product; a change to the prediction schema and to `docs/extractor-contract.md`.
+- Grounding stays as an experiment flag, not adopted.
+- Measured as now: the 200 Qwen v6 predictions rewritten and scored with `--baseline`.
 
 
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
