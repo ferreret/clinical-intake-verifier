@@ -15,6 +15,13 @@
       "when": 1792765773026,
       "tag": "0001_mapping",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793096978452,
+      "tag": "0002_batches",
+      "breakpoints": true
     }
   ]
 }

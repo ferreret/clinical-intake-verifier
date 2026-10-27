@@ -14,7 +14,7 @@ Last updated: 2026-10-27.
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
 | F4 | Mock LIS, fusion engine and test mapping | done: blocks 1 to 6, measured end to end on real readings (below) |
-| F5 | Batches and verification UI | not started; batch workflow designed (section 5) |
+| F5 | Batches and verification UI | block 1 of 4 done: batches and queue, through the API (section 5) |
 | F6 | Public demo on a self-hosted Dokploy | not started |
 
 Local open-weight vision models were approved on 2026-10-26 as the top priority, ahead of
@@ -1384,5 +1384,46 @@ to the queue.
    - The request created in `mock-lis`.
    - The mapping memory fed.
    - On to the next document.
+
+**Block 1 done on 2026-10-27: batches and queue**, described in `docs/workflow.md` (the
+code is in `web/src/lib/batches/`).
+
+- **One SQLite database per workspace,** copied from the seeded LIS template. A sandbox is
+  therefore apart in everything (batches, decisions, LIS requests, memory) without a
+  workspace column in any table. Sandboxes are swept 24 hours after their last use.
+- **The queue is the documents' state;** no separate jobs table. A worker in the server
+  process takes queued documents across workspaces: 4 at a time for Gemini, 1 for the local
+  model. When the server starts, `src/instrumentation.ts` queues again what was left
+  extracting.
+- **The chain:**
+  1. **Reading:** the extractor live, or in replay mode its recorded prediction, found by the
+     PDF's hash in an extractor run and served after the latency measured when recorded.
+  2. **Fusion** against the workspace's LIS.
+  3. **Mapping:** memory, search, then the model on red lines. In replay mode the mapping
+     model answers from its cached replies only; without one, the line stays red.
+
+  The result is stored as the proposal.
+- **Tables:** `batches`, `batch_documents`, `proposals` and `decisions` (written once, used in
+  block 4), plus `requests` in the mock LIS. Migration `0002_batches`.
+- **The API:** session (technician picked from three synthetic ones), bundled documents,
+  batches (JSON, or multipart with uploads in live mode), retry, the proposal and the PDF.
+- **Checked:**
+  - 6 tests (replay, failure and retry, interrupted documents, sandboxes apart, sweep).
+  - On the dev server: three Gemini documents replayed in about 9 s each, with their full
+    proposals; a second visitor sees no batch; a local-model batch stopped mid-document is
+    picked up again on restart.
+  - `next build` and `next start`: the queue resumes, and both providers advance
+    independently.
+
+**Open points found while building it, for later blocks:**
+
+- **Form language.** The extractor does not report it, so the mapping model is told
+  "Spanish" for every form. F4's measurement gave the model the right language, so the cost
+  on Catalan forms is not measured.
+- **Replies the demo needs.** A sandbox starts with an empty memory, so which lines are red,
+  and the mapping model's prompts, depend on the order of the visitor's approvals; a reply
+  recorded for one order may not match another. F6 has to record the replies for the
+  bundled set, and decide whether sandboxes start from a seeded memory (the decision of
+  2026-10-27 says they do; the template has none yet).
 
 F6 then records the replies for the bundled set, deploys on Dokploy and writes the README.

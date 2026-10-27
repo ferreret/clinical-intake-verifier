@@ -51,3 +51,21 @@ export const insurerAliases = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.insurerId, t.alias] })],
 );
+
+/**
+ * The requests the lab registered. One is written when a technician approves a document
+ * (F5), with the values and test codes exactly as approved: the end of the loop.
+ */
+export const requests = sqliteTable("requests", {
+  id: text("id").primaryKey(),
+  /** The decision that approved it, in the workflow's tables. */
+  decisionId: text("decision_id").notNull(),
+  patientId: text("patient_id"),
+  physicianId: text("physician_id"),
+  insurerId: text("insurer_id"),
+  /** Field name to approved value. */
+  fields: text("fields", { mode: "json" }).$type<Record<string, string | null>>().notNull(),
+  /** Each requested line with its approved codes. */
+  tests: text("tests", { mode: "json" }).$type<{ text: string; codes: string[] }[]>().notNull(),
+  createdAt: text("created_at").notNull(),
+});

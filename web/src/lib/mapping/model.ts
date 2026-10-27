@@ -240,7 +240,8 @@ export async function consult(
         reply = await provider.complete(prompt.system, prompt.user, prompt.schema);
         break;
       } catch (err) {
-        if (attempt >= 3) throw err;
+        // A provider that knows it cannot answer (replay mode, no recorded reply) is not retried.
+        if (attempt >= 3 || (err as { retryable?: boolean }).retryable === false) throw err;
         await new Promise((r) => setTimeout(r, 2000 * attempt));
       }
     }

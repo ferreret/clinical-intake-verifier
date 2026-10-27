@@ -2,7 +2,6 @@
  * Opening the mock LIS and loading it from the generator's `lis.json`.
  */
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
@@ -12,7 +11,8 @@ import * as schema from "./schema";
 
 export const LIS_VERSION = 1;
 
-const MIGRATIONS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../drizzle");
+/** Resolved from the working directory, web/, like render.ts's fonts: also right once bundled. */
+const MIGRATIONS = path.join(process.cwd(), "drizzle");
 
 /** The shape of `lis.json`, as `synth/src/intake_synth/generate/lis.py` writes it. */
 export interface LisFile {
