@@ -782,6 +782,42 @@ the operator knows which is which.
 Checked end to end: `next build`, and `POST /api/extract` with the local provider on the built
 server (14 boxes from the OCR, 2 from the model, no warning).
 
+**Gemma 4 26B-A4B, measured on 2026-10-27** (proposal 3, approved). The QAT build in LM
+Studio, same prompt v6, 150 dpi, OCR boxes on, the first 20 documents of `seed-42`.
+
+The manual check came first. Gemma writes Gemini's `box_2d`, `[ymin, xmin, ymax, xmax]` on
+0–1000, even when asked for Qwen's `bbox_2d`. Its horizontal positions are right; its vertical
+ones read about 10% too high. So a local model named Gemma is now asked in Gemini's convention
+(`localBoxes` in `response-schema.ts`). Like Qwen, it writes an absent field as a bare `null`,
+so those shorthands are now read for any local model, whatever its convention.
+
+| Run (same 20 documents) | Qwen 3.6 35B-A3B + OCR | Gemma 4 26B-A4B + OCR (`20261027-gemma-4-26b-a4b-p6`) |
+|---|---|---|
+| Documents read | 20 of 20 | 19 of 20 (1 invalid JSON, both attempts) |
+| Fields precision / recall | 99.5% / 99.5% | 97.9% / 97.4% |
+| Invented | 0 of 54 | 0 of 51 |
+| Tests P / R / F1 | 99.4% / 99.4% / 99.4% | 98.6% / 93.9% / 96.2% |
+| Exact test list | 19 of 20 | 15 of 19 |
+| Boxes at IoU ≥ 0.5 | 91.2% (341 of 374) | 87.2% (287 of 329) |
+| Time per document | 83 s | 80 s |
+
+Gemma's errors:
+
+- **Tests left out at the end of the list.** 8 tests on 3 documents, among them the last 4 of
+  a four-page document and both tests of a second column.
+- **Two test lines merged into one.**
+- **Two birth dates written as `yyyy-mm-dd`.** The `pattern_mismatch` warning caught both.
+- **One digit dropped from a request number.**
+- **One typo:** "Activitad".
+- **One sex wrong and one telephone missed.**
+- **One reply had missing `{` before items**, in both attempts.
+
+On the failed document it also kept the "- " list bullets in front of the tests.
+
+**Verdict:** Gemma is no faster on this machine and is less accurate on every count, so Qwen
+stays the local model. The 200-document run is not worth doing. The change of convention
+stays, so Gemma can still be selected with `LOCAL_LLM_MODEL`.
+
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
 **Status: proposed and approved on 2026-10-23, with every decision settled (at the end).
