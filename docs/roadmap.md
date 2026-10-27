@@ -1505,6 +1505,11 @@ go on from it step by step.
   3840 px the four pages, the 13 fields and the 24 lines of `synth-000003` fit on one screen
   without scrolling.
 
+**The lens, 2026-10-27, at the product owner's request.** When an item is in focus, a
+magnified window of the page shows where its value was read. The window sits beside the item,
+and a line runs from it to the value's box in the viewer. It is switched with Alt+Z.
+Screenshots at 1920 and 2560 px checked it.
+
 **Open points found while building it, for later blocks:**
 
 - **Form language.** The extractor does not report it, so the mapping model is told

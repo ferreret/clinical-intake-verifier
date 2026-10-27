@@ -69,12 +69,12 @@ export function Tests({
             const candidates = m.candidates.filter((c) => codesKey(c.codes) !== codesKey(m.codes)).slice(0, 12);
             const source = m.source ? MAPPING_SOURCE[m.source] : m.reason;
             return (
-              <tr key={i.key} className={`align-top transition ${on ? "bg-brand-50/60" : "hover:bg-slate-50/60"}`} onClick={() => onFocus(i.key)}>
+              <tr key={i.key} data-row={i.key} className={`align-top transition ${on ? "bg-brand-50/60" : "hover:bg-slate-50/60"}`} onClick={() => onFocus(i.key)}>
                 <td className="relative py-2.5 pl-3">
                   {on && <span className="absolute inset-y-0 left-0 w-0.5 bg-brand-600" aria-hidden />}
                   <span className={`mt-1 block size-2.5 rounded-full ${LIGHT_DOT[m.state]}`} title={source} />
                 </td>
-                <td className="px-2 py-2">
+                <td className="px-2 py-2" data-read>
                   <div className={`truncate text-[13px] font-medium ${removed ? "text-slate-400 line-through" : "text-slate-800"}`} title={line.text}>
                     {line.text}
                   </div>

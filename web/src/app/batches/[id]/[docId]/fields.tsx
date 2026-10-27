@@ -132,7 +132,7 @@ function FieldRow({ view, item, values, touched, focused, readOnly, inputs, onFo
     />
   );
   return (
-    <tr className={`align-top transition ${on ? "bg-brand-50/60" : "hover:bg-slate-50/60"}`} onClick={() => onFocus(key)}>
+    <tr data-row={key} className={`align-top transition ${on ? "bg-brand-50/60" : "hover:bg-slate-50/60"}`} onClick={() => onFocus(key)}>
       <td className="relative py-2.5 pl-3">
         {on && <span className="absolute inset-y-0 left-0 w-0.5 bg-brand-600" aria-hidden />}
         <span className={`mt-1 block size-2.5 rounded-full ${LIGHT_DOT[fused.state]}`} title={REASON[fused.reason]} />
@@ -146,7 +146,7 @@ function FieldRow({ view, item, values, touched, focused, readOnly, inputs, onFo
           {REASON[fused.reason]}
         </span>
       </td>
-      <td className="px-2 py-2">
+      <td className="px-2 py-2" data-read>
         {read ?? <Empty />}
         {/* Narrow: the records' value goes under what was read. */}
         {lis && <div className="mt-1 @min-[56rem]:hidden">{lis}</div>}

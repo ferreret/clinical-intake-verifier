@@ -17,6 +17,7 @@ import { ArrowLeft, ArrowRight, FileText } from "../../../_ui/icons";
 import { useSession } from "../../../_ui/session";
 import { StateBadge } from "../../../_ui/states";
 import { Fields, Links } from "./fields";
+import { Lens } from "./lens";
 import { itemsOf, type Light } from "./model";
 import { Tests, type Chosen } from "./tests";
 import { Viewer } from "./viewer";
@@ -35,6 +36,24 @@ export default function VerifyPage() {
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [focused, setFocused] = useState<string | null>(null);
   const [help, setHelp] = useState(false);
+  // The lens (lens.tsx) is on unless the technician turned it off; remembered in this browser.
+  const [lens, setLens] = useState(() => {
+    try {
+      return typeof window === "undefined" || window.localStorage.getItem("civ.lens") !== "off";
+    } catch {
+      return true;
+    }
+  });
+  const toggleLens = useCallback(() => {
+    setLens((on) => {
+      try {
+        window.localStorage.setItem("civ.lens", on ? "off" : "on");
+      } catch {
+        // Storage may be blocked; the switch still works for this page.
+      }
+      return !on;
+    });
+  }, []);
   const inputs = useRef(new Map<string, HTMLElement>());
 
   const open = useCallback(
@@ -71,6 +90,18 @@ export default function VerifyPage() {
     [items, view],
   );
   const readOnly = lock?.status !== "mine";
+  const labels = useMemo(
+    () =>
+      Object.fromEntries(
+        items.map((i) => [
+          i.key,
+          i.kind === "field"
+            ? { label: i.spec.label, read: i.fused.ai?.value ?? "" }
+            : { label: `Test line ${i.index + 1}`, read: view!.proposal.tests[i.index].text },
+        ]),
+      ),
+    [items, view],
+  );
 
   const focusItem = useCallback((key: string, moveCaret = true) => {
     setFocused(key);
@@ -115,6 +146,11 @@ export default function VerifyPage() {
         (document.activeElement as HTMLElement | null)?.blur();
         return;
       }
+      if (e.altKey && (e.key === "z" || e.key === "Z" || e.code === "KeyZ")) {
+        e.preventDefault();
+        toggleLens();
+        return;
+      }
       if (!e.altKey || items.length === 0) return;
       const at = Math.max(0, items.findIndex((i) => i.key === focused));
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -137,7 +173,7 @@ export default function VerifyPage() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [items, focused, readOnly, next, prev, batchId, leave, focusItem]);
+  }, [items, focused, readOnly, next, prev, batchId, leave, focusItem, toggleLens]);
 
   if (error) return <p className="text-sm text-rose-700">{error}</p>;
   if (!view) {
@@ -268,6 +304,16 @@ export default function VerifyPage() {
               )}
               {touched.size > 0 && <> · {touched.size} change{touched.size === 1 ? "" : "s"}</>}
             </span>
+            <button
+              type="button"
+              onClick={toggleLens}
+              title="A magnified view of where the focused value was read, joined to it on the page (Alt+Z)"
+              className={`hidden rounded-md px-2 py-1 text-xs font-medium ring-1 transition lg:inline-flex ${
+                lens ? "bg-brand-50 text-brand-700 ring-brand-200" : "text-slate-500 ring-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              Lens {lens ? "on" : "off"}
+            </button>
             <button type="button" onClick={() => setHelp((h) => !h)} className="text-xs text-slate-500 underline-offset-2 hover:underline">
               Shortcuts <kbd className="rounded bg-slate-100 px-1 font-mono">?</kbd>
             </button>
@@ -292,6 +338,15 @@ export default function VerifyPage() {
           {help && <Shortcuts />}
         </footer>
       </div>
+      <Lens
+        documentId={docId}
+        pages={view.proposal.prediction.pages}
+        items={items}
+        lights={lights}
+        focused={focused}
+        labels={labels}
+        enabled={lens}
+      />
     </div>
   );
 }
@@ -325,6 +380,7 @@ function Shortcuts() {
     ["Tab / Shift + Tab", "Next or previous input"],
     ["Alt + 1 / Alt + 2", "In a conflict, take the document's or the records' value"],
     ["Alt + → / ←", "Next or previous document of the batch"],
+    ["Alt + Z", "Lens on or off: the value's source, magnified and joined to the page"],
     ["Esc", "Leave the input; close this list"],
   ];
   return (

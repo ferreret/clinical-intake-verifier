@@ -118,12 +118,19 @@ session shell and the state badges.
       model);
     - **Selected:** the codes kept, another catalog candidate, or the line dropped when it is
       not a test.
+  - **The lens** (`lens.tsx`). For the item in focus, a window shows the part of the page
+    where its value was read, magnified, with the box drawn. The window sits beside the item
+    in the table, and a line joins it to the box in the viewer, dashed when the box is
+    approximate. Both follow the scrolling of the table and of the viewer. It is shown on
+    wide layouts only, and turned on or off with Alt+Z or the "Lens" switch, which this
+    browser remembers. Asked for by the product owner, after a pattern a colleague uses in
+    their own applications.
   - **Built for wide screens (1920 to 3840 px).** Below 2560 px, the document is on the left
     and the proposal on the right. From there up, the proposal splits into fields and tests
     side by side, and from about 2300 px of viewer the pages go two by two. The tables narrow
     with their container: the records go under what was read, then the proposed column goes.
   - **Keyboard:** Alt+↓/↑ next and previous item, Alt+→/← next and previous document of the
-    batch, Esc to leave an input, ? for the list.
+    batch, Alt+Z the lens, Esc to leave an input, ? for the list.
   - **Footer:** what is left to resolve (a red or required field still empty, a line with no
     codes), "Leave for later", and the approval, which comes with block 4.
 
