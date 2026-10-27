@@ -10,6 +10,7 @@ import { fuse } from "@/lib/fusion/fuse";
 import { readSnapshot } from "@/lib/lis/snapshot";
 import { approveDocument, getDecision, rejectDocument, type ApprovalInput } from "@/lib/batches/decide";
 import { BatchQueue } from "@/lib/batches/queue";
+import { deleteBatch } from "@/lib/batches/remove";
 import { batchDocuments } from "@/lib/batches/schema";
 import { describeBundled, listBundled } from "@/lib/batches/sources";
 import {
@@ -375,5 +376,35 @@ describe("decisions", () => {
     });
     expect((await getBatch(db, batch.id))!.documents[1].state).toBe("rejected");
     expect(await getProposal(db, second.id)).not.toBeNull();
+  });
+});
+
+describe("deleting a batch", () => {
+  it("takes away its documents, proposals, decisions and registered requests, but not what the memory learned", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const doc = await newDoc("doc-a.pdf");
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [doc, doc] });
+    const keep = await createBatch(db, { name: "Keep", provider: "gemini", createdBy: "T01", documents: [doc] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [one] = (await getBatch(db, batch.id))!.documents;
+    await openDocument(db, one.id, "T01");
+    expect(await approveDocument(db, one.id, "T01", resolved((await getProposal(db, one.id))!))).toMatchObject({ ok: true });
+    expect(await db.select().from(requests)).toHaveLength(1);
+
+    await db.update(batchDocuments).set({ state: "extracting" }).where(eq(batchDocuments.id, (await getBatch(db, batch.id))!.documents[1].id));
+    expect(await deleteBatch(db, batch.id)).toEqual({ ok: false, reason: "reading" });
+    await db.update(batchDocuments).set({ state: "awaiting_verification" }).where(eq(batchDocuments.batchId, batch.id));
+
+    expect(await deleteBatch(db, batch.id)).toEqual({ ok: true });
+    expect(await getBatch(db, batch.id)).toBeNull();
+    expect(await getProposal(db, one.id)).toBeNull();
+    expect(await getDecision(db, one.id)).toBeNull();
+    expect(await db.select().from(requests)).toHaveLength(0);
+    expect(await new DbMemory(db).lookup("A1", textKey("Glucosa"))).toHaveLength(1);
+    expect((await listBatches(db)).map((b) => b.id)).toEqual([keep.id]);
+    expect(await deleteBatch(db, batch.id)).toEqual({ ok: false, reason: "missing" });
   });
 });

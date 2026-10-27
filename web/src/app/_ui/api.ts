@@ -93,6 +93,7 @@ export const api = {
     for (const f of input.files) form.append("files", f);
     return call<{ batch: Batch }>("/api/batches", { method: "POST", body: form });
   },
+  deleteBatch: (id: string) => call<{ deleted: boolean }>(`/api/batches/${id}`, { method: "DELETE" }),
   retry: (documentId: string) => call<unknown>(`/api/documents/${documentId}/retry`, { method: "POST" }),
   proposal: (documentId: string) => call<ProposalView>(`/api/documents/${documentId}/proposal`),
   open: (documentId: string, takeOver = false) =>

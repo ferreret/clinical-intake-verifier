@@ -127,6 +127,20 @@ export const es: Messages = {
       "Todos los documentos, personas y mutuas de aquí son sintéticos, generados por el proyecto. Cifras medidas: 200 peticiones sintéticas, leídas y comprobadas de principio a fin.",
   },
 
+  deleteBatch: {
+    button: "Borrar lote",
+    buttonTitle: "Borrar este lote y todo lo que dejó",
+    title: (name) => `¿Borrar «${name}»?`,
+    documents: (n) => `Se borran ${n === 1 ? "su documento" : `sus ${n} documentos`} y lo que se propuso para ${n === 1 ? "él" : "ellos"}.`,
+    decided: (approved, rejected) =>
+      `También ${approved} ${approved === 1 ? "aprobación" : "aprobaciones"} y ${rejected} ${rejected === 1 ? "rechazo" : "rechazos"}, y las peticiones que las aprobaciones registraron en mock-lis.`,
+    memory: "Lo que la memoria del mapeo de pruebas aprendió de sus aprobaciones se conserva.",
+    reading: "Aún se están leyendo documentos: bórralo cuando terminen.",
+    cancel: "Cancelar",
+    confirm: "Borrar el lote",
+    deleting: "Borrando…",
+  },
+
   batches: {
     subtitle: "Cada documento se lee, se comprueba contra los registros del laboratorio y se mapea a sus códigos; después te espera.",
     newBatch: "Nuevo lote",

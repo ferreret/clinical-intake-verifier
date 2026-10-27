@@ -5,13 +5,14 @@
  * them and how their fields and lines came out. Refreshed while any document is moving.
  */
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ACTIVE_STATES, api, type BatchDetail, type DocumentState } from "../../_ui/api";
 import { useI18n } from "../../_ui/i18n";
 import { Avatar } from "../../_ui/avatar";
-import { ArrowRight, Clock, Cloud, Cpu, FileText, Retry, Upload } from "../../_ui/icons";
+import { DeleteBatchDialog } from "../../_ui/delete-batch";
+import { ArrowRight, Clock, Cloud, Cpu, FileText, Retry, Trash, Upload } from "../../_ui/icons";
 import { usePolling } from "../../_ui/polling";
 import { BackLink, PageHeader, useSession } from "../../_ui/session";
 import { BAR_ORDER, LightCounts, StateBadge, StatesBar, StatesLegend } from "../../_ui/states";
@@ -24,6 +25,8 @@ export default function BatchPage() {
   const [retrying, setRetrying] = useState<string | null>(null);
   const { t } = useI18n();
   const m = t.batch;
+  const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
 
   const load = () => api.batch(id).then(setDetail, (e: Error) => setError(e.message));
   useEffect(() => void load(), [id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -69,6 +72,16 @@ export default function BatchPage() {
       <PageHeader
         back={<BackLink href="/batches">{t.common.batches}</BackLink>}
         title={batch.name}
+        action={
+          <button
+            type="button"
+            onClick={() => setDeleting(true)}
+            title={t.deleteBatch.buttonTitle}
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-rose-700 ring-1 ring-rose-200 transition hover:bg-rose-50"
+          >
+            <Trash className="size-4" /> {t.deleteBatch.button}
+          </button>
+        }
         subtitle={
           <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <span className="inline-flex items-center gap-1.5">
@@ -206,6 +219,9 @@ export default function BatchPage() {
       <p className="mt-3 text-xs text-slate-500">
         {m.note}
       </p>
+      {deleting && (
+        <DeleteBatchDialog batch={batch} states={states} onCancel={() => setDeleting(false)} onDeleted={() => router.push("/batches")} />
+      )}
     </>
   );
 }

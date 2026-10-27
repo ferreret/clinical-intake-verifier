@@ -1559,6 +1559,11 @@ stay in English.
   case found in block 4: a patient only offered as a candidate can now be linked by the
   technician, and the request then carries the patient's record.
 
+**Deleting batches, 2026-10-27, at the product owner's request,** to clear away trials:
+everything a batch left goes with it, except what the mapping memory learned
+(`docs/workflow.md`). In a real lab, approved requests would not be deletable; here the
+sandbox is a place to try things out.
+
 **Proposed: a decision log.** Per document, why each value and code was proposed: the
 reading (model, attempts, boxes, warnings), the links to the records and on what keys, each
 field's comparison and the rule that set its colour, and each line through memory, search

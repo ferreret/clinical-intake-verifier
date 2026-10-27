@@ -6,8 +6,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { ACTIVE_STATES, api, type BatchSummary, type DocumentState } from "../_ui/api";
+import { DeleteBatchDialog } from "../_ui/delete-batch";
 import { useI18n } from "../_ui/i18n";
-import { ArrowRight, Cloud, Cpu, Plus } from "../_ui/icons";
+import { ArrowRight, Cloud, Cpu, Plus, Trash } from "../_ui/icons";
 import { usePolling } from "../_ui/polling";
 import { PageHeader } from "../_ui/session";
 import { StatesBar, StatesLegend } from "../_ui/states";
@@ -16,6 +17,7 @@ export default function BatchesPage() {
   const [batches, setBatches] = useState<BatchSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { t } = useI18n();
+  const [deleting, setDeleting] = useState<BatchSummary | null>(null);
   const moving = batches?.some((b) => ACTIVE_STATES.some((s) => b.states[s] > 0)) ?? false;
 
   const load = () => api.batches().then((r) => setBatches(r.batches), (e: Error) => setError(e.message));
@@ -78,10 +80,10 @@ export default function BatchesPage() {
           const ProviderIcon = b.provider === "gemini" ? Cloud : Cpu;
           const toVerify = b.states.awaiting_verification;
           return (
-            <li key={b.id}>
+            <li key={b.id} className="group/item relative">
               <Link
                 href={`/batches/${b.id}`}
-                className="card group block p-4 transition hover:-translate-y-px hover:shadow-[var(--shadow-lift)] sm:p-5"
+                className="card group block p-4 pr-14 transition hover:-translate-y-px hover:shadow-[var(--shadow-lift)] sm:p-5 sm:pr-16"
               >
                 <div className="flex items-start gap-4">
                   <span className="hidden size-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-500 ring-1 ring-slate-200 sm:flex">
@@ -108,10 +110,30 @@ export default function BatchesPage() {
                   <ArrowRight className="mt-2 size-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand-600" />
                 </div>
               </Link>
+              <button
+                type="button"
+                onClick={() => setDeleting(b)}
+                title={t.deleteBatch.buttonTitle}
+                aria-label={t.deleteBatch.buttonTitle}
+                className="absolute right-3 bottom-3 rounded-md p-1.5 text-slate-300 transition hover:bg-rose-50 hover:text-rose-600 focus-visible:text-rose-600 group-hover/item:text-slate-400 sm:right-4 sm:bottom-4"
+              >
+                <Trash className="size-4" />
+              </button>
             </li>
           );
         })}
       </ul>
+      {deleting && (
+        <DeleteBatchDialog
+          batch={deleting}
+          states={deleting.states}
+          onCancel={() => setDeleting(null)}
+          onDeleted={() => {
+            setDeleting(null);
+            void load();
+          }}
+        />
+      )}
     </>
   );
 }

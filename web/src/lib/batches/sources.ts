@@ -113,6 +113,11 @@ export function readUpload(location: string): Promise<Buffer> {
   return fs.readFile(path.join(uploadsDir(), plainName(location)));
 }
 
+/** Removes an uploaded PDF, when the batch it was uploaded for is deleted. */
+export function deleteUpload(location: string): Promise<void> {
+  return fs.unlink(path.join(uploadsDir(), plainName(location)));
+}
+
 /** The recorded prediction for this PDF, or null when the provider's run has none. */
 export async function recordedPrediction(provider: Provider, sha256: string): Promise<Prediction | null> {
   const file = (await recording(provider)).bySha.get(sha256);
