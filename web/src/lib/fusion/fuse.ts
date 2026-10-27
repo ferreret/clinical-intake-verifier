@@ -11,7 +11,8 @@
  *   nothing, optional            grey
  *
  * A record that is only a candidate (not confirmed as this document's) can never make a
- * field green: agreeing with it is orange.
+ * field green: agreeing with it is orange. A value taken from the document is proposed in the
+ * form the system of record keeps it (fields.json, `stored_as`), such as an age as a number.
  */
 import { valuesMatch } from "@/lib/schema/compare";
 import { FIELDS, type FieldSpec, type LisSource } from "@/lib/schema/fields";
@@ -61,6 +62,12 @@ function lisAliases(source: LisSource, recordId: string, lis: LisSnapshot): stri
   return lis.insurers.find((r) => r.id === recordId)?.aliases ?? [];
 }
 
+/** A value read from the document as the system of record keeps it (fields.json, stored_as). */
+export function storedForm(spec: Pick<FieldSpec, "stored_as">, value: string): string {
+  if (spec.stored_as === "digits") return value.replace(/\D+/g, "") || value;
+  return value;
+}
+
 function field(
   spec: FieldSpec,
   prediction: Prediction,
@@ -105,9 +112,10 @@ function field(
       : out("orange", "candidate_only", lisSide.value, "lis");
   }
   if (ai) {
+    const value = storedForm(spec, ai.value);
     return ai.warnings.some((w) => DOUBTFUL.has(w))
-      ? out("red", "ai_only_doubtful", ai.value, "ai")
-      : out("orange", "ai_only", ai.value, "ai");
+      ? out("red", "ai_only_doubtful", value, "ai")
+      : out("orange", "ai_only", value, "ai");
   }
   if (spec.default !== null) return out("orange", "default", spec.default, "default");
   return spec.required ? out("red", "missing_required", null, null) : out("grey", "absent_optional", null, null);

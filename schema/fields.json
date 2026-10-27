@@ -1,5 +1,5 @@
 {
-  "$comment": "Single source of truth for the intake fields. Per field, lis is the LIS value it is compared with by the fusion engine (record.column; patient.name and physician.name are first name and both surnames) and the compare mode for that comparison, or null when the LIS does not hold it; default is the system default, the third and lowest-priority source; printed, on a normalised field, lists the words it may be printed with, so that its value can be found on the page (month names of a date, the words for each value of an enum); label is the English name shown to people, label_es the Spanish one. Read by the Python generator/evaluator and by the Next.js app. Do not duplicate this configuration in prompts, backend or UI.",
+  "$comment": "Single source of truth for the intake fields. Per field, lis is the LIS value it is compared with by the fusion engine (record.column; patient.name and physician.name are first name and both surnames) and the compare mode for that comparison, or null when the LIS does not hold it; default is the system default, the third and lowest-priority source; printed, on a normalised field, lists the words it may be printed with, so that its value can be found on the page (month names of a date, the words for each value of an enum); label is the English name shown to people, label_es the Spanish one. stored_as, when present, is the form the system of record keeps a value read from the document in, which the fusion engine proposes: digits keeps only the number (an age read as 22 años is proposed as 22); the reading itself stays exact. Read by the Python generator/evaluator and by the Next.js app. Do not duplicate this configuration in prompts, backend or UI.",
   "version": 4,
   "compare_modes": {
     "exact": "String equality after trimming whitespace.",
@@ -66,6 +66,7 @@
       "pattern": null,
       "lis": null,
       "default": null,
+      "stored_as": "digits",
       "description": "Age exactly as printed (may include a unit such as 'años')."
     },
     {

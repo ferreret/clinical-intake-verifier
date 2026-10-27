@@ -52,6 +52,11 @@ export interface FieldSpec {
   unique?: boolean;
   /** The LIS value the fusion engine compares this field with, or null when there is none. */
   lis: LisSpec | null;
+  /**
+   * The form the system of record keeps a value read from the document in, which the fusion
+   * engine proposes: `digits`, the number alone ("22 años" → "22"). The reading stays exact.
+   */
+  stored_as?: "digits";
   /** System default, the lowest-priority source; null for none. */
   default: string | null;
   description: string;

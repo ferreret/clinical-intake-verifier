@@ -157,6 +157,13 @@ describe("fusion", () => {
     expect(doc.links.patient).toMatchObject({ status: "candidate", state: "red" });
   });
 
+  it("proposes an age read with its unit as the number alone, keeping the reading exact", () => {
+    const age = (read: string) => fuse(prediction({ ...MARIA, Edad: read }), LIS).fields.find((f) => f.name === "Edad")!;
+    expect(age("22 anys")).toMatchObject({ value: "22", source: "ai", ai: { value: "22 anys" } });
+    expect(age("64 años").value).toBe("64");
+    expect(age("sesenta").value).toBe("sesenta");
+  });
+
   it("marks a doubtful AI-only value red", () => {
     const w: PredictionWarning = { code: "garbled_text", field: "NumeroPeticion", detail: "x" };
     expect(states(fuse(prediction(MARIA, [w]), LIS)).NumeroPeticion).toBe("red:ai_only_doubtful");
