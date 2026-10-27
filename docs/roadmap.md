@@ -1544,6 +1544,21 @@ stay in English.
   record, even when the technician confirms every value. Confirming the link itself belongs
   with the open proposal of candidates by birth date and a similar name.
 
+**After the product owner's first look at approval, 2026-10-27:**
+
+- **An age is proposed as a number.** `fields.json` gains `stored_as`: the form the system
+  of record keeps a value read from the document in. Edad is `digits`, so "22 anys" is
+  proposed as 22; the reading stays exact (the extractor's rule), and the evaluation
+  already compares ages by their digits. Proposals made before keep their value.
+- **Read-only is obvious.** A document another technician has open showed inputs that
+  looked editable but were not: they now look disabled, and the notice stands out with
+  taking it over as a button.
+- **Searching the records by hand.** A magnifier on each record card searches the LIS
+  (patients, physicians, insurers); choosing a record, or "no record", fuses the document
+  again against it, and the approval checks and records the choice. It also settles the
+  case found in block 4: a patient only offered as a candidate can now be linked by the
+  technician, and the request then carries the patient's record.
+
 **Proposed: a decision log.** Per document, why each value and code was proposed: the
 reading (model, attempts, boxes, warnings), the links to the records and on what keys, each
 field's comparison and the rule that set its colour, and each line through memory, search

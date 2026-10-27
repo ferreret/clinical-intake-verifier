@@ -67,7 +67,12 @@ export interface RecordLink {
   /** The keys on which the document and the record agree. */
   matchedOn: string[];
   reason: string;
+  /** Set by the technician, who searched the records, rather than found by the engine. */
+  chosen?: boolean;
 }
+
+/** Links the technician set by hand: a record's id, or null for "no record, a new one". */
+export type ChosenLinks = Partial<Record<RecordKind, string | null>>;
 
 export type FieldReason =
   | "agree" // AI and LIS agree

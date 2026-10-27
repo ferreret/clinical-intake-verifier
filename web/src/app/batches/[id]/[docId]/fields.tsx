@@ -15,7 +15,7 @@ import type { RecordKind } from "@/lib/fusion/types";
 
 import type { ProposalView } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
-import { Check as CheckIcon } from "../../../_ui/icons";
+import { Check as CheckIcon, Search } from "../../../_ui/icons";
 import { GROUPS, LIGHT_DOT, LINK_STYLE, type Check, type Item } from "./model";
 
 type FieldItem = Extract<Item, { kind: "field" }>;
@@ -24,7 +24,7 @@ const RECORDS: RecordKind[] = ["patient", "physician", "insurer"];
 
 const same = (a: string | null | undefined, b: string | null | undefined) => (a ?? "").trim() === (b ?? "").trim() && !!a?.trim();
 
-export function Links({ view }: { view: ProposalView }) {
+export function Links({ view, readOnly, onSearch }: { view: ProposalView; readOnly: boolean; onSearch: (kind: RecordKind) => void }) {
   const { t } = useI18n();
   return (
     <div className="grid gap-2 @min-[40rem]:grid-cols-3">
@@ -39,6 +39,11 @@ export function Links({ view }: { view: ProposalView }) {
                 <span className={`rounded-full px-1.5 py-px text-[10px] font-medium ring-1 ring-inset ${LINK_STYLE[link.status]}`}>
                   {t.links[link.status]}
                 </span>
+                {link.chosen && (
+                  <span className="rounded-full bg-brand-50 px-1.5 py-px text-[10px] font-medium text-brand-700 ring-1 ring-brand-200 ring-inset">
+                    {t.records.chosen}
+                  </span>
+                )}
               </div>
               {record ? (
                 <div className="truncate text-sm">
@@ -50,6 +55,17 @@ export function Links({ view }: { view: ProposalView }) {
                 </div>
               )}
             </div>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => onSearch(k)}
+                title={t.records.search[k]}
+                aria-label={t.records.search[k]}
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-500 ring-1 ring-slate-200 transition hover:bg-brand-50 hover:text-brand-700 hover:ring-brand-300"
+              >
+                <Search className="size-4" />
+              </button>
+            )}
           </div>
         );
       })}

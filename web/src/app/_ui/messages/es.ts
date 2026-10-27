@@ -29,6 +29,8 @@ const SERVER: [RegExp, (...m: string[]) => string][] = [
   [/^the name matches (\d+) insurers$/, (n) => `el nombre coincide con ${n} mutuas`],
   [/^the document names no insurer$/, () => "el volante no nombra ninguna mutua"],
   [/^the insurer is not registered in the LIS$/, () => "la mutua no está registrada en el LIS"],
+  [/^chosen by the technician$/, () => "elegido por el técnico"],
+  [/^the technician says there is no record: a new one$/, () => "el técnico indica que no hay registro: es nuevo"],
   // How a record is described (api/documents/[id]/proposal).
   [/^(.+) · born (.+)$/, (doc, date) => `${doc} · nacido/a el ${date}`],
   [/^No\. (.+)$/, (n) => `N.º ${n}`],
@@ -272,6 +274,18 @@ export const es: Messages = {
     physician: "Médico",
     insurer: "Mutua",
     lookAlike: (n) => `${n} registros se le parecen`,
+    search: { patient: "Buscar en los pacientes del laboratorio", physician: "Buscar en los médicos del laboratorio", insurer: "Buscar en las mutuas del laboratorio" },
+    searchHint: {
+      patient: "Nombre, documento de identidad, fecha de nacimiento o teléfono",
+      physician: "Nombre o número de colegiado",
+      insurer: "Nombre o código",
+    },
+    noRecord: { patient: "Sin registro: un paciente nuevo", physician: "Sin registro: un médico que el laboratorio no conoce", insurer: "Sin registro: una mutua no registrada" },
+    chosen: "Elegido por ti",
+    reset: "Volver a lo encontrado",
+    nothingFound: "Ningún registro coincide",
+    typeToSearch: "Escribe para buscar en los registros",
+    linking: "Comparando con el registro…",
   },
 
   links: { linked: "Enlazado", candidate: "Candidato", ambiguous: "Ambiguo", none: "Sin registro" },

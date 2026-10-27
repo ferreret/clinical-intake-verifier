@@ -7,9 +7,11 @@ import type { Decision, RejectReason } from "@/lib/batches/decide";
 import type { BundledInfo } from "@/lib/batches/sources";
 import type { Batch, BatchDocument, BatchSummary, DocumentSummary, StoredProposal } from "@/lib/batches/store";
 import type { Technician } from "@/lib/batches/technicians";
+import type { ChosenLinks, FusedDocument, RecordKind } from "@/lib/fusion/types";
+import type { RecordView } from "@/lib/lis/records";
 import type { Candidate } from "@/lib/mapping/search";
 
-export type { BatchSummary, BundledInfo, Candidate, Decision, DocumentState, RejectReason, Technician };
+export type { BatchSummary, BundledInfo, Candidate, ChosenLinks, Decision, DocumentState, RecordKind, RejectReason, Technician };
 export type Provider = Batch["provider"];
 
 export interface SessionInfo {
@@ -25,11 +27,7 @@ export interface BatchDetail {
   documents: (BatchDocument & { summary: DocumentSummary | null })[];
 }
 
-export interface RecordView {
-  id: string;
-  title: string;
-  detail: string;
-}
+export type { RecordView };
 
 /** A document's proposal, with what the verification screen shows around it. */
 export interface ProposalView {
@@ -51,6 +49,7 @@ export interface Approval {
   lines: (string[] | null)[];
   added: { text: string; codes: string[] }[];
   confirmed: string[];
+  links: ChosenLinks;
 }
 
 export class ApiError extends Error {
@@ -105,6 +104,10 @@ export const api = {
   release: (documentId: string) => call<{ released: boolean }>(`/api/documents/${documentId}/release`, { method: "POST" }),
   catalog: (q: string, signal?: AbortSignal) =>
     call<{ results: Candidate[]; names: Record<string, string> }>(`/api/catalog?q=${encodeURIComponent(q)}`, { signal }),
+  searchRecords: (kind: RecordKind, q: string, signal?: AbortSignal) =>
+    call<{ results: RecordView[] }>(`/api/lis/search?kind=${kind}&q=${encodeURIComponent(q)}`, { signal }),
+  fusion: (documentId: string, links: ChosenLinks) =>
+    call<{ fused: FusedDocument; records: Record<string, RecordView> }>(`/api/documents/${documentId}/fusion`, postJson({ links })),
   pageUrl: (documentId: string, page: number) => `/api/documents/${documentId}/pages/${page}`,
 };
 

@@ -145,6 +145,16 @@ session shell and the state badges.
   - **Footer:** what is left to resolve or confirm, the confirmations made, Reject, "Leave
     for later" and Approve.
 
+  **Searching the records** (`records.tsx`, `lib/lis/records.ts`). Each record card (patient,
+  physician, insurer) has a magnifier that searches the lab's records of its kind: every
+  word of a name, accents and case aside, or an identifying number (identity document,
+  birth date, phone, registration number, insurer code). Choosing one links the document to
+  it, marked "chosen by you", and the document is fused again against it
+  (`POST /api/documents/:id/fusion`): the fields the technician has not changed take the new
+  proposal, and field confirmations start over. "No record" says the person or insurer is
+  new. "Back to what was found" undoes it. Nothing is stored until approval, which checks
+  the fields against the chosen records and records the choice.
+
   **Approving** (`lib/batches/decide.ts`, F4 decision 9). A red or orange field or line is
   resolved one by one: by changing it, or by confirming it as proposed with its check
   button (Alt+Enter). A green one is covered by the approval itself. Required fields need a
@@ -227,7 +237,9 @@ sandbox.
 | `GET /api/catalog?q=` | The workspace's catalog searched by a typed name or code: codes that start with it first, then the trigram search; with each code's name. |
 | `GET /api/documents/:id/proposal` | The prediction, the fusion and each line's codes (409 until ready); with the catalog names of the codes, the linked and candidate LIS records, and the batch's documents in order. |
 | `POST /api/documents/:id/open` | Lock the document for verification to the technician (409 if another has it, unless `{ "takeOver": true }`, or if it is not ready). |
-| `POST /api/documents/:id/approve` | Approve it: `{ fields, lines, added, confirmed }`. 422 with the problems when something is unresolved; 409 when it is not in verification by this technician. Returns the decision and the next document to verify. |
+| `GET /api/lis/search?kind=patient&q=` | The LIS records of one kind (patient, physician, insurer) a typed name or number finds. |
+| `POST /api/documents/:id/fusion` | The document fused again with links the technician chose: `{ links: { patient: id or null, … } }`. Nothing stored. |
+| `POST /api/documents/:id/approve` | Approve it: `{ fields, lines, added, confirmed, links? }`. 422 with the problems when something is unresolved; 409 when it is not in verification by this technician. Returns the decision and the next document to verify. |
 | `POST /api/documents/:id/reject` | Reject it: `{ reason, note }`, the note required with `other`. Returns the decision and the next document to verify. |
 | `POST /api/documents/:id/release` | Leave it for later: back to awaiting verification (only its holder). |
 | `GET /api/documents/:id/pages/:n` | Page n as a PNG, for the viewer. |

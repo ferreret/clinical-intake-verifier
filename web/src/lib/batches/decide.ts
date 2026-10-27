@@ -18,9 +18,11 @@ import { randomUUID } from "node:crypto";
 
 import { and, asc, eq, inArray } from "drizzle-orm";
 
-import type { TrafficLight } from "@/lib/fusion/types";
+import { fuse } from "@/lib/fusion/fuse";
+import type { ChosenLinks, TrafficLight } from "@/lib/fusion/types";
 import type { LisDb } from "@/lib/lis/db";
 import { requests } from "@/lib/lis/schema";
+import { readSnapshot } from "@/lib/lis/snapshot";
 import { DbMemory } from "@/lib/mapping/memory";
 import { textKey } from "@/lib/mapping/propose";
 import { FIELDS } from "@/lib/schema/fields";
@@ -39,6 +41,8 @@ export interface ApprovalInput {
   added: { text: string; codes: string[] }[];
   /** The red and orange items the technician confirmed as proposed: `f:<field>`, `t:<line>`. */
   confirmed: string[];
+  /** Links the technician set by searching the records: the fields are checked against them. */
+  links?: ChosenLinks;
 }
 
 export type Decision = typeof decisions.$inferSelect;
@@ -96,7 +100,15 @@ export function checkApproval(
     const l = proposal.fused.links[k];
     return l.status === "linked" ? l.recordId : null;
   };
-  return { problems, record: { links: { patient: linked("patient"), physician: linked("physician"), insurer: linked("insurer") }, fields, tests } };
+  return {
+    problems,
+    record: {
+      links: { patient: linked("patient"), physician: linked("physician"), insurer: linked("insurer") },
+      chosen: input.links ?? {},
+      fields,
+      tests,
+    },
+  };
 }
 
 export type DecideResult =
@@ -145,8 +157,12 @@ export async function approveDocument(db: LisDb, id: string, technician: string,
   const found = await decidable(db, id, technician);
   if (found.error) return found.error;
   const doc = found.doc;
-  const proposal = await getProposal(db, id);
-  if (!proposal) return { ok: false, reason: "missing" };
+  const stored = await getProposal(db, id);
+  if (!stored) return { ok: false, reason: "missing" };
+  // With links the technician chose, the fields are checked against those records.
+  const chosen = input.links ?? {};
+  const proposal =
+    Object.keys(chosen).length > 0 ? { ...stored, fused: fuse(stored.prediction, await readSnapshot(db), chosen) } : stored;
   const { catalog } = await catalogOf(db);
   const { problems, record } = checkApproval(proposal, input, new Set(catalog.tests.map((t) => t.code)));
   if (problems.length > 0) return { ok: false, reason: "invalid", problems };

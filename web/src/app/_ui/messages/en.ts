@@ -218,6 +218,18 @@ export const en = {
     physician: "Physician",
     insurer: "Insurer",
     lookAlike: (n: number) => `${n} records look like it`,
+    search: { patient: "Search the lab's patients", physician: "Search the lab's physicians", insurer: "Search the lab's insurers" },
+    searchHint: {
+      patient: "Name, identity document, birth date or phone",
+      physician: "Name or registration number",
+      insurer: "Name or code",
+    },
+    noRecord: { patient: "No record: a new patient", physician: "No record: a physician the lab does not know", insurer: "No record: an unregistered insurer" },
+    chosen: "Chosen by you",
+    reset: "Back to what was found",
+    nothingFound: "No record matches",
+    typeToSearch: "Type to search the records",
+    linking: "Comparing with the record…",
   },
 
   links: { linked: "Linked", candidate: "Candidate", ambiguous: "Ambiguous", none: "No record" } satisfies Record<LinkStatus, string>,

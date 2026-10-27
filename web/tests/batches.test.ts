@@ -6,6 +6,8 @@ import { eq } from "drizzle-orm";
 import { PDFDocument } from "pdf-lib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { fuse } from "@/lib/fusion/fuse";
+import { readSnapshot } from "@/lib/lis/snapshot";
 import { approveDocument, getDecision, rejectDocument, type ApprovalInput } from "@/lib/batches/decide";
 import { BatchQueue } from "@/lib/batches/queue";
 import { batchDocuments } from "@/lib/batches/schema";
@@ -254,6 +256,30 @@ function resolved(proposal: NonNullable<Awaited<ReturnType<typeof getProposal>>>
 }
 
 describe("decisions", () => {
+  it("approves with a link the technician chose, checking the fields against it and recording it", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [doc] = (await getBatch(db, batch.id))!.documents;
+    await openDocument(db, doc.id, "T01");
+    const stored = (await getProposal(db, doc.id))!;
+    expect(stored.fused.links.patient.recordId).toBe("P1");
+
+    // "No record": the patient's fields stand on the document alone, and must be checked as such.
+    const asFound = resolved(stored);
+    expect(await approveDocument(db, doc.id, "T01", { ...asFound, links: { patient: null } })).toMatchObject({ ok: false, reason: "invalid" });
+    const refused = fuse(stored.prediction, await readSnapshot(db), { patient: null });
+    const result = await approveDocument(db, doc.id, "T01", { ...resolved({ ...stored, fused: refused }), links: { patient: null } });
+    expect(result).toMatchObject({ ok: true });
+    const decision = (await getDecision(db, doc.id))!;
+    expect(decision.approved).toMatchObject({ chosen: { patient: null }, links: { patient: null, insurer: "A1" } });
+    const [request] = await db.select().from(requests).where(eq(requests.decisionId, decision.id));
+    expect(request.patientId).toBeNull();
+  });
+
   it("goes on to the next document to decide on: one free or the technician's own first, else one another has open", async () => {
     const ws = await createSandbox();
     const db = await openWorkspace(ws);

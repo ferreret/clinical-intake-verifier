@@ -10,7 +10,7 @@
  */
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-import type { FusedDocument, TrafficLight } from "@/lib/fusion/types";
+import type { ChosenLinks, FusedDocument, TrafficLight } from "@/lib/fusion/types";
 import type { Proposal } from "@/lib/mapping/propose";
 import type { BBox, BoxSource, Prediction } from "@/lib/schema/prediction";
 
@@ -93,6 +93,8 @@ export type LineAction = "kept" | "confirmed" | "corrected" | "chosen" | "droppe
 /** The approval as recorded: each value and line with what was proposed and what was done. */
 export interface ApprovalRecord {
   links: { patient: string | null; physician: string | null; insurer: string | null };
+  /** The links the technician set by searching the records, if any. */
+  chosen: ChosenLinks;
   fields: { name: string; value: string | null; proposed: string | null; state: TrafficLight; action: FieldAction }[];
   tests: {
     text: string;

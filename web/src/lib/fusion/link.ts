@@ -8,7 +8,7 @@
 import { valuesMatch } from "@/lib/schema/compare";
 import { fieldSpec } from "@/lib/schema/fields";
 
-import type { LisPatient, LisPhysician, LisSnapshot, RecordKind, RecordLink } from "./types";
+import type { ChosenLinks, LisPatient, LisPhysician, LisSnapshot, RecordKind, RecordLink } from "./types";
 
 /** The document's values the engine links on, by field name; null when absent. */
 export type DocumentValues = Record<string, string | null>;
@@ -40,6 +40,30 @@ function link(
     matchedOn,
     reason,
   };
+}
+
+/**
+ * A link the technician set: the record they found by searching, which is then as good as a
+ * strong match, or none when they say the document's person or insurer is not in the LIS.
+ */
+export function chosenLink(record: RecordKind, id: string | null, lis: LisSnapshot): RecordLink {
+  const known = id !== null && [...lis.patients, ...lis.physicians, ...lis.insurers].some((r) => r.id === id);
+  const out = known
+    ? link(record, "linked", "chosen by the technician", [{ id: id! }])
+    : link(record, "none", "the technician says there is no record: a new one");
+  return { ...out, chosen: true };
+}
+
+/** Chosen links as sent by the screen, or null when they are not shaped like them. */
+export function parseChosenLinks(value: unknown): ChosenLinks | null {
+  if (value === undefined) return {};
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const out: ChosenLinks = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (!["patient", "physician", "insurer"].includes(k) || (v !== null && typeof v !== "string")) return null;
+    out[k as RecordKind] = v as string | null;
+  }
+  return out;
 }
 
 export function linkPatient(doc: DocumentValues, lis: LisSnapshot): RecordLink {

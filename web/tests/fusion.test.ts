@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { fuse } from "@/lib/fusion/fuse";
+import { searchRecords } from "@/lib/lis/records";
 import type { FusedDocument, LisSnapshot } from "@/lib/fusion/types";
 import { FIELD_NAMES } from "@/lib/schema/fields";
 import type { Prediction, PredictionWarning } from "@/lib/schema/prediction";
@@ -162,6 +163,30 @@ describe("fusion", () => {
     expect(age("22 anys")).toMatchObject({ value: "22", source: "ai", ai: { value: "22 anys" } });
     expect(age("64 años").value).toBe("64");
     expect(age("sesenta").value).toBe("sesenta");
+  });
+
+  it("compares the fields with a record the technician chose, or with none", () => {
+    // An unknown name and identity document: no patient found.
+    const unknown = { ...MARIA, Paciente: "VIDAL SOLER, ROSA", DocumentoIdentidad: "99999999R", FechaNacimiento: "14/09/1988" };
+    expect(fuse(prediction(unknown), LIS).links.patient.status).not.toBe("linked");
+    const chosen = fuse(prediction(unknown), LIS, { patient: "P2" });
+    expect(chosen.links.patient).toMatchObject({ status: "linked", recordId: "P2", chosen: true });
+    expect(states(chosen)).toMatchObject({ Paciente: "green:agree", FechaNacimiento: "green:agree", DocumentoIdentidad: "red:conflict" });
+    // "No record": the patient's fields stand on the document alone.
+    const none = fuse(prediction(MARIA), LIS, { patient: null });
+    expect(none.links.patient).toMatchObject({ status: "none", chosen: true });
+    expect(states(none).Paciente).toBe("orange:ai_only");
+    expect(none.links.physician.chosen).toBeUndefined();
+  });
+
+  it("searches the records by every word of a name, or by an identifying number", () => {
+    expect(searchRecords(LIS, "patient", "rosa vidal").map((r) => r.id)).toEqual(["P2", "P3"]);
+    expect(searchRecords(LIS, "patient", "vidal").map((r) => r.id)).toEqual(["P2", "P3"]);
+    expect(searchRecords(LIS, "patient", "8765").map((r) => r.id)).toEqual(["P2"]);
+    expect(searchRecords(LIS, "patient", "22/11/1950").map((r) => r.id)).toEqual(["P3"]);
+    expect(searchRecords(LIS, "physician", "roig")[0]).toMatchObject({ id: "M1", detail: "No. 080812345" });
+    expect(searchRecords(LIS, "insurer", "garbi")[0]).toMatchObject({ id: "A1", title: "Garbí Salut Mútua" });
+    expect(searchRecords(LIS, "patient", "  ")).toEqual([]);
   });
 
   it("marks a doubtful AI-only value red", () => {

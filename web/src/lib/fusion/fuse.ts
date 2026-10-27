@@ -18,9 +18,10 @@ import { valuesMatch } from "@/lib/schema/compare";
 import { FIELDS, type FieldSpec, type LisSource } from "@/lib/schema/fields";
 import type { Prediction } from "@/lib/schema/prediction";
 
-import { fullName, linkInsurer, linkPatient, linkPhysician, type DocumentValues } from "./link";
+import { chosenLink, fullName, linkInsurer, linkPatient, linkPhysician, type DocumentValues } from "./link";
 import {
   FUSION_VERSION,
+  type ChosenLinks,
   type FieldReason,
   type FusedDocument,
   type FusedField,
@@ -121,15 +122,20 @@ function field(
   return spec.required ? out("red", "missing_required", null, null) : out("grey", "absent_optional", null, null);
 }
 
-export function fuse(prediction: Prediction, lis: LisSnapshot): FusedDocument {
+/**
+ * The document fused against the LIS. `chosen` holds links the technician set by searching
+ * the records; the fields are then compared with those records instead of the ones found.
+ */
+export function fuse(prediction: Prediction, lis: LisSnapshot, chosen: ChosenLinks = {}): FusedDocument {
   const usable = !prediction.extractor.error;
   const doc: DocumentValues = Object.fromEntries(
     FIELDS.map((f) => [f.name, (usable && prediction.fields[f.name]?.value) || null]),
   );
+  const found = (kind: RecordKind, find: () => RecordLink) => (kind in chosen ? chosenLink(kind, chosen[kind] ?? null, lis) : find());
   const links: Record<RecordKind, RecordLink> = {
-    patient: linkPatient(doc, lis),
-    physician: linkPhysician(doc, lis),
-    insurer: linkInsurer(doc, lis),
+    patient: found("patient", () => linkPatient(doc, lis)),
+    physician: found("physician", () => linkPhysician(doc, lis)),
+    insurer: found("insurer", () => linkInsurer(doc, lis)),
   };
   return {
     fusion_version: FUSION_VERSION,

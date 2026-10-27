@@ -13,13 +13,14 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ApiError, api, type Decision, type ProposalView, type RejectReason } from "../../../_ui/api";
+import { ApiError, api, type ChosenLinks, type Decision, type ProposalView, type RecordKind, type RejectReason } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
 import { ArrowLeft, ArrowRight, Check as CheckIcon, FileText, Keyboard, Lock as LockIcon } from "../../../_ui/icons";
 import { useSession } from "../../../_ui/session";
 import { StateBadge } from "../../../_ui/states";
 import { Fields, Links } from "./fields";
 import { Lens } from "./lens";
+import { RecordSearch } from "./records";
 import { ShortcutsDialog } from "./shortcuts";
 import { checkOf, itemsOf, type Check, type Light } from "./model";
 import { Tests, type AddedLine, type Chosen } from "./tests";
@@ -48,6 +49,9 @@ export default function VerifyPage() {
   const [busy, setBusy] = useState<"approving" | "rejecting" | null>(null);
   const [problems, setProblems] = useState<string[] | null>(null);
   const [rejecting, setRejecting] = useState(false);
+  // Links the technician set by searching the records, and the search open, if any.
+  const [chosenLinks, setChosenLinks] = useState<ChosenLinks>({});
+  const [searching, setSearching] = useState<RecordKind | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   // The item whose Read cell is under the pointer: what the lens shows.
   const [peek, setPeek] = useState<string | null>(null);
@@ -115,6 +119,8 @@ export default function VerifyPage() {
         setTouched(new Set());
         setProblems(null);
         setRejecting(false);
+        setChosenLinks(record?.chosen ?? {});
+        setSearching(null);
         setFocused(items[0]?.key ?? null);
       },
       (e: Error) => current && setError(e.message),
@@ -236,6 +242,7 @@ export default function VerifyPage() {
         lines: items.flatMap((i) => (i.kind === "test" ? [chosen[i.key] === undefined ? [] : chosen[i.key]] : [])),
         added: added.map((a) => ({ text: a.text, codes: a.codes })),
         confirmed: [...confirmed],
+        links: chosenLinks,
       });
       goOn(r.next);
     } catch (e) {
@@ -243,7 +250,36 @@ export default function VerifyPage() {
       setProblems(Array.isArray(err.body?.problems) ? (err.body.problems as string[]) : [err.message]);
       setBusy(null);
     }
-  }, [view, docId, items, values, chosen, added, confirmed, goOn]);
+  }, [view, docId, items, values, chosen, added, confirmed, chosenLinks, goOn]);
+
+  /**
+   * Links the document to a record the technician found (id), to none (null), or back to what
+   * the engine found (undefined), and fuses it again: fields the technician has not changed
+   * take the new proposal, and field confirmations start over, the comparison having changed.
+   */
+  async function relink(kind: RecordKind, id: string | null | undefined) {
+    if (!view) return;
+    const next: ChosenLinks = { ...chosenLinks };
+    if (id === undefined) delete next[kind];
+    else next[kind] = id;
+    try {
+      const { fused, records } = await api.fusion(docId, next);
+      const before = new Map(view.proposal.fused.fields.map((f) => [f.name, (f.value ?? "").trim()]));
+      setValues((vals) =>
+        Object.fromEntries(
+          Object.entries(vals).map(([key, v]) => {
+            const f = fused.fields.find((x) => `f:${x.name}` === key);
+            return [key, f && v.trim() === before.get(f.name) ? (f.value ?? "") : v];
+          }),
+        ),
+      );
+      setConfirmed((c) => new Set([...c].filter((k) => !k.startsWith("f:"))));
+      setChosenLinks(next);
+      setView({ ...view, proposal: { ...view.proposal, fused }, records: { ...view.records, ...records } });
+    } catch (e) {
+      setProblems([(e as Error).message]);
+    }
+  }
 
   async function reject(reason: RejectReason, note: string) {
     setBusy("rejecting");
@@ -259,11 +295,12 @@ export default function VerifyPage() {
 
   const leave = useCallback(
     async (to: string) => {
-      if ((touched.size > 0 || confirmed.size > 0) && !view?.decision && !window.confirm(m.confirmLeave)) return;
+      const worked = touched.size > 0 || confirmed.size > 0 || Object.keys(chosenLinks).length > 0;
+      if (worked && !view?.decision && !window.confirm(m.confirmLeave)) return;
       if (lock?.status === "mine") await api.release(docId).catch(() => undefined);
       router.push(to);
     },
-    [touched, confirmed, view, lock, docId, router, m],
+    [touched, confirmed, chosenLinks, view, lock, docId, router, m],
   );
 
   // Keyboard: Alt+↓/↑ next and previous item, Alt+1/2 take the document's or the records'
@@ -423,7 +460,7 @@ export default function VerifyPage() {
             <div className="@container space-y-4 p-4 @min-[88rem]:overflow-y-auto">
               <section>
                 <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{m.records}</h2>
-                <Links view={view} />
+                <Links view={view} readOnly={readOnly} onSearch={setSearching} />
               </section>
               <section>
                 <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{m.fieldsTitle(fields.length)}</h2>
@@ -556,6 +593,22 @@ export default function VerifyPage() {
         </footer>
       </div>
       {help && <ShortcutsDialog onClose={() => setHelp(false)} />}
+      {searching && (
+        <RecordSearch
+          kind={searching}
+          current={view.proposal.fused.links[searching].recordId}
+          chosen={searching in chosenLinks}
+          onPick={(id) => {
+            setSearching(null);
+            void relink(searching, id);
+          }}
+          onReset={() => {
+            setSearching(null);
+            void relink(searching, undefined);
+          }}
+          onClose={() => setSearching(null)}
+        />
+      )}
       <Lens
         documentId={docId}
         pages={view.proposal.prediction.pages}

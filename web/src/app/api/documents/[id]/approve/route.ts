@@ -1,6 +1,6 @@
 /**
  * POST /api/documents/:id/approve: the technician approves the document as they leave it.
- * JSON `{ fields, lines, added, confirmed }` (lib/batches/decide.ts). 422 with the problems
+ * JSON `{ fields, lines, added, confirmed, links? }` (lib/batches/decide.ts). 422 with the problems
  * when it cannot be approved as it is; 409 when it is not the technician's to approve.
  * Returns the decision and the batch's next document to verify.
  */
@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 
 import { approveDocument, type ApprovalInput } from "@/lib/batches/decide";
 import { getSession, noSession } from "@/lib/batches/session";
+import { parseChosenLinks } from "@/lib/fusion/link";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,8 @@ const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every((c) =
 /** The body as an approval, or null when it is not shaped like one. */
 function parse(body: unknown): ApprovalInput | null {
   const b = body as Partial<Record<keyof ApprovalInput, unknown>>;
+  const links = parseChosenLinks(b?.links);
+  if (!links) return null;
   if (!b || typeof b.fields !== "object" || b.fields === null || !Array.isArray(b.lines) || !Array.isArray(b.added) || !strings(b.confirmed)) {
     return null;
   }
@@ -29,6 +32,7 @@ function parse(body: unknown): ApprovalInput | null {
     lines: b.lines as (string[] | null)[],
     added: added.map((a) => ({ text: a.text as string, codes: a.codes as string[] })),
     confirmed: b.confirmed,
+    links,
   };
 }
 
