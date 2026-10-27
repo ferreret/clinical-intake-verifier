@@ -1627,8 +1627,12 @@ demo's data comes from a release archive. The details are in [deploy.md](deploy.
   the service's tasks as the other apps there. Built in about a minute. Checked on the public
   address: the entry, a batch of two documents replayed in 4 s, page images, approval going on
   to the next document; the other demo on the same address unaffected.
-- **The company's deployment:** next, in replay mode as decided, at the root of its own
-  subdomain; the subdomain and a temporary key to come from the product owner.
+- **The company's deployment, live on 2026-10-27:** replay mode as decided, at the root of
+  its own subdomain, from the same release and branch; a project of its own, HTTPS with the
+  proxy's Let's Encrypt certificate, and no automatic deploys: it is the demo shown to
+  clients, so it moves only when someone deploys it. Built in a minute and a half. Checked:
+  the certificate, HTTP redirecting to HTTPS, a batch of two documents replayed in 2 s, page
+  images, approval going on to the next document; the other apps on the server unaffected.
 
 **Open points found while building it, for later blocks:**
 
