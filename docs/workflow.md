@@ -189,7 +189,9 @@ session shell and the state badges.
   (`POST /api/documents/:id/fusion`): the fields the technician has not changed take the new
   proposal, and field confirmations start over. "No record" says the person or insurer is
   new. "Back to what was found" undoes it. Nothing is stored until approval, which checks
-  the fields against the chosen records and records the choice.
+  the fields against the chosen records and records the choice. The search is not modal:
+  the document stays in view, beside it, and can be scrolled and zoomed while searching,
+  since what is searched for is read off it; a click elsewhere, or Esc, closes it.
 
   **Approving** (`lib/batches/decide.ts`, F4 decision 9). A red or orange field or line is
   resolved one by one: by changing it, or by confirming it as proposed with its check

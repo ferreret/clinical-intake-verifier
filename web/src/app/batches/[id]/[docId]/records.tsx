@@ -5,6 +5,9 @@
  * about when the engine did not link it (or linked another). Choosing one links the document
  * to it, and the fields are compared with that record instead; "no record" says it is a new
  * one. Nothing is stored until the document is approved with the link.
+ *
+ * Not modal: the document stays in view and in reach (scrolling, zooming), since what is
+ * searched for is read off it. A click elsewhere closes it, except on the document.
  */
 import { useEffect, useRef, useState } from "react";
 
@@ -37,7 +40,28 @@ export function RecordSearch({
   const [found, setFound] = useState<{ query: string; results: RecordView[] } | null>(null);
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => input.current?.focus(), []);
+
+  useEffect(() => {
+    function away(e: PointerEvent) {
+      const target = e.target as Element;
+      if (box.current?.contains(target) || target.closest?.("[data-viewer]")) return;
+      onClose();
+    }
+    function escape(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    }
+    document.addEventListener("pointerdown", away);
+    window.addEventListener("keydown", escape, true);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      window.removeEventListener("keydown", escape, true);
+    };
+  }, [onClose]);
 
   useEffect(() => {
     const q = query.trim();
@@ -63,8 +87,13 @@ export function RecordSearch({
   const searching = typed && found?.query !== query.trim();
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center bg-slate-900/30 p-4 pt-[12vh] backdrop-blur-[2px]" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label={r.search[kind]} className="card w-full max-w-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+    <div className="pointer-events-none fixed inset-0 z-40 flex items-start justify-center p-4 pt-[12vh] lg:justify-end lg:pr-8">
+      <div
+        ref={box}
+        role="dialog"
+        aria-label={r.search[kind]}
+        className="card pointer-events-auto w-full max-w-xl overflow-hidden shadow-2xl!"
+      >
         <div className="flex items-center gap-2 border-b border-slate-100 px-4">
           <Search className="size-4 shrink-0 text-slate-400" />
           <input
@@ -72,11 +101,7 @@ export function RecordSearch({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                e.preventDefault();
-                e.stopPropagation();
-                onClose();
-              } else if (e.key === "ArrowDown") {
+              if (e.key === "ArrowDown") {
                 e.preventDefault();
                 setActive((a) => Math.min(results.length - 1, a + 1));
               } else if (e.key === "ArrowUp") {
