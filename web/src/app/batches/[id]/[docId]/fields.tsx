@@ -201,7 +201,7 @@ function FieldRow({
             placeholder={conflict ? f.choose : "–"}
             className={`min-w-0 flex-1 rounded-md border px-2 py-1 text-[13px] font-semibold focus:outline-none ${
               on ? "border-brand-400 ring-2 ring-brand-100" : "border-slate-200"
-            } ${readOnly ? "bg-slate-50" : "bg-white"} ${!value.trim() && (fused.state === "red" || spec.required) ? "border-red-300 bg-red-50/40" : ""}`}
+            } ${readOnly ? "cursor-not-allowed bg-slate-100 text-slate-500" : "bg-white"} ${!value.trim() && (fused.state === "red" || spec.required) ? "border-red-300 bg-red-50/40" : ""}`}
           />
           {touched.has(key) && !checks[key]?.confirmable && (
             <span className="size-1.5 shrink-0 rounded-full bg-brand-600" title={f.changed} aria-label={f.changed} />

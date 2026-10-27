@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, api, type Decision, type ProposalView, type RejectReason } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
-import { ArrowLeft, ArrowRight, Check as CheckIcon, FileText, Keyboard } from "../../../_ui/icons";
+import { ArrowLeft, ArrowRight, Check as CheckIcon, FileText, Keyboard, Lock as LockIcon } from "../../../_ui/icons";
 import { useSession } from "../../../_ui/session";
 import { StateBadge } from "../../../_ui/states";
 import { Fields, Links } from "./fields";
@@ -400,12 +400,17 @@ export default function VerifyPage() {
           </div>
           {view.decision && <DecisionBanner decision={view.decision} />}
           {lock && lock.status !== "mine" && !view.decision && (
-            <div className="mt-2 flex items-center gap-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
-              <span className="flex-1">
+            <div className="mt-2 flex flex-wrap items-center gap-3 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-900 ring-1 ring-amber-300">
+              <LockIcon className="size-4 shrink-0" />
+              <span className="min-w-0 flex-1 font-medium">
                 {m.readOnly(lock.status === "locked" ? m.lockedBy(technicians.find((p) => p.id === lock.holder)?.name ?? lock.holder) : m.closed(lock.message))}
               </span>
               {lock.status === "locked" && (
-                <button type="button" onClick={() => open(true).then(setLock)} className="font-medium underline-offset-2 hover:underline">
+                <button
+                  type="button"
+                  onClick={() => open(true).then(setLock)}
+                  className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-amber-700"
+                >
                   {m.takeOver(technician.name)}
                 </button>
               )}
