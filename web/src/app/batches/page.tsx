@@ -5,6 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { withBase } from "@/lib/base-path";
+
 import { ACTIVE_STATES, api, type BatchSummary, type DocumentState } from "../_ui/api";
 import { DeleteBatchDialog } from "../_ui/delete-batch";
 import { useI18n } from "../_ui/i18n";
@@ -77,7 +79,7 @@ export default function BatchesPage() {
 
       {batches?.length === 0 && (
         <div className="card flex flex-col items-center px-6 py-12 text-center">
-          <Image src="/empty-batches.webp" alt="" width={440} height={418} priority className="w-44 sm:w-52" />
+          <Image src={withBase("/empty-batches.webp")} alt="" width={440} height={418} priority className="w-44 sm:w-52" />
           <p className="mt-4 text-lg font-semibold">{t.batches.emptyTitle}</p>
           <p className="mt-1 max-w-sm text-sm text-slate-600">{t.batches.emptyText}</p>
           <Link

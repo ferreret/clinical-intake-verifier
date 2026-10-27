@@ -7,6 +7,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { COOKIE_PATH } from "@/lib/base-path";
 import type { LisDb } from "@/lib/lis/db";
 
 import { appMode } from "./config";
@@ -47,9 +48,9 @@ export async function startSession(tech: Technician): Promise<Session> {
   let workspace = await currentWorkspace();
   if (!workspace) {
     workspace = await createSandbox();
-    jar.set(SANDBOX_COOKIE, workspace, { httpOnly: true, sameSite: "lax", path: "/" });
+    jar.set(SANDBOX_COOKIE, workspace, { httpOnly: true, sameSite: "lax", path: COOKIE_PATH });
   }
-  jar.set(TECHNICIAN_COOKIE, tech.id, { httpOnly: true, sameSite: "lax", path: "/" });
+  jar.set(TECHNICIAN_COOKIE, tech.id, { httpOnly: true, sameSite: "lax", path: COOKIE_PATH });
   return { workspace, technician: tech, db: await openWorkspace(workspace) };
 }
 
@@ -61,8 +62,8 @@ export async function endSession(): Promise<void> {
   const jar = await cookies();
   const workspace = await currentWorkspace();
   if (workspace && workspace !== LIVE_WORKSPACE) await deleteSandbox(workspace);
-  jar.delete(SANDBOX_COOKIE);
-  jar.delete(TECHNICIAN_COOKIE);
+  jar.delete({ name: SANDBOX_COOKIE, path: COOKIE_PATH });
+  jar.delete({ name: TECHNICIAN_COOKIE, path: COOKIE_PATH });
 }
 
 export function noSession(): NextResponse {

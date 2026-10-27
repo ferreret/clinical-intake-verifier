@@ -7,6 +7,8 @@
  */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
+import { COOKIE_PATH } from "@/lib/base-path";
+
 import { LANG_COOKIE, LANGS, type Lang } from "./lang";
 import { en, type Messages } from "./messages/en";
 import { es } from "./messages/es";
@@ -28,7 +30,7 @@ export function useI18n(): I18n {
 export function I18nProvider({ initial, children }: { initial: Lang; children: ReactNode }) {
   const [lang, setState] = useState<Lang>(initial);
   const setLang = useCallback((next: Lang) => {
-    document.cookie = `${LANG_COOKIE}=${next}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
+    document.cookie = `${LANG_COOKIE}=${next}; path=${COOKIE_PATH}; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
     document.documentElement.lang = next;
     setState(next);
   }, []);

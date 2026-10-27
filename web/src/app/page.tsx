@@ -9,6 +9,8 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ComponentType, type SVGProps } from "react";
 
+import { withBase } from "@/lib/base-path";
+
 import { api, type SessionInfo } from "./_ui/api";
 import { Avatar } from "./_ui/avatar";
 import { LanguageSwitch, useI18n } from "./_ui/i18n";
@@ -82,7 +84,7 @@ export default function Home() {
             </p>
           </div>
           <Image
-            src="/hero-intake.webp"
+            src={withBase("/hero-intake.webp")}
             alt={m.heroAlt}
             width={1400}
             height={788}

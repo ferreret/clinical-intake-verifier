@@ -159,6 +159,25 @@ describe("workspaces", () => {
     expect(await listBatches(await openWorkspace(two))).toHaveLength(0);
   });
 
+  it("keeps at most MAX_SANDBOXES, a new one taking the place of the one unused for longest", async () => {
+    const before = await listWorkspaces();
+    process.env.MAX_SANDBOXES = String(before.length + 2);
+    try {
+      const first = await createSandbox();
+      const second = await createSandbox();
+      const old = new Date(Date.now() - 3600_000);
+      await fs.utimes(path.join(root, "data", "workspaces", `${first}.sqlite`), old, old);
+      for (const w of before) await fs.utimes(path.join(root, "data", "workspaces", `${w}.sqlite`), new Date(), new Date());
+      const third = await createSandbox();
+      const now = await listWorkspaces();
+      expect(now).toHaveLength(before.length + 2);
+      expect(now).toEqual(expect.arrayContaining([second, third]));
+      expect(now).not.toContain(first);
+    } finally {
+      delete process.env.MAX_SANDBOXES;
+    }
+  });
+
   it("deletes sandboxes unused for longer than their lifetime", async () => {
     const old = await createSandbox();
     const recent = await createSandbox();

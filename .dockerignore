@@ -1,0 +1,10 @@
+# Only web/ and schema/ go into the image; the demo's data comes from its archive.
+*
+!schema/
+!web/
+web/node_modules/
+web/.next/
+web/.env*
+web/*.tsbuildinfo
+web/next-env.d.ts
+!web/.env.example

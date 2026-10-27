@@ -86,6 +86,15 @@ export function sandboxTtlHours(): number {
   return n > 0 ? n : 24;
 }
 
+/**
+ * Sandboxes kept at most: a new visitor beyond it takes the place of the one unused for
+ * longest, so that visits (or a robot) cannot fill the disk. About half a megabyte each.
+ */
+export function maxSandboxes(): number {
+  const n = Number.parseInt(process.env.MAX_SANDBOXES ?? "", 10);
+  return n > 0 ? n : 500;
+}
+
 /** Documents read at a time per provider, across workspaces: Gemini in parallel, the local GPU one by one. */
 export function concurrency(provider: Provider): number {
   const fallback = provider === "gemini" ? 4 : 1;

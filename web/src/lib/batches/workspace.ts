@@ -13,7 +13,7 @@ import path from "node:path";
 
 import { openLis, type LisDb } from "@/lib/lis/db";
 
-import { dataDir, sandboxTtlHours, templateDb } from "./config";
+import { dataDir, maxSandboxes, sandboxTtlHours, templateDb } from "./config";
 
 export const LIVE_WORKSPACE = "live";
 const SANDBOX_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -56,8 +56,15 @@ export async function workspaceExists(id: string): Promise<boolean> {
   return isWorkspaceId(id) && (await fs.stat(fileOf(id)).catch(() => null)) !== null;
 }
 
-/** A new sandbox, ready to use. */
+/** A new sandbox, ready to use; beyond MAX_SANDBOXES, the ones unused for longest make room. */
 export async function createSandbox(): Promise<string> {
+  const sandboxes = await Promise.all(
+    (await listWorkspaces())
+      .filter((w) => w !== LIVE_WORKSPACE)
+      .map(async (w) => ({ id: w, used: (await fs.stat(fileOf(w)).catch(() => null))?.mtimeMs ?? 0 })),
+  );
+  sandboxes.sort((a, b) => a.used - b.used);
+  for (const old of sandboxes.slice(0, Math.max(0, sandboxes.length - maxSandboxes() + 1))) await deleteSandbox(old.id);
   const id = randomUUID();
   await openWorkspace(id);
   return id;

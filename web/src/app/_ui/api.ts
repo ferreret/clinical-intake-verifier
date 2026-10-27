@@ -3,6 +3,7 @@
  * Types only are taken from the server's modules; nothing of theirs reaches the browser.
  */
 import type { DocumentState } from "@/lib/batches/schema";
+import { withBase } from "@/lib/base-path";
 import type { Decision, RejectReason } from "@/lib/batches/decide";
 import type { BundledInfo } from "@/lib/batches/sources";
 import type { Batch, BatchDocument, BatchSummary, DocumentSummary, StoredProposal } from "@/lib/batches/store";
@@ -64,7 +65,7 @@ export class ApiError extends Error {
 }
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { cache: "no-store", ...init });
+  const res = await fetch(withBase(url), { cache: "no-store", ...init });
   const body = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) throw new ApiError(res.status, body.error ?? `HTTP ${res.status}`, body as Record<string, unknown>);
   return body;
@@ -111,7 +112,7 @@ export const api = {
     call<{ results: RecordView[] }>(`/api/lis/search?kind=${kind}&q=${encodeURIComponent(q)}`, { signal }),
   fusion: (documentId: string, links: ChosenLinks) =>
     call<{ fused: FusedDocument; records: Record<string, RecordView> }>(`/api/documents/${documentId}/fusion`, postJson({ links })),
-  pageUrl: (documentId: string, page: number) => `/api/documents/${documentId}/pages/${page}`,
+  pageUrl: (documentId: string, page: number) => withBase(`/api/documents/${documentId}/pages/${page}`),
 };
 
 /** States that are still moving: a page showing them keeps polling. */

@@ -16,7 +16,8 @@
     "search-compare": "tsx src/scripts/search-compare.ts",
     "relocate": "tsx src/scripts/relocate-batch.ts",
     "seed-memory": "tsx src/scripts/seed-memory.ts",
-    "record-mapping": "tsx src/scripts/record-mapping.ts"
+    "record-mapping": "tsx src/scripts/record-mapping.ts",
+    "pack-demo": "tsx src/scripts/pack-demo.ts"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",

@@ -1604,6 +1604,27 @@ what is stored. Checked with a test of the steps and in the browser at 1920 px.
   both extractor runs, the demo template and the recording from somewhere: built in, or
   fetched at build time.
 
+### F6 block 2, prepared on 2026-10-27: the image and the deployment guide
+
+Decided by the product owner: two deployments of the same image, the portfolio's under a
+path of the shared demos address (`/verificador-peticiones/`) and a company one at the root
+of its own subdomain, **both in replay mode**; both deploy from a `production` branch; the
+demo's data comes from a release archive. The details are in [deploy.md](deploy.md).
+
+- **A path chosen at build time** (`BASE_PATH`): Next.js prefixes links and navigation; the
+  app's own requests, page images, illustrations and cookies take it from `lib/base-path.ts`.
+  Strip path stays off in the proxy.
+- **A standalone build**, with pdf.js's run-time files traced in. Checked locally under the
+  path: entry, sign-in, a batch replayed, page images, approval.
+- **The demo's data archive** (`npm run pack-demo`, 53 MB): documents, both recorded
+  readings, the template with the starting memory, the recorded mapping replies. The image
+  downloads it and checks its sha256 when building.
+- **At most `MAX_SANDBOXES` sandboxes** (500): a new visitor beyond it takes the place of the
+  one unused for longest, so that visits cannot fill the disk.
+- **Not done yet, each asked first:** the release with the archive, the `production` branch,
+  and the two Dokploy applications. The image itself has not been built here (no Docker on
+  the development machine); its download step was tested on its own.
+
 **Open points found while building it, for later blocks:**
 
 - **Form language.** The extractor does not report it, so the mapping model is told
