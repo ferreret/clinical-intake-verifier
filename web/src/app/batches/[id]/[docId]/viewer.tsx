@@ -77,8 +77,9 @@ export function Viewer({
           </span>
         </span>
       </div>
-      <div ref={scroller} className="flex-1 overflow-auto p-4">
-        <div className="mx-auto space-y-4" style={{ width: `${ZOOMS[zoom] * 100}%` }}>
+      <div ref={scroller} className="@container flex-1 overflow-auto p-4">
+        {/* Two pages side by side when the viewer is wide enough to read both. */}
+        <div className="mx-auto grid items-start gap-4 @min-[72rem]:grid-cols-2" style={{ width: `${ZOOMS[zoom] * 100}%` }}>
           {pages.map((p) => (
             <div
               key={p.number}

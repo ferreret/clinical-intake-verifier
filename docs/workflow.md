@@ -102,13 +102,26 @@ session shell and the state badges.
     item.
   - **The lab's records:** the patient, physician and insurer the document is linked to, or
     the candidates, with why.
-  - **Fields by group,** each with its light and the reason for it. The focused field, and
-    every red one, shows what the document and the records say. A conflict proposes no value:
-    one click, or Alt+1 / Alt+2, takes the document's or the records'. Every field can be
-    typed over, and a change is marked "edited".
-  - **The requested lines,** with the codes proposed and their names, and where the proposal
-    came from (memory, search or model). They can be kept, replaced by another catalog
-    candidate, or removed when the line is not a test.
+  - **Fields as a table, by group.** Each row has:
+    - its light, and the reason for it;
+    - **Read:** what the document says, with its page;
+    - **Records:** what the lab's records say, marked when only a candidate record says it;
+    - **Proposed:** the engine's value and where it came from;
+    - **Selected:** the value the technician sets, which can be typed over and is marked when
+      changed.
+
+    Clicking Read or Records selects that value; the one that matches the selection is
+    highlighted. A conflict proposes nothing and is settled with one click, or Alt+1 / Alt+2.
+  - **The requested lines as a table:**
+    - **Read:** the line as written;
+    - **Proposed:** the codes with their names, and where they came from (memory, search or
+      model);
+    - **Selected:** the codes kept, another catalog candidate, or the line dropped when it is
+      not a test.
+  - **Built for wide screens (1920 to 3840 px).** Below 2560 px, the document is on the left
+    and the proposal on the right. From there up, the proposal splits into fields and tests
+    side by side, and from about 2300 px of viewer the pages go two by two. The tables narrow
+    with their container: the records go under what was read, then the proposed column goes.
   - **Keyboard:** Alt+↓/↑ next and previous item, Alt+→/← next and previous document of the
     batch, Esc to leave an input, ? for the list.
   - **Footer:** what is left to resolve (a red or required field still empty, a line with no

@@ -22,6 +22,14 @@
   --color-brand-900: #312e81;
   --color-ink: #0b1020;
 
+  /*
+   * Wide screens: verification is meant for 1920 to 3840 px of room (a 4K screen at 100%).
+   * In rem, like Tailwind's own, so that they sort after lg and 2xl: 1920, 2560, 3200 px.
+   */
+  --breakpoint-3xl: 120rem;
+  --breakpoint-4xl: 160rem;
+  --breakpoint-5xl: 200rem;
+
   --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px -4px rgb(15 23 42 / 0.08);
   --shadow-lift: 0 2px 4px rgb(15 23 42 / 0.05), 0 12px 32px -8px rgb(15 23 42 / 0.16);
 }

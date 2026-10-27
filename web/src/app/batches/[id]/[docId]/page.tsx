@@ -160,7 +160,9 @@ export default function VerifyPage() {
   const extractor = view.proposal.prediction.extractor;
 
   return (
-    <div className="grid gap-4 lg:h-[calc(100dvh-5.5rem-1px)] lg:grid-cols-[minmax(0,1fr)_minmax(28rem,36rem)] lg:grid-rows-1">
+    // Two columns, the document and the proposal; from 2560 px the proposal splits into fields
+    // and tests side by side (see the body below), so everything is in view at once.
+    <div className="grid gap-4 lg:h-[calc(100dvh-5.5rem-1px)] lg:grid-cols-[minmax(0,1fr)_minmax(34rem,44rem)] lg:grid-rows-1 3xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] 4xl:grid-cols-[minmax(0,4fr)_minmax(0,7fr)]">
       <div className="h-[60vh] lg:h-full">
         <Viewer
           documentId={docId}
@@ -215,12 +217,16 @@ export default function VerifyPage() {
           )}
         </header>
 
-        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
-          <section>
-            <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">The lab&apos;s records</h2>
-            <Links view={view} />
-          </section>
-          <Fields
+        <div className="@container min-h-0 flex-1">
+          <div className="grid h-full overflow-y-auto @min-[88rem]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @min-[88rem]:overflow-hidden">
+            <div className="@container space-y-4 p-4 @min-[88rem]:overflow-y-auto">
+              <section>
+                <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">The lab&apos;s records</h2>
+                <Links view={view} />
+              </section>
+              <section>
+                <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">Fields · {fields.length}</h2>
+                <Fields
             view={view}
             items={fields}
             values={values}
@@ -230,12 +236,14 @@ export default function VerifyPage() {
             inputs={inputs}
             onFocus={(k) => setFocused(k)}
             onChange={setField}
-          />
-          <section>
-            <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
-              Requested tests · {tests.length} line{tests.length === 1 ? "" : "s"}
-            </h2>
-            <Tests
+                />
+              </section>
+            </div>
+            <section className="@container p-4 pt-0 @min-[88rem]:overflow-y-auto @min-[88rem]:border-l @min-[88rem]:border-slate-200 @min-[88rem]:pt-4">
+              <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
+                Requested tests · {tests.length} line{tests.length === 1 ? "" : "s"}
+              </h2>
+              <Tests
               view={view}
               items={tests}
               chosen={chosen}
@@ -245,8 +253,9 @@ export default function VerifyPage() {
               inputs={inputs}
               onFocus={(k) => setFocused(k)}
               onChoose={chooseCodes}
-            />
-          </section>
+              />
+            </section>
+          </div>
         </div>
 
         <footer className="border-t border-slate-200 bg-white px-4 py-3">

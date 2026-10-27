@@ -24,6 +24,8 @@ export function useSession() {
 export function SessionShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [session, setSession] = useState<SessionInfo | null>(null);
+  // Pages are kept to a reading width, except the verification screen, which needs the room.
+  const wide = /^\/batches\/[^/]+\/[^/]+/.test(usePathname() ?? "");
 
   useEffect(() => {
     api.session().then((s) => {
@@ -41,23 +43,17 @@ export function SessionShell({ children }: { children: ReactNode }) {
   }
   return (
     <SessionContext.Provider value={{ ...session, technician: session.technician }}>
-      <Header session={session} technician={session.technician} />
-      <Main>{children}</Main>
+      <Header session={session} technician={session.technician} wide={wide} />
+      <main className={wide ? "px-4 py-4 sm:px-6" : "mx-auto max-w-6xl px-4 py-8 sm:px-6"}>{children}</main>
     </SessionContext.Provider>
   );
 }
 
-/** Pages are kept to a reading width, except the verification screen, which needs the room. */
-function Main({ children }: { children: ReactNode }) {
-  const wide = /^\/batches\/[^/]+\/[^/]+/.test(usePathname() ?? "");
-  return <main className={wide ? "px-4 py-4 sm:px-6" : "mx-auto max-w-6xl px-4 py-8 sm:px-6"}>{children}</main>;
-}
-
-function Header({ session, technician }: { session: SessionInfo; technician: Technician }) {
+function Header({ session, technician, wide }: { session: SessionInfo; technician: Technician; wide: boolean }) {
   const path = usePathname();
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:gap-6 sm:px-6">
+      <div className={`mx-auto flex h-14 items-center gap-3 px-4 sm:gap-6 sm:px-6 ${wide ? "" : "max-w-6xl"}`}>
         <Link href="/batches" className="flex items-center gap-2.5">
           <Logo className="size-7" />
           <span className="hidden font-semibold tracking-tight sm:inline">Intake Verifier</span>

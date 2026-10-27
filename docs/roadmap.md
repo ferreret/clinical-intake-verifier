@@ -1491,6 +1491,20 @@ The changes stay in the page until block 4's approval records them. Checked in t
 
 One test for the locks; 156 in all.
 
+**The verification screen for wide screens, 2026-10-27, at the product owner's request.**
+The product owner asked for verification to be designed for 4K screens, showing for each
+field what was read, what is proposed and what is selected. This is the base; the work will
+go on from it step by step.
+- **Columns per field:** Read, Records, Proposed, Selected. Read and Records can be clicked to
+  select their value.
+- **Columns per test line:** Read, Proposed, Selected.
+- **Breakpoints:** new ones at 1920, 2560 and 3200 px. From 2560 px the screen has three
+  columns (document, fields, tests), and the viewer shows two pages per row when it is wide
+  enough.
+- **Checked** with screenshots at 1920, 2560 and 3840 px, taken with headless Chrome. At
+  3840 px the four pages, the 13 fields and the 24 lines of `synth-000003` fit on one screen
+  without scrolling.
+
 **Open points found while building it, for later blocks:**
 
 - **Form language.** The extractor does not report it, so the mapping model is told
