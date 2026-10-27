@@ -125,3 +125,19 @@ def test_green_with_no_value_is_wrong():
     f = fused("linked", "P1", {"Paciente": ("green", "agree", None)})
     out = score_fused(g, f, LIS, load_fields())
     assert next(x for x in out["fields"] if x["field"] == "Paciente")["wrong_green"]
+
+
+def test_each_field_says_whether_its_proposed_value_is_right():
+    g = golden("match", Paciente="María García López", Telefono="612345678")
+    f = fused(
+        "linked",
+        "P1",
+        {
+            "Paciente": ("green", "agree", "María García López"),
+            "Telefono": ("orange", "ai_only", "612345670"),
+        },
+    )
+    out = {x["field"]: x for x in score_fused(g, f, LIS, load_fields())["fields"]}
+    assert out["Paciente"]["right"]
+    # A misread outside green is not a wrong green, but it is still a wrong value.
+    assert not out["Telefono"]["right"] and not out["Telefono"]["wrong_green"]

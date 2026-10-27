@@ -111,6 +111,7 @@ def score_fused(golden: dict, fused: dict, lis: dict, spec: dict) -> dict:
                 "reason": f["reason"],
                 "value": f["value"],
                 "truth": truth,
+                "right": right,
                 "wrong_green": f["state"] == "green" and not right,
                 "discrepancy": rec["differs"] == f["name"],
             }
@@ -167,6 +168,20 @@ def evaluate_fusion(fusion_dir: Path, golden_dir: Path | None = None) -> dict:
         for f in o["fields"]
         if f["wrong_green"]
     ]
+    # Where reading errors end: a proposed value that is wrong, or none where one was due.
+    # A conflict proposes none on purpose: both values go to the technician.
+    wrong_values = [
+        {"id": o["id"], **{k: f[k] for k in ("field", "state", "reason", "value", "truth")}}
+        for o in outcomes
+        for f in o["fields"]
+        if f["value"] is not None and not f["right"]
+    ]
+    missing_values = [
+        {"id": o["id"], **{k: f[k] for k in ("field", "state", "reason", "truth")}}
+        for o in outcomes
+        for f in o["fields"]
+        if f["value"] is None and f["truth"] is not None and f["reason"] != "conflict"
+    ]
     discrepancies = [(o, f) for o in outcomes for f in o["fields"] if f["discrepancy"]]
     false_conflicts = [
         {"id": o["id"], "field": f["field"]}
@@ -191,6 +206,14 @@ def evaluate_fusion(fusion_dir: Path, golden_dir: Path | None = None) -> dict:
         "wrong_links": sum(n for k in RECORDS for o, n in links[k].items() if o == "wrong_link"),
         "states": {s: states.get(s, 0) for s in STATES},
         "wrong_green": wrong_green,
+        "wrong_values": {
+            "by_state": _by_state(wrong_values),
+            "items": wrong_values,
+        },
+        "missing_values": {
+            "by_state": _by_state(missing_values),
+            "items": missing_values,
+        },
         "discrepancies": {
             "total": len(discrepancies),
             "caught": sum(f["state"] == "red" for _, f in discrepancies),
@@ -210,6 +233,11 @@ def evaluate_fusion(fusion_dir: Path, golden_dir: Path | None = None) -> dict:
     }
 
 
+def _by_state(items: list[dict]) -> dict[str, int]:
+    c = Counter(i["state"] for i in items)
+    return {k: c.get(k, 0) for k in STATES}
+
+
 def console_summary(r: dict) -> list[str]:
     def tally(d: dict) -> str:
         return ", ".join(f"{k} {v}" for k, v in sorted(d.items()))
@@ -224,9 +252,16 @@ def console_summary(r: dict) -> list[str]:
         f"  wrong links : {r['wrong_links']}",
         f"  fields      : green {s['green']}, orange {s['orange']}, red {s['red']}, grey {s['grey']}",
         f"  wrong green : {len(r['wrong_green'])}",
+        f"  wrong values: {_states_line(r['wrong_values'])}",
+        f"  missing     : {_states_line(r['missing_values'])}",
         f"  disagreements caught red: {d['caught']} of {d['total']}",
         f"  conflicts with no disagreement: {len(r['false_conflicts'])}",
     ]
+
+
+def _states_line(part: dict) -> str:
+    states = ", ".join(f"{k} {n}" for k, n in part["by_state"].items() if n)
+    return f"{len(part['items'])}" + (f" ({states})" if states else "")
 
 
 def markdown(r: dict) -> str:
@@ -246,6 +281,17 @@ def markdown(r: dict) -> str:
     lines += [
         f"- {w['id']} {w['field']}: {w['value']!r}, should be {w['truth']!r}"
         for w in r["wrong_green"]
+    ] or ["None."]
+    lines += ["", "## Wrong proposed values, by state", ""]
+    lines += [
+        f"- {w['id']} {w['field']}: {w['state']} ({w['reason']}), {w['value']!r}, "
+        f"should be {w['truth']!r}"
+        for w in r["wrong_values"]["items"]
+    ] or ["None."]
+    lines += ["", "## Values missing, by state", ""]
+    lines += [
+        f"- {m['id']} {m['field']}: {m['state']} ({m['reason']}), should be {m['truth']!r}"
+        for m in r["missing_values"]["items"]
     ] or ["None."]
     lines += ["", "## Disagreements not marked red", ""]
     lines += [f"- {m['id']} {m['field']}: {m['state']}" for m in r["discrepancies"]["missed"]] or [

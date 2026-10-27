@@ -249,6 +249,8 @@ value of the right record. Values are compared with the field's LIS compare mode
 |---|---|---|
 | wrong links | documents linked to another record | 0 |
 | wrong green | green fields whose value is not the right one, or empty | 0 |
+| wrong values, by state | fields whose proposed value is not the right one, and the colour they got: where reading errors end | none green |
+| missing, by state | fields with no proposed value where one was due, conflicts left out (they propose none on purpose) | none green |
 | disagreements caught red | fields where document and LIS differ by scenario, marked red | all |
 | conflicts with no disagreement | red conflicts the scenario did not plant | as few as possible |
 
