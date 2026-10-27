@@ -13,7 +13,7 @@ Last updated: 2026-10-27.
 | F1 | Synthetic request generator with golden ground truth | done |
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
-| F4 | Mock LIS, fusion engine and test mapping | design approved; blocks 1 to 5 done (below) |
+| F4 | Mock LIS, fusion engine and test mapping | done: blocks 1 to 6, measured end to end on real readings (below) |
 | F5 | Batches and verification UI | not started; batch workflow designed (section 5) |
 | F6 | Public demo on a self-hosted Dokploy | not started |
 
@@ -821,7 +821,7 @@ stays, so Gemma can still be selected with `LOCAL_LLM_MODEL`.
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
 **Status: proposed and approved on 2026-10-23, with every decision settled (at the end).
-Blocks 1 to 5 are done (below); next: block 6.**
+Blocks 1 to 6 are done (below).**
 
 F4 as described in `CLAUDE.md` covers the demographic fields: a synthetic LIS and the traffic
 light. This proposal adds a third part, at the product owner's request on 2026-10-23, and it
@@ -1173,7 +1173,74 @@ per document by a TypeScript batch script, like `extract-batch.ts`, and scored i
    server does not run the local model. The caveat of block 4 holds: synthetic dialects
    flatter the search, so on real wording the model may have more to do.
 
-6. Full run with Gemini on the new dataset.
+6. Full run with Gemini on the new dataset, and the chain measured end to end. **Done on
+   2026-10-27.** The Gemini run on the 200 documents of `seed-42` was made in section 3
+   (prompt v6), together with local Qwen's (v6, OCR boxes); here both are fused and mapped
+   as the product chains them.
+
+   **New measures in the harness:**
+   - `evaluate-fusion` tallies the **wrong** and **missing proposed values by state**. Wrong
+     green only counts the errors that slip through; reading errors need to be followed to
+     the colour they end in.
+   - `map-simulate --fusion` maps the lines a run read, with the insurer its fusion linked.
+     Each read line is set against the golden's as exact, misread or invented (the
+     technician removes it), and golden lines nobody read are listed as unread
+     (`docs/evaluation.md`, "End to end, from a real reading").
+
+   **Fusion**, 200 documents:
+
+   | Reading | Wrong links | Wrong green | Wrong values, by state | Misreads caught red by the LIS | Planted disagreements red |
+   |---|---|---|---|---|---|
+   | golden (perfect) | 0 | 0 | 0 | – | 50 of 50 |
+   | Gemini v6 | 0 | 0 | 5: orange 3, red 2 | 0 | 50 of 50 |
+   | Qwen v6 + OCR | 0 | 0 | 7: orange 7 | 3 | 49 of 50 |
+
+   **No reading error ended green.**
+   - **Gemini:** its two red values are the garbled ones ("Carri%n", "Ib%rica"); the garble
+     also left that insurer unlinked. The three orange ones are digits wrong in numbers the
+     LIS does not hold (request, insurer's request, telephone of a patient without a record).
+   - **Qwen:** three misreads were caught red because the LIS disagreed: "Isodoro" for
+     "Isidoro", and two sexes swapped. They show up as the 3 "conflicts with no
+     disagreement". Its 7 orange ones are digits wrong in numbers the LIS cannot check, two
+     insurer's request numbers it invented, and one document described below.
+   - **The weak point (`synth-000186`, Qwen):** the form has a typo in the identity
+     document, which the scenario plants, and Qwen also misread the name ("INIELA" for
+     "INIESTA"). With neither the identity document nor the name agreeing, the engine found
+     no candidate. It offered a new patient, all orange, where a known patient was due.
+     Nothing is green, but a technician could create a duplicate patient. Proposal below.
+
+   **Mapping**, the same 200 documents. Simulated technician without errors; the memory
+   starts empty and learns as the requests come in. Local Qwen chooses among the candidates
+   on red lines, the product's default:
+
+   | Reading | Lines | Green | Orange | Red | Work | Work without the model | Wrong green | Misread / invented / not read |
+   |---|---|---|---|---|---|---|---|---|
+   | golden (perfect) | 1,601 | 591 | 1,005 | 5 | 1.4% | 4.6% | 0 | – |
+   | Gemini v6 | 1,597 | 582 | 1,010 | 5 | 1.5% | 4.7% | 0 | 3 / 0 / 4 |
+   | Qwen v6 + OCR | 1,601 | 588 | 1,008 | 5 | 1.5% | 4.7% | 0 | 8 / 1 / 1 |
+
+   - **Reading errors cost the mapping almost nothing:** 0.1 points of work, and no wrong
+     green.
+   - **Every misread line got the right codes.**
+     - "PORFINAS TOTALES" and "VELOC. DE SEDIMENTACIÓN" went orange through the search;
+       "HOMOCISTE%NA" too.
+     - "G-GT", "r-GT", "Г-GT" and "I-GT" for "Γ-GT": the search alone leaves them red with
+       the wrong code, the model then proposes the right one. On the third and fourth
+       requests of that insurer where Qwen read "G-GT", the memory had learnt the misreading
+       and proposed it green. Decision 4 of 2026-10-27, leaving "Γ-GT" to the mapping,
+       holds.
+   - **The one invented line** ("ESTUDIO TIROIDEO", a heading read as a test) went orange,
+     and the technician removes it.
+   - **Lines not read are the remaining cost:** 4 with Gemini, 1 with Qwen. Nothing proposes
+     codes for them, and the technician has to notice and add them. The viewer in F5 is where
+     they will be noticed.
+   - **Model calls:** 23.5 per 100 documents, about 3.1 s each.
+
+   **Proposal, not approved: candidates by birth date and a similar name.** When neither the
+   identity document nor the name agrees, a patient whose birth date agrees and whose name
+   is close (the similarity the OCR boxes use) could be offered as a candidate. That would
+   catch `synth-000186`. It needs measuring against the scenarios of new patients, so that
+   it does not offer false candidates.
 
 #### Decisions
 
