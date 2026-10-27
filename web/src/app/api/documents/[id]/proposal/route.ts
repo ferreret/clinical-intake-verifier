@@ -11,6 +11,7 @@ import { NextResponse } from "next/server";
 import { catalogOf } from "@/lib/batches/pipeline";
 import { getSession, noSession } from "@/lib/batches/session";
 import { getBatch, getDocument, getProposal } from "@/lib/batches/store";
+import { codeNames } from "@/lib/mapping/browse";
 import { readSnapshot } from "@/lib/lis/snapshot";
 
 export const runtime = "nodejs";
@@ -31,15 +32,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!proposal) return NextResponse.json({ error: `no proposal yet; the document is ${doc.state}` }, { status: 409 });
 
   const { catalog } = await catalogOf(session.db);
-  const names = new Map<string, string>([
-    ...catalog.tests.map((t) => [t.code, t.specimen ? `${t.name} (${t.specimen})` : t.name] as const),
-  ]);
   const wanted = new Set<string>();
   for (const t of proposal.tests) {
     for (const c of t.mapping.codes ?? []) wanted.add(c);
     for (const cand of t.mapping.candidates) for (const c of cand.codes) wanted.add(c);
   }
-  const codes = Object.fromEntries([...wanted].map((c) => [c, names.get(c) ?? c]));
+  const codes = codeNames(catalog, wanted);
 
   const lis = await readSnapshot(session.db);
   const ids = new Set<string>();

@@ -10,6 +10,7 @@ import { proposeDocument } from "@/lib/mapping/document";
 import { DbMemory, InMemoryMemory, type MappingMemory } from "@/lib/mapping/memory";
 import { buildPrompt, type Provider } from "@/lib/mapping/model";
 import { GREEN_APPROVALS, propose, textKey } from "@/lib/mapping/propose";
+import { browse, codeNames } from "@/lib/mapping/browse";
 import { CatalogIndex } from "@/lib/mapping/search";
 
 const FILE: CatalogFile = {
@@ -67,6 +68,25 @@ async function learning(memory: MappingMemory) {
   }
   return states;
 }
+
+describe("browsing the catalog by hand", () => {
+  it("puts the codes that start with the query first", () => {
+    const found = browse(INDEX, "bq000");
+    expect(found.slice(0, 5).map((c) => c.ref)).toEqual(["BQ0001", "BQ0002", "BQ0003", "BQ0004", "BQ0005"]);
+    expect(browse(INDEX, "PF07")[0]).toMatchObject({ kind: "profile", codes: ["BQ0004", "BQ0005"] });
+  });
+
+  it("finds by name, and nothing for an empty query or noise", () => {
+    expect(browse(INDEX, "urocultivo")[0].ref).toBe("MI0001");
+    expect(browse(INDEX, "iones")[0].ref).toBe("PF07");
+    expect(browse(INDEX, "  ")).toEqual([]);
+    expect(browse(INDEX, "zzzz")).toEqual([]);
+  });
+
+  it("names codes as the catalog does, and an unknown one by itself", () => {
+    expect(codeNames(CATALOG, ["BQ0001", "XX9999", "BQ0001"])).toEqual({ BQ0001: "Glucosa, suero", XX9999: "XX9999" });
+  });
+});
 
 describe("proposals", () => {
   it("turns green only after active approvals", async () => {

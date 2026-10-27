@@ -1512,6 +1512,20 @@ Screenshots at 1920 and 2560 px checked it. On the first look it followed the fo
 stayed on screen and covered rows being worked on. It now shows only while the pointer is on
 a value in the Read column; the viewer brings the value's box into view when it is off screen.
 
+**Editing the tests, 2026-10-27, at the product owner's request.** The selected codes of a line
+are chips that can be removed, and any test or profile of the catalog can be added with a
+search by name or code, not only the proposed candidates. Lines that were not read can be
+added, and lines that were read can be dropped (kept in view struck through, with an undo).
+What the approval records for each, and what the memory learns from it, is block 4's: the
+proposal is a drop or a correction for a read line, and nothing for an added one.
+
+**Proposed: a decision log.** Per document, why each value and code was proposed: the
+reading (model, attempts, boxes, warnings), the links to the records and on what keys, each
+field's comparison and the rule that set its colour, and each line through memory, search
+(candidates and scores) and model. Part of it is not stored today (search scores, the model
+consultation), so it has to be recorded when the document is processed. Next, after the
+tests editing.
+
 **Open points found while building it, for later blocks:**
 
 - **Form language.** The extractor does not report it, so the mapping model is told

@@ -19,7 +19,7 @@ import { StateBadge } from "../../../_ui/states";
 import { Fields, Links } from "./fields";
 import { Lens } from "./lens";
 import { itemsOf, type Light } from "./model";
-import { Tests, type Chosen } from "./tests";
+import { Tests, type AddedLine, type Chosen } from "./tests";
 import { Viewer } from "./viewer";
 
 type Lock = { status: "mine" } | { status: "locked"; message: string } | { status: "closed"; message: string };
@@ -33,6 +33,9 @@ export default function VerifyPage() {
   const [error, setError] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [chosen, setChosen] = useState<Chosen>({});
+  const [added, setAdded] = useState<AddedLine[]>([]);
+  // Catalog names of the codes on screen: the proposal's, and those found by searching.
+  const [names, setNames] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [focused, setFocused] = useState<string | null>(null);
   // The item whose Read cell is under the pointer: what the lens shows.
@@ -57,6 +60,7 @@ export default function VerifyPage() {
     });
   }, []);
   const inputs = useRef(new Map<string, HTMLElement>());
+  const pendingFocus = useRef<string | null>(null);
 
   const open = useCallback(
     (takeOver = false) => api.open(docId, takeOver).then(() => ({ status: "mine" }) as Lock, lockedBy),
@@ -72,6 +76,8 @@ export default function VerifyPage() {
         setView(v);
         setValues(Object.fromEntries(items.flatMap((i) => (i.kind === "field" ? [[i.key, i.fused.value ?? ""]] : []))));
         setChosen(Object.fromEntries(items.flatMap((i) => (i.kind === "test" ? [[i.key, v.proposal.tests[i.index].mapping.codes ?? []]] : []))));
+        setAdded([]);
+        setNames(v.codes);
         setTouched(new Set());
         setFocused(items[0]?.key ?? null);
       },
@@ -118,6 +124,35 @@ export default function VerifyPage() {
   function chooseCodes(key: string, codes: string[] | null) {
     setChosen((c) => ({ ...c, [key]: codes }));
     setTouched((t) => new Set(t).add(key));
+  }
+
+  function addLine() {
+    const key = `a:${Date.now().toString(36)}`;
+    setAdded((a) => [...a, { key, text: "", codes: [] }]);
+    setTouched((t) => new Set(t).add(key));
+    setFocused(key);
+    pendingFocus.current = key;
+  }
+
+  // A line just added gets the caret once it is on screen, ready to choose its codes.
+  useEffect(() => {
+    const key = pendingFocus.current;
+    if (!key) return;
+    pendingFocus.current = null;
+    inputs.current.get(key)?.focus();
+  }, [added]);
+
+  function editAdded(key: string, patch: Partial<Omit<AddedLine, "key">>) {
+    setAdded((a) => a.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  }
+
+  function removeAdded(key: string) {
+    setAdded((a) => a.filter((l) => l.key !== key));
+    setTouched((t) => {
+      const next = new Set(t);
+      next.delete(key);
+      return next;
+    });
   }
 
   const siblings = view?.siblings ?? [];
@@ -189,12 +224,14 @@ export default function VerifyPage() {
 
   const fields = items.filter((i) => i.kind === "field");
   const tests = items.filter((i) => i.kind === "test");
-  // Left to resolve: a red field still empty, a required one empty, a line with no codes.
-  const unresolved = items.filter((i) =>
-    i.kind === "field"
-      ? !values[i.key]?.trim() && (i.fused.state === "red" || i.spec.required)
-      : Array.isArray(chosen[i.key]) && chosen[i.key]!.length === 0,
-  ).length;
+  // Left to resolve: a red field still empty, a required one empty, a line with no codes
+  // (one read and kept, or one added).
+  const unresolved =
+    items.filter((i) =>
+      i.kind === "field"
+        ? !values[i.key]?.trim() && (i.fused.state === "red" || i.spec.required)
+        : Array.isArray(chosen[i.key]) && chosen[i.key]!.length === 0,
+    ).length + added.filter((a) => a.codes.length === 0).length;
   const extractor = view.proposal.prediction.extractor;
 
   return (
@@ -287,18 +324,25 @@ export default function VerifyPage() {
             </div>
             <section className="@container p-4 pt-0 @min-[88rem]:overflow-y-auto @min-[88rem]:border-l @min-[88rem]:border-slate-200 @min-[88rem]:pt-4">
               <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
-                Requested tests · {tests.length} line{tests.length === 1 ? "" : "s"}
+                Requested tests · {tests.length} line{tests.length === 1 ? "" : "s"} read
+                {added.length > 0 && `, ${added.length} added`}
               </h2>
               <Tests
               view={view}
               items={tests}
               chosen={chosen}
+              added={added}
+              names={names}
               touched={touched}
               focused={focused}
               readOnly={readOnly}
               inputs={inputs}
               onFocus={(k) => setFocused(k)}
               onChoose={chooseCodes}
+              onAdd={addLine}
+              onEditAdded={editAdded}
+              onRemoveAdded={removeAdded}
+              onNames={(n) => setNames((all) => ({ ...all, ...n }))}
               />
             </section>
           </div>

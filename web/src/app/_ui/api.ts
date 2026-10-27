@@ -6,8 +6,9 @@ import type { DocumentState } from "@/lib/batches/schema";
 import type { BundledInfo } from "@/lib/batches/sources";
 import type { Batch, BatchDocument, BatchSummary, DocumentSummary, StoredProposal } from "@/lib/batches/store";
 import type { Technician } from "@/lib/batches/technicians";
+import type { Candidate } from "@/lib/mapping/search";
 
-export type { BatchSummary, BundledInfo, DocumentState, Technician };
+export type { BatchSummary, BundledInfo, Candidate, DocumentState, Technician };
 export type Provider = Batch["provider"];
 
 export interface SessionInfo {
@@ -85,6 +86,8 @@ export const api = {
   open: (documentId: string, takeOver = false) =>
     call<{ document: BatchDocument }>(`/api/documents/${documentId}/open`, postJson({ takeOver })),
   release: (documentId: string) => call<{ released: boolean }>(`/api/documents/${documentId}/release`, { method: "POST" }),
+  catalog: (q: string, signal?: AbortSignal) =>
+    call<{ results: Candidate[]; names: Record<string, string> }>(`/api/catalog?q=${encodeURIComponent(q)}`, { signal }),
   pageUrl: (documentId: string, page: number) => `/api/documents/${documentId}/pages/${page}`,
 };
 

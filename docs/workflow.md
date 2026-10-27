@@ -116,8 +116,15 @@ session shell and the state badges.
     - **Read:** the line as written;
     - **Proposed:** the codes with their names, and where they came from (memory, search or
       model);
-    - **Selected:** the codes kept, another catalog candidate, or the line dropped when it is
-      not a test.
+    - **Selected:** the codes as chips, each removable, and any test or profile of the
+      catalog added with a search by name or code (`codes.tsx`, `GET /api/catalog`); with
+      the search empty, the line's own candidates are offered. "Back to proposed" undoes it.
+
+    A line that is not a test, or was not requested, is dropped: it stays in view struck
+    through, with an undo, so that the approval can record that it was read and left out. A
+    test the reading missed is added by hand: it has no page or box, its text is what the
+    technician writes (optional), and its codes come from the catalog search. An added line
+    will not teach the memory of approvals, having no printed line to remember.
   - **The lens** (`lens.tsx`). While the pointer is on a value in the Read column, a window
     shows the part of the page where it was read, magnified, with the box drawn. The window
     sits beside the row, and a line joins it to the box in the viewer, dashed when the box is
@@ -178,6 +185,7 @@ sandbox.
 | `POST /api/batches` | JSON `{ "provider", "name"?, "documents": [names] }`; in live mode also multipart with `files`. Up to 50 documents; queued at once. |
 | `GET /api/batches/:id` | The batch and its documents in order; a ready one with its summary (model, latency, recorded, pages, fields and lines by colour). |
 | `POST /api/documents/:id/retry` | A failed document back to the queue (409 otherwise). |
+| `GET /api/catalog?q=` | The workspace's catalog searched by a typed name or code: codes that start with it first, then the trigram search; with each code's name. |
 | `GET /api/documents/:id/proposal` | The prediction, the fusion and each line's codes (409 until ready); with the catalog names of the codes, the linked and candidate LIS records, and the batch's documents in order. |
 | `POST /api/documents/:id/open` | Lock the document for verification to the technician (409 if another has it, unless `{ "takeOver": true }`, or if it is not ready). |
 | `POST /api/documents/:id/release` | Leave it for later: back to awaiting verification (only its holder). |
