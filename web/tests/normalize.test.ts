@@ -62,6 +62,7 @@ describe("normaliseExtraction", () => {
       value: "RUIZ ORTEGA, MARIA",
       page: 2,
       bbox: { x0: 0.605, y0: 0.302, x1: 0.704, y1: 0.315 },
+      box_source: "model",
     });
     expect(out.warnings).toEqual([]);
   });

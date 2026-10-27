@@ -152,7 +152,7 @@ function normaliseItem(
   if (pattern !== null && !new RegExp(pattern).test(value)) {
     warnings.push({ code: "pattern_mismatch", field, detail: value });
   }
-  return { value, page, bbox };
+  return bbox === null ? { value, page, bbox } : { value, page, bbox, box_source: "model" };
 }
 
 export function normaliseExtraction(raw: RawExtraction, pageCount: number): NormalisedExtraction {

@@ -7,7 +7,8 @@
  *
  * Two providers, the same prompt and the same checks: Gemini reads the PDF itself; the local
  * vision model sees the pages rendered to images and answers in its own box convention, which
- * is converted before anything else reads the reply.
+ * is converted before anything else reads the reply. The local model's boxes are then replaced
+ * by the page's OCR wherever it finds the value (locate.ts): the model reads, the OCR places.
  */
 import { FIELD_NAMES } from "@/lib/schema/fields";
 import {
@@ -20,9 +21,11 @@ import {
 } from "@/lib/schema/prediction";
 import { callGemini, GeminiApiError } from "./gemini";
 import { groundBoxes } from "./grounding";
+import { relocateBoxes } from "./locate";
 import { callLocal, LocalModelError, resolveLocalModel, resolveLocalUrl } from "./local";
 import type { NormalisedExtraction } from "./normalize";
 import { garbledCount, normaliseExtraction } from "./normalize";
+import { ocrPages } from "./ocr";
 import { looksLikePdf, readPages, sha256Hex } from "./pdf";
 import { buildSystemInstruction, PROMPT_VERSION, USER_MESSAGE } from "./prompt";
 import { renderPages } from "./render";
@@ -91,6 +94,8 @@ export interface ExtractOptions {
   dpi?: number;
   /** Local provider only, experimental: locate the values again in a second pass per page. */
   grounding?: boolean;
+  /** Boxes from the page's OCR where it finds the value; on for the local provider by default. */
+  ocrBoxes?: boolean;
 }
 
 /** One reply as the model sent it, before parsing (for a local model, without its fence). */
@@ -263,6 +268,18 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
       callLocal({ baseUrl: resolveLocalUrl(), model, pages: [page], systemInstruction: "", userMessage: prompt, temperature }),
     );
     for (const u of grounded.usage) usage = addUsage(usage, u);
+  }
+  if (result !== null && (opts.ocrBoxes ?? provider === "local")) {
+    try {
+      relocateBoxes(result, await ocrPages(pdf));
+    } catch (err) {
+      // The model's boxes stand; the values never depended on the OCR.
+      result.warnings.push({
+        code: "ocr_failed",
+        field: null,
+        detail: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
   if (result !== null && garbledFirst > 0 && attempts > 1) {
     result.warnings.push({

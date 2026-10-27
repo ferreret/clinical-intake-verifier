@@ -19,10 +19,14 @@ export interface BBox {
   y1: number;
 }
 
+export type BoxSource = "model" | "ocr";
+
 export interface PredictedField {
   value: string;
   page: number | null;
   bbox: BBox | null;
+  /** Where bbox came from; absent when bbox is null and in predictions made before OCR boxes. */
+  box_source?: BoxSource;
 }
 
 export type WarningCode =
@@ -36,7 +40,9 @@ export type WarningCode =
   /** Superseded by garbled_text; still found in predictions made before it existed. */
   | "control_character"
   | "garbled_text"
-  | "retried_garbled_text";
+  | "retried_garbled_text"
+  /** The OCR for the boxes failed; the model's boxes were kept. */
+  | "ocr_failed";
 
 export interface PredictionWarning {
   code: WarningCode;

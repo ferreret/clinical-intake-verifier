@@ -103,7 +103,7 @@
         "properties": {
           "code": {
             "type": "string",
-            "enum": ["bbox_invalid", "page_out_of_range", "pattern_mismatch", "empty_value", "duplicate_test", "unexpected_key", "title_removed", "control_character", "garbled_text", "retried_garbled_text"]
+            "enum": ["bbox_invalid", "page_out_of_range", "pattern_mismatch", "empty_value", "duplicate_test", "unexpected_key", "title_removed", "control_character", "garbled_text", "retried_garbled_text", "ocr_failed"]
           },
           "field": { "type": ["string", "null"], "description": "Field name, 'tests' for the test list, or null." },
           "detail": { "type": "string" }
@@ -131,7 +131,8 @@
       "properties": {
         "value": { "type": "string", "minLength": 1, "description": "As returned by the model, after trimming. Normalised per schema/fields.json by the model, verified (never repaired) by the boundary." },
         "page": { "type": ["integer", "null"], "minimum": 1 },
-        "bbox": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/bbox" }] }
+        "bbox": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/bbox" }] },
+        "box_source": { "type": "string", "enum": ["model", "ocr"], "description": "Where bbox came from: the model's own box, or the page's OCR, which found the value near it. Absent when bbox is null, and in predictions made before OCR boxes (their boxes are the model's)." }
       }
     },
     "nullableField": {

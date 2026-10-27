@@ -27,6 +27,14 @@ export interface LisSpec {
   compare: CompareMode;
 }
 
+/** How a normalised field may be printed, so that its value can be found on the page. */
+export interface PrintedForms {
+  /** A date's month names, January first, each with its spellings and abbreviations. */
+  month_names?: string[][];
+  /** The words an enum value may be printed as. */
+  values?: Record<string, string[]>;
+}
+
 export interface FieldSpec {
   name: string;
   label: string;
@@ -45,6 +53,7 @@ export interface FieldSpec {
   /** System default, the lowest-priority source; null for none. */
   default: string | null;
   description: string;
+  printed?: PrintedForms;
 }
 
 export interface TestsSpec {

@@ -7,9 +7,11 @@
  *                      [--only synth-000003,synth-000007] [--force]
  *
  * The provider defaults to EXTRACTOR_PROVIDER, else gemini. The local model answers one
- * request at a time, so its concurrency defaults to 1. Experiments with the local model:
- * [--dpi 200] renders the pages at another resolution, [--grounding] locates the values again
- * in a second pass per page; both are recorded under `options` in run.json.
+ * request at a time, so its concurrency defaults to 1. The local model's boxes come from the
+ * page's OCR where it finds the value: [--no-ocr-boxes] keeps the model's own, [--ocr-boxes]
+ * applies the OCR to Gemini too. Experiments with the local model: [--dpi 200] renders the
+ * pages at another resolution, [--grounding] locates the values again in a second pass per
+ * page. All are recorded under `options` in run.json.
  *
  * Reads only the PDFs: golden files are never opened here.
  */
@@ -47,7 +49,7 @@ interface RunManifest {
   prompt_version: string;
   input_mode: string;
   /** Local-model experiments, when any was used. */
-  options?: { dpi?: number; grounding?: boolean };
+  options?: { dpi?: number; grounding?: boolean; ocr_boxes?: boolean };
   temperature: number;
   started_at: string;
   finished_at: string | null;
@@ -111,6 +113,8 @@ async function main(): Promise<number> {
       provider: { type: "string" },
       dpi: { type: "string" },
       grounding: { type: "boolean", default: false },
+      "ocr-boxes": { type: "boolean", default: false },
+      "no-ocr-boxes": { type: "boolean", default: false },
       concurrency: { type: "string" },
       model: { type: "string" },
       only: { type: "string" },
@@ -149,7 +153,15 @@ async function main(): Promise<number> {
     console.error("--dpi must be between 50 and 400");
     return 1;
   }
-  const options = dpi !== undefined || grounding ? { ...(dpi !== undefined && { dpi }), ...(grounding && { grounding }) } : undefined;
+  if (values["ocr-boxes"] && values["no-ocr-boxes"]) {
+    console.error("--ocr-boxes and --no-ocr-boxes contradict each other");
+    return 1;
+  }
+  const ocrBoxes = values["ocr-boxes"] || (provider === "local" && !values["no-ocr-boxes"]);
+  const options =
+    dpi !== undefined || grounding || ocrBoxes
+      ? { ...(dpi !== undefined && { dpi }), ...(grounding && { grounding }), ...(ocrBoxes && { ocr_boxes: true }) }
+      : undefined;
   const defaultConcurrency = provider === "local" ? "1" : "4";
   const concurrency = Math.max(1, Number.parseInt(values.concurrency ?? defaultConcurrency, 10) || 1);
   const limit = values.limit ? Number.parseInt(values.limit, 10) : undefined;
@@ -226,6 +238,7 @@ async function main(): Promise<number> {
         model,
         dpi,
         grounding,
+        ocrBoxes,
         onReply: (r) => replies.push(r),
       });
       await writeJson(predictionPath, prediction);

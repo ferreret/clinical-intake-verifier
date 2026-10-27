@@ -1,6 +1,6 @@
 {
-  "$comment": "Single source of truth for the intake fields. Per field, lis is the LIS value it is compared with by the fusion engine (record.column; patient.name and physician.name are first name and both surnames) and the compare mode for that comparison, or null when the LIS does not hold it; default is the system default, the third and lowest-priority source. Read by the Python generator/evaluator and by the Next.js app. Do not duplicate this configuration in prompts, backend or UI.",
-  "version": 3,
+  "$comment": "Single source of truth for the intake fields. Per field, lis is the LIS value it is compared with by the fusion engine (record.column; patient.name and physician.name are first name and both surnames) and the compare mode for that comparison, or null when the LIS does not hold it; default is the system default, the third and lowest-priority source; printed, on a normalised field, lists the words it may be printed with, so that its value can be found on the page (month names of a date, the words for each value of an enum). Read by the Python generator/evaluator and by the Next.js app. Do not duplicate this configuration in prompts, backend or UI.",
+  "version": 4,
   "compare_modes": {
     "exact": "String equality after trimming whitespace.",
     "casefold": "Case-insensitive, accent-insensitive, whitespace-collapsed equality.",
@@ -34,7 +34,23 @@
       "pattern": "^\\d{2}/\\d{2}/\\d{4}$",
       "lis": { "source": "patient.birth_date", "compare": "exact" },
       "default": null,
-      "description": "Date of birth normalized to dd/mm/yyyy regardless of how it is printed."
+      "description": "Date of birth normalized to dd/mm/yyyy regardless of how it is printed.",
+      "printed": {
+        "month_names": [
+          ["enero", "ene", "gener", "gen"],
+          ["febrero", "feb", "febrer", "febr"],
+          ["marzo", "mar", "març"],
+          ["abril", "abr"],
+          ["mayo", "may", "maig"],
+          ["junio", "jun", "juny"],
+          ["julio", "jul", "juliol"],
+          ["agosto", "ago", "agost", "ag"],
+          ["septiembre", "sep", "setiembre", "setembre", "set"],
+          ["octubre", "oct"],
+          ["noviembre", "nov", "novembre"],
+          ["diciembre", "dic", "desembre", "des"]
+        ]
+      }
     },
     {
       "name": "Edad",
@@ -61,7 +77,14 @@
       "pattern": "^[HMU]$",
       "lis": { "source": "patient.sex", "compare": "exact" },
       "default": null,
-      "description": "H = hombre, M = mujer, U = unknown/other. Normalized from any printed representation."
+      "description": "H = hombre, M = mujer, U = unknown/other. Normalized from any printed representation.",
+      "printed": {
+        "values": {
+          "H": ["Hombre", "Varón", "Masculino", "Home", "Masculí", "H", "V"],
+          "M": ["Mujer", "Femenino", "Dona", "Femení", "M", "D"],
+          "U": ["Desconocido", "Otro", "Desconegut", "Altre", "U"]
+        }
+      }
     },
     {
       "name": "DocumentoIdentidad",

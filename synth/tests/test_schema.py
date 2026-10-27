@@ -25,11 +25,14 @@ def test_prediction_schema_lists_exactly_the_configured_fields():
 
 
 def test_prediction_field_is_a_subset_of_golden_field():
-    """A golden field minus what the extractor cannot know is a predicted field: no adapters."""
+    """A golden field minus what the extractor cannot know is a predicted field: no adapters.
+
+    The one property of its own, box_source, is provenance and is never compared."""
     golden = load_golden_schema()["$defs"]
     prediction = load_prediction_schema()["$defs"]
-    assert set(prediction["field"]["properties"]) == {"value", "page", "bbox"}
-    assert set(prediction["field"]["properties"]) <= set(golden["field"]["properties"])
+    compared = {"value", "page", "bbox"}
+    assert set(prediction["field"]["properties"]) == compared | {"box_source"}
+    assert compared <= set(golden["field"]["properties"])
     assert prediction["bbox"]["properties"] == golden["bbox"]["properties"]
     assert prediction["bbox"]["required"] == golden["bbox"]["required"]
 

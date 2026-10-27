@@ -65,9 +65,10 @@ describe("extract", () => {
       value: "RUIZ ORTEGA, MARIA",
       page: 3,
       bbox: { x0: 0.605, y0: 0.302, x1: 0.704, y1: 0.315 },
+      box_source: "model",
     });
     expect(p.fields.Telefono).toBeNull();
-    expect(p.tests).toEqual([{ value: "Urea", page: 3, bbox: { x0: 0.096, y0: 0.515, x1: 0.129, y1: 0.526 } }]);
+    expect(p.tests).toEqual([{ value: "Urea", page: 3, bbox: { x0: 0.096, y0: 0.515, x1: 0.129, y1: 0.526 }, box_source: "model" }]);
 
     const request = mockedCall.mock.calls[0][0];
     expect(request.model).toBe("test-model");

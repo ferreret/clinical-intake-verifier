@@ -1,7 +1,8 @@
-import { PDFDocument } from "pdf-lib";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { extract } from "@/lib/extractor";
 import { callLocal, LocalModelError, stripFence } from "@/lib/extractor/local";
+import { closeOcr, ocrPages } from "@/lib/extractor/ocr";
 import { renderPages } from "@/lib/extractor/render";
 import { FIELD_NAMES } from "@/lib/schema/fields";
 import { validatePrediction } from "@/lib/schema/prediction";
@@ -12,9 +13,19 @@ vi.mock("@/lib/extractor/local", async (importOriginal) => {
 });
 const mockedCall = vi.mocked(callLocal);
 
+// The real OCR, which a test can make fail.
+vi.mock("@/lib/extractor/ocr", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/extractor/ocr")>();
+  return { ...mod, ocrPages: vi.fn(mod.ocrPages) };
+});
+const mockedOcr = vi.mocked(ocrPages);
+
+/** Blank A4 pages; the last one has "Urea" printed near where qwenJson() puts its box. */
 async function samplePdf(pages = 2): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
   for (let i = 0; i < pages; i += 1) doc.addPage([595.28, 841.89]);
+  doc.getPage(pages - 1).drawText("Urea", { x: 70, y: 841.89 * (1 - 0.54), size: 14, font });
   return doc.save();
 }
 
@@ -37,16 +48,19 @@ function pngSize(png: Uint8Array): [number, number] {
   return [view.getUint32(16), view.getUint32(20)];
 }
 
-const opts = { provider: "local" as const, model: "qwen/test", apiKey: "", retryDelayMs: 0 };
+const opts = { provider: "local" as const, model: "qwen/test", apiKey: "", retryDelayMs: 0, ocrBoxes: false };
 
 beforeEach(() => {
   mockedCall.mockReset();
 });
 
+afterAll(closeOcr);
+
 describe("extract with the local provider", () => {
   it("sends one image per page and converts Qwen's boxes", async () => {
     mockedCall.mockResolvedValueOnce(reply(qwenJson()));
     const p = await extract(await samplePdf(), { ...opts, file: "synth-000003.pdf" });
+    expect(mockedOcr).not.toHaveBeenCalled();
 
     expect(validatePrediction(p)).toEqual([]);
     expect(p.extractor).toMatchObject({
@@ -61,13 +75,40 @@ describe("extract with the local provider", () => {
       value: "RUIZ ORTEGA, MARIA",
       page: 2,
       bbox: { x0: 0.605, y0: 0.302, x1: 0.704, y1: 0.315 },
+      box_source: "model",
     });
-    expect(p.tests).toEqual([{ value: "Urea", page: 2, bbox: { x0: 0.096, y0: 0.515, x1: 0.129, y1: 0.526 } }]);
+    expect(p.tests).toEqual([
+      { value: "Urea", page: 2, bbox: { x0: 0.096, y0: 0.515, x1: 0.129, y1: 0.526 }, box_source: "model" },
+    ]);
 
     const request = mockedCall.mock.calls[0][0];
     expect(request.pages).toHaveLength(2);
     expect(request.systemInstruction).toContain("bbox_2d is [xmin, ymin, xmax, ymax]");
     expect(request.systemInstruction).toContain("The JSON object has this JSON Schema:");
+  });
+
+  it("places the values the OCR finds, by default, and keeps the model's box for the rest", async () => {
+    mockedCall.mockResolvedValueOnce(reply(qwenJson()));
+    const p = await extract(await samplePdf(), { ...opts, ocrBoxes: undefined });
+
+    expect(validatePrediction(p)).toEqual([]);
+    const urea = p.tests[0];
+    expect(urea).toMatchObject({ value: "Urea", page: 2, box_source: "ocr" });
+    expect(urea.bbox?.x0).toBeCloseTo(70 / 595.28, 2);
+    expect(urea.bbox?.y1).toBeCloseTo(0.54, 2);
+    // Not printed on the page: the model's box stands.
+    expect(p.fields.Paciente).toMatchObject({ bbox: { x0: 0.605, y0: 0.302, x1: 0.704, y1: 0.315 }, box_source: "model" });
+  });
+
+  it("keeps the model's boxes, with a warning, when the OCR fails", async () => {
+    mockedCall.mockResolvedValueOnce(reply(qwenJson()));
+    mockedOcr.mockRejectedValueOnce(new Error("no worker"));
+    const p = await extract(await samplePdf(), { ...opts, ocrBoxes: true });
+
+    expect(p.extractor.error).toBeNull();
+    expect(p.tests[0]).toMatchObject({ bbox: { x0: 0.096 }, box_source: "model" });
+    expect(p.warnings).toContainEqual({ code: "ocr_failed", field: null, detail: "no worker" });
+    expect(validatePrediction(p)).toEqual([]);
   });
 
   it("locates the values again in a second pass when asked", async () => {

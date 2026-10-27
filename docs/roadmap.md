@@ -743,18 +743,44 @@ font; real handwriting will be harder for Tesseract, and there the model's box s
 model call: the model reads, the OCR places. It also fits the project's stance: the box is
 evidence from a second source, not the model's word.
 
-Proposed, not approved: **OCR boxes in the extractor.**
+**OCR boxes in the extractor: approved on 2026-10-27 and done.** As proposed, with two
+changes found while building it:
 
-- `ocr.ts` (pages to words with tesseract.js) and `locate.ts` (the matching above) next to
-  `grounding.ts`; on by default for the local provider, `--ocr-boxes` to measure it on Gemini
-  too. tesseract.js and the two language packages as dependencies, pinned.
-- The printed forms of the normalised fields (date formats, sex words, doctor's titles) in
-  `schema/fields.json`, the single place for field configuration, not in code.
-- The prediction records where each box came from (`model` or `ocr`), since provenance is part
-  of the product; a change to the prediction schema and to `docs/extractor-contract.md`.
-- Grounding stays as an experiment flag, not adopted.
-- Measured as now: the 200 Qwen v6 predictions rewritten and scored with `--baseline`.
+- `ocr.ts` (pages to words with tesseract.js 7.0.0, a pool of worker threads shared by every
+  call) and `locate.ts` (the matching), described in `docs/extractor-contract.md`, "Boxes from
+  the OCR". On by default for the local provider; `--ocr-boxes` and `--no-ocr-boxes` in
+  `npm run extract`; `npm run relocate` rewrites the boxes of an existing run without calling
+  the model.
+- **Spanish data only**, not Spanish and Catalan: matching ignores accents, and Catalan added
+  nothing measurable (3,356 against 3,351 boxes of 3,632). One npm package less, and no copy
+  of the language files, which tesseract.js 7 would need for two packages.
+- `schema/fields.json` version 4: `printed` lists the month names of a date and the words of
+  each sex. The doctor's titles needed no list: the `no-title` rule the boundary already
+  applies is reused.
+- `box_source` (`model` or `ocr`) on every predicted box, optional in the schema so that older
+  predictions stay valid; the prediction version is unchanged. A warning `ocr_failed` keeps
+  the model's boxes if the OCR fails.
+- Grounding stays an experiment flag.
 
+Measured on the 200 documents, values untouched (0 flipped):
+
+| Run | Boxes at IoU ≥ 0.5 | Median IoU | Time added |
+|---|---|---|---|
+| Qwen v6 | 26.0% | 0.20 | — |
+| **Qwen v6 + OCR boxes** (`20261026-qwen3.6-35b-a3b-p6-ocr`) | **92.5%** (3,360 of 3,632) | 0.77 | 1.0 s per document on 8 CPU workers |
+| Gemini v6 | 99.4% | 0.76 | — |
+| Gemini v6 + OCR boxes (`20261026-gemini-3.8-flash-p6-ocr`) | 97.6% (3,549 of 3,637) | 0.77 | 1.0 s per document |
+
+The OCR makes Gemini's boxes slightly worse (−1.8 points): its own are already better than
+what the OCR finds, so OCR boxes stay off by default for Gemini.
+
+**`box_source` is a confidence signal.** In the Qwen run, a box from the OCR is right in
+97.2% of cases (3,316 of 3,410) and a box left to the model in 15.6% (33 of 211). For F5
+(proposal 2 above): the UI can draw an OCR box as exact and a model box as approximate, and
+the operator knows which is which.
+
+Checked end to end: `next build`, and `POST /api/extract` with the local provider on the built
+server (14 boxes from the OCR, 2 from the model, no warning).
 
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 

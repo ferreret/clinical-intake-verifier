@@ -13,19 +13,22 @@
     "seed-lis": "tsx src/scripts/seed-lis.ts",
     "fuse": "tsx src/scripts/fuse-batch.ts",
     "map-simulate": "tsx src/scripts/map-simulate.ts",
-    "search-compare": "tsx src/scripts/search-compare.ts"
+    "search-compare": "tsx src/scripts/search-compare.ts",
+    "relocate": "tsx src/scripts/relocate-batch.ts"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",
     "@libsql/client": "^0.18.0",
     "@napi-rs/canvas": "1.0.10",
+    "@tesseract.js-data/spa": "1.0.0",
     "ajv": "^8.20.0",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.2",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "6.4.299",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "tesseract.js": "7.0.0"
   },
   "devDependencies": {
     "@huggingface/transformers": "^4.3.1",

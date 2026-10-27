@@ -93,12 +93,13 @@ object, same `tests` sibling.
     "Paciente": {
       "value": "RUIZ ORTEGA, MARIA DEL CARMEN",
       "page": 3,
-      "bbox": { "x0": 0.605, "y0": 0.302, "x1": 0.704, "y1": 0.315 }
+      "bbox": { "x0": 0.605, "y0": 0.302, "x1": 0.704, "y1": 0.315 },
+      "box_source": "model"
     },
     "Telefono": null
   },
   "tests": [
-    { "value": "Urea", "page": 3, "bbox": { "x0": 0.096, "y0": 0.515, "x1": 0.129, "y1": 0.526 } }
+    { "value": "Urea", "page": 3, "bbox": { "x0": 0.096, "y0": 0.515, "x1": 0.129, "y1": 0.526 }, "box_source": "ocr" }
   ],
   "warnings": [
     { "code": "pattern_mismatch", "field": "FechaNacimiento", "detail": "1978-03-12" }
@@ -106,9 +107,11 @@ object, same `tests` sibling.
 }
 ```
 
-Compared with a golden field, a predicted field has `value`, `page` and `bbox` and nothing
-else: `printed`, `style` and `also_at` are things the extractor cannot know and that are never
-evaluated. `bbox` is nullable here although it is mandatory in the golden, because a value read
+Compared with a golden field, a predicted field has `value`, `page`, `bbox` and where the box
+came from, and nothing else: `printed`, `style` and `also_at` are things the extractor cannot
+know and that are never evaluated. `box_source` is `model` for the model's own box and `ocr`
+for one found by the page's OCR ("Boxes from the OCR"); it is absent when `bbox` is null, and
+in predictions made before 2026-10-27, whose boxes are all the model's. `bbox` is nullable here although it is mandatory in the golden, because a value read
 without a usable box is still a value. An absent field is `null` at the field level, exactly as
 in the golden.
 
@@ -118,7 +121,7 @@ in the golden.
 
 | Model output | What the boundary does |
 |---|---|
-| `box_2d` | Converted to `{x0, y0, x1, y1}` normalised to `[0, 1]`, origin top-left, four decimals, clamped to the page. |
+| `box_2d` | Converted to `{x0, y0, x1, y1}` normalised to `[0, 1]`, origin top-left, four decimals, clamped to the page; `box_source: "model"`. |
 | Degenerate box (zero or negative extent after clamping) | `bbox: null`, value kept, warning `bbox_invalid`. |
 | `page` outside `1..pages.length` | `page: null` and `bbox: null`, value kept, warning `page_out_of_range`. |
 | Value that fails the field's `pattern` in `fields.json` | **Kept as is**, warning `pattern_mismatch`. Correcting it silently, or discarding it, would be the model quietly winning. The fusion engine and the operator decide. |
@@ -172,11 +175,44 @@ instruction instead, and the reply goes through the same validation and retry as
 Nothing leaves the machine. A multi-page document needs a context of about 32k tokens on the
 server. Batch runs default to one document at a time with this provider.
 
-Two experiments with this provider, measured before any is adopted, are batch options
-recorded under `options` in `run.json` (the prediction itself does not record them):
-`--dpi` renders the pages at another resolution, and `--grounding` sends each page again
-with only the values read on it, asking the model to locate them; a located value's box is
-replaced and nothing else changes (`grounding.ts`).
+Two experiments with this provider are batch options recorded under `options` in `run.json`
+(the prediction itself does not record them): `--dpi` renders the pages at another
+resolution, and `--grounding` sends each page again with only the values read on it, asking
+the model to locate them; a located value's box is replaced and nothing else changes
+(`grounding.ts`). Neither was adopted: OCR boxes did better (below).
+
+## Boxes from the OCR
+
+The local model reads values about as well as Gemini but places its boxes loosely. So by
+default its boxes are replaced by the page's OCR wherever the OCR finds the value: the model
+reads, the OCR places (`locate.ts`, `ocr.ts`). Values are never touched.
+
+1. Each page is rendered at 300 dpi and read by Tesseract (tesseract.js, WebAssembly, with its
+   language data from npm: no system tool, nothing downloaded at run time). Spanish data only: accents are ignored when matching, and adding Catalan
+   changed nothing measurable (3,356 against 3,351 boxes located of 3,632).
+2. Each value is compared with every run of consecutive words on an OCR line, on letters and
+   digits only (accents, case, spaces and punctuation ignored), by edit distance. Score =
+   similarity − 2 × the distance between the run's centre and the model's box centre, in page
+   widths. The best run with a similarity of at least 0.7 gives the box.
+3. A value of three characters or fewer (`TSH`, `37`, `M`) must match exactly and lie within
+   0.15 of the model's box, since such strings occur all over a form.
+4. Normalised fields are also looked for as forms print them: a date in other orders or with
+   the month's name (`1985-05-09`, `01-maig-1971`), an enum value as the words listed under
+   `printed` in `fields.json` (`Mujer`, `Home`). A title in front of a name (`no-title`) and
+   a tick in front of an option (`[X] Mujer`) may be part of the run: the box covers the text
+   as printed.
+5. The model's page first, near its box; when the value is not found there, every other page,
+   where distance does not count, and a box found there takes that page.
+6. A value not found anywhere keeps the model's box and page (`box_source: "model"`).
+
+On by default for the local provider; `--ocr-boxes` applies it to Gemini too and
+`--no-ocr-boxes` turns it off, both recorded in `run.json`. In the API it follows the
+provider. If the OCR fails, the model's boxes are kept with a warning `ocr_failed` (field
+`null`). Its time is part of `latency_ms`.
+
+`npm run relocate -- --in <run>` applies it to an existing run without calling the model
+again, writing a new run (`<run>-ocr` by default, `relocated_from` in its `options`), so the
+harness can compare the boxes alone with `--baseline`.
 
 ## Batch runs
 
@@ -221,7 +257,8 @@ documents that changed. `data/` is git-ignored; a run is an experiment, not a so
 
 ## Versioning
 
-`prediction_version` changes when the prediction shape changes. `prompt_version` changes when
+`prediction_version` changes when the prediction shape changes; an optional property that
+older predictions simply lack (`box_source`) does not change it. `prompt_version` changes when
 the instruction text or the layer-1 schema changes, so that two runs are only compared when
 they were produced the same way. `golden_version` and `prediction_version` are independent;
 the harness checks both.
