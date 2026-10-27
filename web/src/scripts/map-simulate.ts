@@ -6,6 +6,7 @@
  *                           [--seed 1] [--out ../data/mapping/<mapping-id>]
  *                           [--search lexical|embedding|hybrid --min-score 0.55 --min-lead 0.05]
  *                           [--model gemini|local --policy red|all]
+ *                           [--fusion ../data/fusion/<fusion-id>]
  *
  * With --model, a language model chooses among the candidates of the lines the memory did
  * not settle: under policy "all" every such line (its answer replaces the search's, and none
@@ -13,7 +14,11 @@
  * data/model-cache, so a rerun costs nothing.
  *
  * Lines are read from the goldens, as a perfect extractor would read them, so the run
- * measures mapping alone. The technician approves green lines without acting, confirms an
+ * measures mapping alone. With --fusion, they are read from the predictions that fusion was
+ * made of, and the insurer is the one the fusion linked: extraction, fusion and mapping end to
+ * end. Each read line is set against the golden's (src/lib/mapping/align.ts); a line the
+ * extractor invented is removed by the technician, and one it did not read is listed as
+ * unread. Documents the extractor failed on are left out and counted. The technician approves green lines without acting, confirms an
  * orange proposal that is right and corrects one that is wrong, and chooses the codes of a
  * red line. With --error-rate, that share of their actions picks wrong codes. The memory
  * learns only from approved requests, in memory: the run leaves no database behind.
@@ -22,6 +27,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
+import { alignLines, type ReadLine } from "@/lib/mapping/align";
 import { catalogFromFile, type CatalogFile } from "@/lib/mapping/catalog";
 import { Embedder, EmbeddingSearch, HybridSearch } from "@/lib/mapping/embeddings";
 import { InMemoryMemory, type ApprovalKind } from "@/lib/mapping/memory";
@@ -30,6 +36,7 @@ import { MAPPING_PROMPT_VERSION, resolveProvider, type Provider } from "@/lib/ma
 import { CANDIDATES, GREEN_APPROVALS, LEXICAL_SETTINGS, textKey } from "@/lib/mapping/propose";
 import { CatalogIndex, type Searcher } from "@/lib/mapping/search";
 import { compareKey } from "@/lib/schema/compare";
+import type { Prediction } from "@/lib/schema/prediction";
 
 import { loadDotEnv } from "./env";
 
@@ -41,6 +48,11 @@ interface Golden {
   tests: { value: string; codes: string[] }[];
   lis: { insurer_id: string | null };
   context: { language?: string };
+}
+
+interface FusedDocument {
+  extractor_error: unknown;
+  links: { insurer: { status: string; recordId: string | null } };
 }
 
 /** A small seeded generator (mulberry32), so a run is reproducible. */
@@ -74,6 +86,7 @@ async function main(): Promise<number> {
       policy: { type: "string", default: "red" },
       "min-score": { type: "string" },
       "min-lead": { type: "string" },
+      fusion: { type: "string" },
     },
   });
   if (!values.dataset) {
@@ -96,7 +109,18 @@ async function main(): Promise<number> {
     minLead: values["min-lead"] ? Number(values["min-lead"]) : LEXICAL_SETTINGS.minLead,
   };
   const modelTag = provider ? `-${provider.name}-${policy}` : "";
-  const mappingId = `${timestamp(new Date())}-${path.basename(dataset)}-${method}${modelTag}-e${errorRate}`;
+  const fusionDir = values.fusion ? path.resolve(values.fusion) : null;
+  const fusion = fusionDir
+    ? (JSON.parse(await fs.readFile(path.join(fusionDir, "fusion.json"), "utf8")) as {
+        fusion_id: string;
+        predictions: string | null;
+        documents: { id: string; fused: string }[];
+      })
+    : null;
+  if (fusion && !fusion.predictions) throw new Error("--fusion needs a fusion of a run, not of the goldens");
+  const fusedFiles = new Map(fusion?.documents.map((d) => [d.id, d.fused]));
+  const readTag = fusion ? `-read-${path.basename(fusion.predictions!)}` : "";
+  const mappingId = `${timestamp(new Date())}-${path.basename(dataset)}${readTag}-${method}${modelTag}-e${errorRate}`;
   const outDir = path.resolve(values.out ?? path.join("..", "data", "mapping", mappingId));
 
   const read = async <T>(file: string) => JSON.parse(await fs.readFile(path.join(dataset, file), "utf8")) as T;
@@ -120,17 +144,43 @@ async function main(): Promise<number> {
   const seen = new Map<string, number>();
   const lines: string[] = [];
   const tally: Record<string, number> = {};
+  const unread: { doc: string; text: string; truth: string[] }[] = [];
+  let documents = 0;
+  let failed = 0;
 
   for (const file of files) {
     const g = await read<Golden>(file);
-    const insurer = g.fields.NombreMutua?.value ?? null;
-    const scope = g.lis.insurer_id ?? (insurer ? `name:${compareKey(insurer, "casefold")}` : "none");
+    let insurer = g.fields.NombreMutua?.value ?? null;
+    let insurerId = g.lis.insurer_id;
+    let reads: ReadLine[] = g.tests.map((t) => ({ text: t.value, golden: t.value, truth: t.codes, reading: "exact" }));
+    if (fusion) {
+      const fusedFile = fusedFiles.get(g.id);
+      if (fusedFile === undefined) continue;
+      const fused = JSON.parse(await fs.readFile(path.join(fusionDir!, fusedFile), "utf8")) as FusedDocument;
+      if (fused.extractor_error !== null) {
+        failed += 1;
+        continue;
+      }
+      const predictionFile = path.resolve("..", fusion.predictions!, `${g.id}.pred.json`);
+      const prediction = JSON.parse(await fs.readFile(predictionFile, "utf8")) as Prediction;
+      insurer = prediction.fields.NombreMutua?.value ?? null;
+      const link = fused.links.insurer;
+      insurerId = link.status === "linked" ? link.recordId : null;
+      const aligned = alignLines(
+        prediction.tests.map((t) => t.value),
+        g.tests,
+      );
+      reads = aligned.lines;
+      unread.push(...aligned.unread.map((t) => ({ doc: g.id, text: t.value, truth: [...t.codes].sort() })));
+    }
+    documents += 1;
+    const scope = insurerId ?? (insurer ? `name:${compareKey(insurer, "casefold")}` : "none");
     const k = (seen.get(scope) ?? 0) + 1;
     seen.set(scope, k);
 
     const approvals: { text: string; codes: string[]; kind: ApprovalKind; corrected: string[] | null }[] = [];
     const { proposals, model: sent, consultation } = await proposeDocument(
-      g.tests.map((t) => t.value),
+      reads.map((t) => t.text),
       { scope, insurer, language: g.context.language ?? "es" },
       memory,
       index,
@@ -146,8 +196,8 @@ async function main(): Promise<number> {
       modelStats.latencyMs += consultation.latencyMs;
     }
 
-    for (const [i, t] of g.tests.entries()) {
-      const truth = [...t.codes].sort();
+    for (const [i, t] of reads.entries()) {
+      const truth = [...t.truth].sort();
       const p = proposals[i];
       const proposedRight = p.codes ? setKey(p.codes) === setKey(truth) : null;
       const wrongPick = () =>
@@ -157,7 +207,10 @@ async function main(): Promise<number> {
       let chosen: string[];
       let kind: ApprovalKind = "active";
       let corrected: string[] | null = null;
-      if (p.state === "green") {
+      if (t.reading === "invented") {
+        // Nothing was requested: the technician removes the line, and the memory learns nothing.
+        [action, chosen] = ["remove", []];
+      } else if (p.state === "green") {
         [action, chosen, kind] = ["approve", p.codes!, "passive"];
       } else if (p.state === "orange" && (proposedRight || random() < errorRate)) {
         [action, chosen] = ["confirm", p.codes!];
@@ -166,7 +219,7 @@ async function main(): Promise<number> {
       } else {
         [action, chosen] = ["choose", random() < errorRate ? wrongPick() : truth];
       }
-      approvals.push({ text: t.value, codes: chosen, kind, corrected });
+      if (action !== "remove") approvals.push({ text: t.text, codes: chosen, kind, corrected });
       tally[p.state] = (tally[p.state] ?? 0) + 1;
 
       lines.push(
@@ -176,7 +229,9 @@ async function main(): Promise<number> {
           k,
           insurer,
           language: g.context.language ?? "es",
-          text: t.value,
+          text: t.text,
+          golden_text: t.golden,
+          reading: t.reading,
           truth,
           state: p.state,
           source: p.source,
@@ -207,8 +262,10 @@ async function main(): Promise<number> {
     mapping_id: mappingId,
     mapping_version: 1,
     dataset: path.relative(path.resolve(".."), dataset),
-    documents: files.length,
+    documents,
     lines: lines.length,
+    fusion: fusion ? { fusion_id: fusion.fusion_id, predictions: fusion.predictions, failed_documents: failed } : null,
+    unread,
     error_rate: errorRate,
     seed,
     green_approvals: GREEN_APPROVALS,
@@ -233,7 +290,8 @@ async function main(): Promise<number> {
     created_at: new Date().toISOString(),
   };
   await fs.writeFile(path.join(outDir, "mapping.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-  console.log(`mapping ${mappingId}: ${files.length} documents, ${lines.length} lines`);
+  console.log(`mapping ${mappingId}: ${documents} documents, ${lines.length} lines`);
+  if (fusion) console.log(`  read    : ${unread.length} lines not read, ${failed} documents the extractor failed on`);
   console.log(`  states  : ${Object.entries(tally).sort().map(([s, n]) => `${s}=${n}`).join(" ")}`);
   if (provider) {
     const fresh = modelStats.calls - modelStats.cached;

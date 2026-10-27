@@ -290,6 +290,31 @@ database (`mapping_memory`).
 
 `evaluate-mapping` exits with status 1 when any line came out green and wrong.
 
+### End to end, from a real reading
+
+```bash
+npm --prefix web run fuse -- --golden ../data/synth/seed-42 --run ../data/runs/<run-id> --out ../data/fusion/<fusion-id>
+npm --prefix web run map-simulate -- --dataset ../data/synth/seed-42 --fusion ../data/fusion/<fusion-id>
+```
+
+With `--fusion`, the lines are the ones the extractor read, and each request's insurer is the
+one the fusion linked (or the insurer's name as read, when it linked none). This chains
+extraction, fusion and mapping as the product does. Each read line is set against the
+golden's (`web/src/lib/mapping/align.ts`):
+
+- **exact:** the same text, compared as the harness compares tests;
+- **misread:** the closest golden line of the document not yet taken, with a similarity of at
+  least 0.6 on letters and digits. The simulated technician gives it that line's codes, and
+  the memory learns them under the text as read.
+- **invented:** no golden line is close enough. The technician removes it; this counts as
+  work, and the memory learns nothing.
+
+Golden lines no read line stands for are **not read**. Nothing proposed codes for them, and
+the technician adds them. Documents the extractor failed on are left out and counted. The
+report adds a reading table (lines, states, work and wrong green per kind of reading) and
+lists the misread, invented and unread lines. Recall@20 counts only lines that stand for a
+requested test.
+
 ### The model layer
 
 ```bash

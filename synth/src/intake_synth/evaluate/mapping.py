@@ -11,6 +11,10 @@ writes every line's proposal and outcome to ``lines.jsonl``. This module turns t
 - **proposal precision** by layer (memory, other insurers' memory, catalog search);
 - **recall@k** of the catalog search: whether the right codes are among its candidates at
   all, the ceiling for anything that chooses among them.
+
+A run made with ``--fusion`` maps the lines an extractor read: each says whether it was read
+exactly, misread or invented (the technician removes it), and the lines it did not read are
+listed apart, since nothing proposed codes for them and the technician adds them.
 """
 
 from __future__ import annotations
@@ -25,6 +29,8 @@ MAPPING_FILE = "mapping.json"
 LINES_FILE = "lines.jsonl"
 MAPPING_VERSIONS = frozenset({1})
 STATES = ("green", "orange", "red")
+READINGS = ("exact", "misread", "invented")
+WORK = ("correct", "choose", "remove")
 
 # Ranges of k, the position of a request among its insurer's requests.
 BUCKETS: tuple[tuple[int, int | None], ...] = (
@@ -54,7 +60,7 @@ def _bucket(k: int) -> str:
 def _rates(lines: list[dict]) -> dict:
     n = len(lines)
     states = Counter(x["state"] for x in lines)
-    work = sum(x["action"] in ("correct", "choose") for x in lines)
+    work = sum(x["action"] in WORK for x in lines)
     return {
         "lines": n,
         **{s: states.get(s, 0) for s in STATES},
@@ -96,6 +102,8 @@ def evaluate_mapping(mapping_dir: Path) -> dict:
     languages = sorted({x["language"] for x in lines})
     scopes = sorted({x["scope"] for x in lines})
     multi = [x for x in lines if len(x["truth"]) > 1]
+    # Recall is the search's: over lines that stand for a requested test.
+    requested = [x for x in lines if x["truth"]]
 
     return {
         "mapping_id": manifest["mapping_id"],
@@ -129,11 +137,12 @@ def evaluate_mapping(mapping_dir: Path) -> dict:
         "recall_at_k": {
             lang: round(
                 100
-                * sum(x["in_candidates"] for x in lines if x["language"] == lang)
-                / sum(x["language"] == lang for x in lines),
+                * sum(x["in_candidates"] for x in requested if x["language"] == lang)
+                / sum(x["language"] == lang for x in requested),
                 1,
             )
             for lang in languages
+            if any(x["language"] == lang for x in requested)
         },
         "profile_lines": {
             "lines": len(multi),
@@ -146,10 +155,39 @@ def evaluate_mapping(mapping_dir: Path) -> dict:
         },
         "curve_by_insurer": {s: _curve([x for x in lines if x["scope"] == s]) for s in scopes},
         "model": _model(manifest.get("model"), lines),
+        "reading": _reading(manifest, lines),
         "insurers": {
             s: next(x["insurer"] for x in lines if x["scope"] == s) or "(no insurer)"
             for s in scopes
         },
+    }
+
+
+def _reading(manifest: dict, lines: list[dict]) -> dict | None:
+    """How the lines were read, when they came from an extractor rather than the goldens."""
+    fusion = manifest.get("fusion")
+    if not fusion:
+        return None
+    by = {r: [x for x in lines if x.get("reading", "exact") == r] for r in READINGS}
+    return {
+        "fusion_id": fusion["fusion_id"],
+        "predictions": fusion["predictions"],
+        "failed_documents": fusion["failed_documents"],
+        **{r: _rates(by[r]) for r in READINGS},
+        "unread": manifest["unread"],
+        "invented_lines": [
+            {"doc": x["doc"], "text": x["text"], "state": x["state"]} for x in by["invented"]
+        ],
+        "misread_lines": [
+            {
+                "doc": x["doc"],
+                "text": x["text"],
+                "golden": x["golden_text"],
+                "state": x["state"],
+                "right": x["proposed_right"],
+            }
+            for x in by["misread"]
+        ],
     }
 
 
@@ -182,11 +220,18 @@ def console_summary(r: dict) -> list[str]:
         f"mapping {r['mapping_id']}: {r['documents']} documents, {t['lines']} lines, technician error rate {r['error_rate']}",
         f"  states       : green {t['green']}, orange {t['orange']}, red {t['red']}",
         f"  wrong green  : {t['wrong_green']}",
-        f"  technician   : corrected or chose {t['work_pct']}% of lines",
+        f"  technician   : corrected, chose or removed {t['work_pct']}% of lines",
         f"  proposals    : {prec}",
         f"  recall@{r['settings']['candidates']}    : {recall}",
         f"  curve (k: green / work): {curve}",
     ]
+    rd = r.get("reading")
+    if rd:
+        out.append(
+            f"  reading      : {rd['exact']['lines']} exact, {rd['misread']['lines']} misread, "
+            f"{rd['invented']['lines']} invented; {len(rd['unread'])} not read "
+            f"(the technician adds them); {rd['failed_documents']} documents failed"
+        )
     m = r.get("model")
     if m:
         out.append(
@@ -218,7 +263,36 @@ def markdown(r: dict) -> str:
             )
         return [*rows, ""]
 
-    out += ["## Learning curve", "", "Work: lines the technician had to correct or choose.", ""]
+    rd = r.get("reading")
+    if rd:
+        out += [f"## Reading ({rd['predictions']})", ""]
+        out += ["| Reading | Lines | Green | Orange | Red | Work % | Wrong green |"]
+        out += ["|---|---|---|---|---|---|---|"]
+        for name in READINGS:
+            c = rd[name]
+            out.append(
+                f"| {name} | {c['lines']} | {c['green']} | {c['orange']} | {c['red']} | "
+                f"{c['work_pct']} | {c['wrong_green']} |"
+            )
+        out += ["", "### Misread lines", ""]
+        out += [
+            f"- {m['doc']}: {m['text']!r} for {m['golden']!r}: {m['state']}, "
+            f"proposal {'right' if m['right'] else 'wrong'}"
+            for m in rd["misread_lines"]
+        ] or ["None."]
+        out += ["", "### Invented lines", ""]
+        out += [f"- {i['doc']}: {i['text']!r}: {i['state']}" for i in rd["invented_lines"]] or [
+            "None."
+        ]
+        out += ["", "### Lines not read", ""]
+        out += [f"- {u['doc']}: {u['text']!r}" for u in rd["unread"]] or ["None."]
+        out += [""]
+    out += [
+        "## Learning curve",
+        "",
+        "Work: lines the technician had to correct, choose or remove.",
+        "",
+    ]
     out += table("All insurers", r["curve"])
     for lang, curve in r["curve_by_language"].items():
         out += table(f"Language: {lang}", curve)

@@ -138,3 +138,36 @@ def test_model_section(tmp_path):
     assert (m["lines_answered"], m["lines_right"], m["precision"]) == (2, 1, 50.0)
     assert m["ms_per_uncached_call"] == 3000
     assert m["calls_per_100_documents"] == 100.0
+
+
+def test_reading_section_for_lines_an_extractor_read(tmp_path):
+    exact = {**line(1, "green", True, "approve"), "reading": "exact", "golden_text": "GLU"}
+    misread = {
+        **line(2, "orange", True, "confirm"),
+        "text": "GLC",
+        "reading": "misread",
+        "golden_text": "GLU",
+    }
+    invented = {
+        **line(3, "green", False, "remove", truth=()),
+        "text": "UREA",
+        "reading": "invented",
+        "golden_text": None,
+        "in_candidates": False,
+    }
+    d = write(tmp_path, [exact, misread, invented])
+    manifest = json.loads((d / "mapping.json").read_text())
+    manifest["fusion"] = {"fusion_id": "f", "predictions": "data/runs/r", "failed_documents": 1}
+    manifest["unread"] = [{"doc": "synth-000002", "text": "TSH", "truth": ["HO0001"]}]
+    (d / "mapping.json").write_text(json.dumps(manifest))
+    r = evaluate_mapping(d)
+    rd = r["reading"]
+    assert [rd[k]["lines"] for k in ("exact", "misread", "invented")] == [1, 1, 1]
+    assert rd["invented"]["wrong_green"] == 1 and rd["invented"]["work_pct"] == 100.0
+    assert len(rd["unread"]) == 1 and rd["failed_documents"] == 1
+    # The invented line stands for no test: it does not lower the search's recall.
+    assert r["recall_at_k"] == {"es": 100.0}
+
+
+def test_no_reading_section_for_goldens(tmp_path):
+    assert evaluate_mapping(write(tmp_path, [line(1, "red", None, "choose")]))["reading"] is None
