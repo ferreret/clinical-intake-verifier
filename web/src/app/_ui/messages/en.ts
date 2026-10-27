@@ -295,6 +295,8 @@ export const en = {
     fieldsTitle: (n: number) => `Fields · ${n}`,
     testsTitle: (read: number, added: number) => `Requested tests · ${plural(read, "line")} read${added > 0 ? `, ${added} added` : ""}`,
     leftToResolve: (n: number) => `${n} to resolve or confirm`,
+    nextPending: "Next item to resolve or confirm (Alt+N)",
+    prevPending: "Previous item to resolve or confirm (Alt+Shift+N)",
     nothingLeft: "Ready to approve",
     changes: (n: number) => plural(n, "change"),
     confirmedCount: (n: number) => `${n} confirmed`,
@@ -331,6 +333,7 @@ export const en = {
         keys: [
           ["Alt+↓ / Alt+↑", "Next or previous field or line"],
           ["Tab / Shift+Tab", "Next or previous input"],
+          ["Alt+N / Alt+Shift+N", "Next or previous item still to resolve or confirm"],
           ["Alt+→ / Alt+←", "Next or previous document of the batch"],
         ],
       },

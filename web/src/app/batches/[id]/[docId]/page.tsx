@@ -227,6 +227,26 @@ export default function VerifyPage() {
   const next = at >= 0 && at < siblings.length - 1 ? siblings[at + 1] : null;
 
   const unresolved = items.filter((i) => checks[i.key]?.pending).length + added.filter((a) => a.codes.length === 0).length;
+
+  /**
+   * Moves to the next (or previous) item still in the way of approving, after the one in focus
+   * and wrapping round: a red or orange one not resolved, a required one empty, a line with no
+   * codes. Alt+N and Alt+Shift+N, or the arrows by the count in the footer.
+   */
+  const goPending = useCallback(
+    (step: 1 | -1, from = focused) => {
+      const keys = [...items.map((i) => i.key), ...added.map((a) => a.key)];
+      const pending = new Set([
+        ...items.filter((i) => checks[i.key]?.pending).map((i) => i.key),
+        ...added.filter((a) => a.codes.length === 0).map((a) => a.key),
+      ]);
+      const here = Math.max(0, keys.indexOf(from ?? ""));
+      const order = step === 1 ? [...keys.slice(here + 1), ...keys.slice(0, here + 1)] : [...keys.slice(0, here).reverse(), ...keys.slice(here).reverse()];
+      const to = order.find((k) => pending.has(k) && k !== from);
+      if (to) focusItem(to);
+    },
+    [items, added, checks, focused, focusItem],
+  );
   // What the decision log tells the technician's work from.
   const work: Work | null = view ? { view, values, chosen, added, confirmed, checks, names } : null;
   const explain = (key: string) => {
@@ -350,10 +370,14 @@ export default function VerifyPage() {
       if (e.altKey && e.key === "Enter" && !readOnly) {
         // Confirm the item in focus as proposed, then on to the next one still in the way.
         e.preventDefault();
-        const here = Math.max(0, items.findIndex((i) => i.key === focused));
-        if (checks[items[here]?.key]?.confirmable && !confirmed.has(items[here].key)) toggleConfirm(items[here].key);
-        const after = [...items.slice(here + 1), ...items.slice(0, here)].find((i) => checks[i.key]?.pending);
-        if (after) focusItem(after.key);
+        const here = items.find((i) => i.key === focused);
+        if (here && checks[here.key]?.confirmable && !confirmed.has(here.key)) toggleConfirm(here.key);
+        goPending(1);
+        return;
+      }
+      if (e.altKey && e.code === "KeyN") {
+        e.preventDefault();
+        goPending(e.shiftKey ? -1 : 1);
         return;
       }
       if (!e.altKey || items.length === 0) return;
@@ -378,7 +402,7 @@ export default function VerifyPage() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [items, focused, readOnly, next, prev, batchId, leave, focusItem, toggleLens, checks, confirmed, toggleConfirm, canApprove, approve]);
+  }, [items, focused, readOnly, next, prev, batchId, leave, focusItem, toggleLens, checks, confirmed, toggleConfirm, canApprove, approve, goPending]);
 
   if (error) return <p className="text-sm text-rose-700">{error}</p>;
   if (!view) {
@@ -538,7 +562,22 @@ export default function VerifyPage() {
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs text-slate-500">
               {view.decision ? null : unresolved > 0 ? (
-                <span className="font-medium text-red-700">{m.leftToResolve(unresolved)}</span>
+                <span className="inline-flex items-center gap-1">
+                  <PendingArrow label={m.prevPending} onClick={() => goPending(-1)}>
+                    ↑
+                  </PendingArrow>
+                  <button
+                    type="button"
+                    onClick={() => goPending(1)}
+                    title={m.nextPending}
+                    className="font-medium text-red-700 underline-offset-2 hover:underline"
+                  >
+                    {m.leftToResolve(unresolved)}
+                  </button>
+                  <PendingArrow label={m.nextPending} onClick={() => goPending(1)}>
+                    ↓
+                  </PendingArrow>
+                </span>
               ) : (
                 <span className="font-medium text-emerald-700">{m.nothingLeft}</span>
               )}
@@ -675,6 +714,21 @@ function lockedBy(e: unknown): Lock {
   return err.status === 409 && typeof err.body.lockedBy === "string"
     ? { status: "locked", holder: err.body.lockedBy }
     : { status: "closed", message: err.message };
+}
+
+/** One of the arrows that move between the items still to resolve or confirm. */
+function PendingArrow({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className="flex size-6 items-center justify-center rounded-md text-sm text-red-700 ring-1 ring-red-200 transition hover:bg-red-50"
+    >
+      {children}
+    </button>
+  );
 }
 
 /** Who decided on the document, when, and how: approved as shown, or rejected and why. */

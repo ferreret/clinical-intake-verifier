@@ -347,6 +347,8 @@ export const es: Messages = {
     testsTitle: (read, added) =>
       `Pruebas solicitadas · ${plural(read, "línea")} ${read === 1 ? "leída" : "leídas"}${added > 0 ? `, ${added} ${added === 1 ? "añadida" : "añadidas"}` : ""}`,
     leftToResolve: (n) => `${n} por resolver o confirmar`,
+    nextPending: "Siguiente elemento por resolver o confirmar (Alt+N)",
+    prevPending: "Elemento anterior por resolver o confirmar (Alt+Mayús+N)",
     nothingLeft: "Listo para aprobar",
     changes: (n) => plural(n, "cambio"),
     confirmedCount: (n) => `${n} ${n === 1 ? "confirmado" : "confirmados"}`,
@@ -383,6 +385,7 @@ export const es: Messages = {
         keys: [
           ["Alt+↓ / Alt+↑", "Campo o línea siguiente o anterior"],
           ["Tab / Mayús+Tab", "Casilla siguiente o anterior"],
+          ["Alt+N / Alt+Mayús+N", "Siguiente o anterior elemento por resolver o confirmar"],
           ["Alt+→ / Alt+←", "Documento siguiente o anterior del lote"],
         ],
       },

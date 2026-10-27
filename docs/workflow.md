@@ -147,7 +147,9 @@ session shell and the state badges.
     side by side, and from about 2300 px of viewer the pages go two by two. The tables narrow
     with their container: the records go under what was read, then the proposed column goes.
   - **Keyboard:** Alt+↓/↑ next and previous item, Alt+→/← next and previous document of the
-    batch, Alt+Enter confirm and go to the next item to check, Ctrl+Enter approve, Alt+Z the
+    batch, Alt+N / Alt+Shift+N next or previous item still to resolve or confirm (also the
+    arrows by the count in the footer), Alt+Enter confirm and go to the next item to check,
+    Ctrl+Enter approve, Alt+Z the
     lens, Esc to leave an input. All of them, grouped, in a window opened from the footer's
     "Keyboard shortcuts" button or with ? (`shortcuts.tsx`).
   - **Footer:** what is left to resolve or confirm, the confirmations made, Reject, "Leave
