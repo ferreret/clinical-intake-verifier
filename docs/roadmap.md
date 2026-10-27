@@ -14,7 +14,7 @@ Last updated: 2026-10-27.
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
 | F4 | Mock LIS, fusion engine and test mapping | done: blocks 1 to 6, measured end to end on real readings (below) |
-| F5 | Batches and verification UI | block 1 of 4 done: batches and queue, through the API (section 5) |
+| F5 | Batches and verification UI | blocks 1 and 2 of 4 done: batches, queue and their screens (section 5) |
 | F6 | Public demo on a self-hosted Dokploy | not started |
 
 Local open-weight vision models were approved on 2026-10-26 as the top priority, ahead of
@@ -1414,6 +1414,32 @@ code is in `web/src/lib/batches/`).
     picked up again on restart.
   - `next build` and `next start`: the queue resumes, and both providers advance
     independently.
+
+**Block 2 done on 2026-10-27: the batch screens** (`docs/workflow.md`, "Screens").
+
+- **Entry:** the technician picker, which says what the project is and, in replay mode, that
+  replies are recorded.
+- **Batch list:** each batch with a progress bar by state.
+- **New batch:**
+  - the model that reads it;
+  - the bundled requests, described from their goldens (pages, scanned, handwriting,
+    language), filterable, with "add 5 at random";
+  - uploads in live mode.
+- **Batch page:** each document's state; for one already read, its fields and lines by
+  colour, the model and the latency; for a failed one, its error and a retry.
+
+The workflow's states use their own colours, so they are never confused with the traffic
+light. Pages poll while anything is moving.
+
+**Checked in the browser,** in replay mode:
+- a six-document Gemini batch created from the screens, read at the recorded pace, with its
+  summaries;
+- the pages at phone width, with no horizontal scroll;
+- no server errors.
+
+**Live mode, through the API on a production build:** a batch mixing a bundled request and
+an uploaded PDF, read by local Qwen (70 s and 60 s). Its boxes came from the OCR and one line
+was mapped by the model. The upload was kept under the data directory.
 
 **Open points found while building it, for later blocks:**
 

@@ -57,6 +57,42 @@ export async function listBundled(provider: Provider | null): Promise<string[]> 
   return names.filter((n) => files.has(n));
 }
 
+/** What the demo says about a bundled document, from its golden when it is next to it. */
+export interface BundledInfo {
+  name: string;
+  pages: number | null;
+  scanned: boolean | null;
+  /** Fields written by hand. */
+  handwritten: number | null;
+  language: string | null;
+  template: string | null;
+}
+
+export async function describeBundled(names: string[]): Promise<BundledInfo[]> {
+  return Promise.all(
+    names.map(async (name) => {
+      const golden = await fs
+        .readFile(path.join(bundledDir(), plainName(name).replace(/\.pdf$/, ".json")), "utf8")
+        .then((t) => JSON.parse(t) as GoldenInfo)
+        .catch(() => null);
+      return {
+        name,
+        pages: golden?.pages?.length ?? null,
+        scanned: golden?.generator ? golden.generator.scan !== null : null,
+        handwritten: golden?.generator?.handwritten_fields?.length ?? null,
+        language: golden?.context?.language ?? null,
+        template: golden?.generator?.template ?? null,
+      };
+    }),
+  );
+}
+
+interface GoldenInfo {
+  pages?: unknown[];
+  generator?: { template?: string; scan?: unknown; handwritten_fields?: string[] };
+  context?: { language?: string };
+}
+
 export function readBundled(name: string): Promise<Buffer> {
   return fs.readFile(path.join(bundledDir(), plainName(name)));
 }

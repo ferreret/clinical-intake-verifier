@@ -8,8 +8,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { BatchQueue } from "@/lib/batches/queue";
 import { batchDocuments } from "@/lib/batches/schema";
-import { listBundled } from "@/lib/batches/sources";
-import { createBatch, getBatch, getProposal, listBatches, requeueInterrupted, retryDocument } from "@/lib/batches/store";
+import { describeBundled, listBundled } from "@/lib/batches/sources";
+import { createBatch, getBatch, getProposal, listBatches, requeueInterrupted, retryDocument, summarise } from "@/lib/batches/store";
 import { createSandbox, isWorkspaceId, listWorkspaces, openWorkspace, sweepSandboxes } from "@/lib/batches/workspace";
 import { sha256Hex } from "@/lib/extractor/pdf";
 import { loadLis, openLis } from "@/lib/lis/db";
@@ -170,6 +170,17 @@ describe("the queue", () => {
     ]);
     const [summary] = await listBatches(db);
     expect(summary).toMatchObject({ documents: 1, states: { awaiting_verification: 1, queued: 0 } });
+    expect((await summarise(db, [documents[0].id])).get(documents[0].id)).toMatchObject({
+      model: "recorded",
+      recorded: true,
+      latencyMs: 5000,
+      pages: 1,
+      tests: { green: 0, orange: 1, red: 1 },
+    });
+    // No golden next to these PDFs: nothing to say about them but their name.
+    expect(await describeBundled(["doc-a.pdf"])).toEqual([
+      { name: "doc-a.pdf", pages: null, scanned: null, handwritten: null, language: null, template: null },
+    ]);
   });
 
   it("fails a document with no recorded reply, and queues it again on retry", async () => {

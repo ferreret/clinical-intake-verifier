@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
+import type { TrafficLight } from "@/lib/fusion/types";
 import type { LisDb } from "@/lib/lis/db";
 
 import type { Provider } from "./config";
@@ -90,6 +91,39 @@ export async function getDocument(db: LisDb, id: string): Promise<BatchDocument 
 export async function getProposal(db: LisDb, documentId: string): Promise<StoredProposal | null> {
   const [p] = await db.select().from(proposals).where(eq(proposals.documentId, documentId));
   return p ?? null;
+}
+
+/** A ready document at a glance: who read it, how long it took, and its colours. */
+export interface DocumentSummary {
+  model: string;
+  recorded: boolean;
+  latencyMs: number;
+  pages: number;
+  fields: Record<TrafficLight, number>;
+  tests: Record<"green" | "orange" | "red", number>;
+}
+
+export async function summarise(db: LisDb, documentIds: string[]): Promise<Map<string, DocumentSummary>> {
+  const rows = documentIds.length
+    ? await db.select().from(proposals).where(inArray(proposals.documentId, documentIds))
+    : [];
+  return new Map(
+    rows.map((p) => {
+      const fields: Record<TrafficLight, number> = { green: 0, orange: 0, red: 0, grey: 0 };
+      for (const f of p.fused.fields) fields[f.state] += 1;
+      const tests = { green: 0, orange: 0, red: 0 };
+      for (const t of p.tests) tests[t.mapping.state] += 1;
+      const summary: DocumentSummary = {
+        model: p.prediction.extractor.model,
+        recorded: p.recorded,
+        latencyMs: p.prediction.extractor.latency_ms,
+        pages: p.prediction.pages.length,
+        fields,
+        tests,
+      };
+      return [p.documentId, summary];
+    }),
+  );
 }
 
 /**

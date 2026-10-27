@@ -72,16 +72,40 @@ There is no authentication. The visitor picks one of a few synthetic technicians
 (`technicians.ts`); the choice is kept in a cookie, and so is the sandbox in replay mode.
 Every route except `/api/session` answers 401 until a technician is picked.
 
+## Screens
+
+`web/src/app/`, client pages over the API. Shared pieces are in `_ui/`: the API client, the
+session shell and the state badges.
+
+- **`/`, the entry:** what the project is, the mode, and the technician to work as.
+- **`/batches`:** the batches, newest first, each with a progress bar by state and how many
+  documents wait for verification.
+- **`/batches/new`:** a name, the model that reads the batch, and its documents:
+  - the bundled synthetic requests, with what their goldens say about them (pages, scanned
+    or digital, handwriting, language), filterable, with "add 5 at random";
+  - in live mode, uploaded PDFs too.
+- **`/batches/:id`:** the documents in order, each with:
+  - its state;
+  - the error of a failed one, with a retry;
+  - for one already read, its fields and lines counted by traffic-light colour, the model
+    and the latency, marked "(recorded)" in replay mode.
+
+Pages showing documents still queued or reading poll every two seconds, and stop when
+nothing moves. The workflow's states have their own colours, kept apart from the traffic
+light's: green, orange and red say how sure a proposal is, never where a document is. In
+replay mode, every page says the replies are recorded and the work stays in the visitor's
+sandbox.
+
 ## API
 
 | Route | What it does |
 |---|---|
 | `GET /api/session` | Mode, technicians, the current one (null before picking or once the sandbox expired). |
 | `POST /api/session` | `{ "technician": "T01" }`: work as that technician; creates the sandbox if needed. |
-| `GET /api/bundled?provider=gemini` | Bundled documents a batch can be made of (in replay, those with a recording). |
+| `GET /api/bundled?provider=gemini` | Bundled documents a batch can be made of (in replay, those with a recording), with what their goldens say: pages, scanned, handwritten fields, language, template. |
 | `GET /api/batches` | Batches, newest first, with documents counted by state. |
 | `POST /api/batches` | JSON `{ "provider", "name"?, "documents": [names] }`; in live mode also multipart with `files`. Up to 50 documents; queued at once. |
-| `GET /api/batches/:id` | The batch and its documents in order. |
+| `GET /api/batches/:id` | The batch and its documents in order; a ready one with its summary (model, latency, recorded, pages, fields and lines by colour). |
 | `POST /api/documents/:id/retry` | A failed document back to the queue (409 otherwise). |
 | `GET /api/documents/:id/proposal` | The prediction, the fusion and each line's codes (409 until ready). |
 | `GET /api/documents/:id/pdf` | The PDF, for the viewer. |
