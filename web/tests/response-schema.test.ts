@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildResponseSchema,
   GEMINI_BOXES,
+  localBoxes,
   QWEN_BOXES,
   toLayer1,
   validateRawExtraction,
@@ -45,6 +46,11 @@ describe("box conventions", () => {
     expect(JSON.stringify(schema)).not.toContain("ymin, xmin");
   });
 
+  it("asks each local model in the convention it answers in", () => {
+    expect(localBoxes("qwen/qwen3.6-35b-a3b")).toBe(QWEN_BOXES);
+    expect(localBoxes("gemma-4-26b-a4b-it-qat")).toBe(GEMINI_BOXES);
+  });
+
   it("rewrites Qwen's boxes in layer 1's key and order", () => {
     const fields = nullFields("bbox_2d");
     fields.Paciente = { value: "RUIZ ORTEGA, MARIA", page: 2, bbox_2d: [605, 302, 704, 315] };
@@ -82,8 +88,14 @@ describe("box conventions", () => {
     expect(validateRawExtraction(toLayer1({ fields: {}, tests: "nope" }, QWEN_BOXES)).length).toBeGreaterThan(0);
   });
 
-  it("leaves Gemini's replies untouched", () => {
-    const doc = { fields: nullFields("box_2d"), tests: [] };
-    expect(toLayer1(doc, GEMINI_BOXES)).toBe(doc);
+  it("reads the shorthands of a local model that writes Gemini's convention", () => {
+    const fields: Record<string, unknown> = nullFields("box_2d");
+    fields.Telefono = null;
+    const doc = toLayer1({ fields, tests: [{ value: "Urea", page: 1, box_2d: [96, 515, 129, 526] }, "K"] }, GEMINI_BOXES);
+    expect(validateRawExtraction(doc)).toEqual([]);
+    expect((doc as { tests: unknown[] }).tests).toEqual([
+      { value: "Urea", page: 1, box_2d: [96, 515, 129, 526] },
+      { value: "K", page: null, box_2d: null },
+    ]);
   });
 });

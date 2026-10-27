@@ -32,7 +32,7 @@ import { renderPages } from "./render";
 import {
   buildResponseSchema,
   GEMINI_BOXES,
-  QWEN_BOXES,
+  localBoxes,
   toLayer1,
   validateRawExtraction,
   type BoxConvention,
@@ -140,10 +140,12 @@ function emptyFields(): Record<string, null> {
   return Object.fromEntries(FIELD_NAMES.map((name) => [name, null]));
 }
 
-function parseRaw(text: string, boxes: BoxConvention): RawExtraction {
+/** `boxes` is the convention of an unconstrained reply; null for Gemini's, read as it is. */
+function parseRaw(text: string, boxes: BoxConvention | null): RawExtraction {
   let doc: unknown;
   try {
-    doc = toLayer1(JSON.parse(text), boxes);
+    doc = JSON.parse(text);
+    if (boxes !== null) doc = toLayer1(doc, boxes);
   } catch (err) {
     throw new ModelOutputError("invalid_json", err instanceof Error ? err.message : String(err));
   }
@@ -199,7 +201,7 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
   const id = opts.id ?? idFromFileName(file, sha256.slice(0, 12));
 
   const started = Date.now();
-  const boxes = provider === "local" ? QWEN_BOXES : GEMINI_BOXES;
+  const boxes = provider === "local" ? localBoxes(model) : GEMINI_BOXES;
   let call: () => Promise<{ text: string; modelVersion: string | null; usage: Usage }>;
   let images: Uint8Array[] = [];
   if (provider === "local") {
@@ -251,7 +253,7 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
       opts.onReply?.({ attempt: attempts, text: reply.text });
       modelVersion = reply.modelVersion ?? modelVersion;
       usage = addUsage(usage, reply.usage);
-      const candidate = normaliseExtraction(parseRaw(reply.text, boxes), pages.length);
+      const candidate = normaliseExtraction(parseRaw(reply.text, provider === "local" ? boxes : null), pages.length);
       if (result === null) garbledFirst = garbledCount(candidate);
       if (result === null || garbledCount(candidate) < garbledCount(result)) result = candidate;
       error = null;

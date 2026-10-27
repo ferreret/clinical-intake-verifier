@@ -46,6 +46,14 @@ export const QWEN_BOXES: BoxConvention = {
   toLayer1: ([xmin, ymin, xmax, ymax]) => [ymin, xmin, ymax, xmax],
 };
 
+/**
+ * The convention a local model is asked in, by its name. Gemma writes Gemini's: asked for
+ * Qwen's, it still answered `box_2d` in Gemini's order (manual check of 2026-10-27).
+ */
+export function localBoxes(model: string): BoxConvention {
+  return /gemma/i.test(model) ? GEMINI_BOXES : QWEN_BOXES;
+}
+
 const PAGE_DESCRIPTION = "1-based number of the page the value was read from. Null when value is null.";
 
 function boxDescription(boxes: BoxConvention): string {
@@ -102,12 +110,12 @@ export function buildResponseSchema(boxes: BoxConvention = GEMINI_BOXES): Record
  * `box_2d`, in Gemini's order. Anything malformed is passed through for the validator to
  * reject; nothing is repaired here. An item without `boxes.key` loses any `box_2d` it has,
  * so that it fails validation: the order of a box under the wrong key cannot be known. Two
- * shorthands the local model uses without constrained decoding are read for what they say: a
- * bare null is a field not present, and a bare string is a value it did not locate (page and
- * box null).
+ * shorthands a local model uses without constrained decoding are read for what they say,
+ * whatever its convention: a bare null is a field not present, and a bare string is a value it
+ * did not locate (page and box null). Gemini's constrained replies are not passed through here.
  */
 export function toLayer1(doc: unknown, boxes: BoxConvention): unknown {
-  if (boxes === GEMINI_BOXES || typeof doc !== "object" || doc === null) return doc;
+  if (typeof doc !== "object" || doc === null) return doc;
   const item = (raw: unknown): unknown => {
     if (typeof raw === "string") return { value: raw, page: null, box_2d: null };
     if (typeof raw !== "object" || raw === null) return raw;

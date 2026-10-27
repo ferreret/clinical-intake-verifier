@@ -47,15 +47,17 @@ A model family trained on another box convention is asked in its own, and its re
 rewritten in layer 1's before validation; nothing downstream knows which model answered. The
 local vision model (Qwen, see "Input mode and model") is asked for `bbox_2d` as
 `[xmin, ymin, xmax, ymax]` on the same 0–1000 scale: asked for Gemini's convention, it kept the
-order but invented the vertical positions. The instruction is the same text with only the box
-key and order changed, so it keeps the same `prompt_version`. The rewrite does three things
-and nothing else:
+order but invented the vertical positions. Gemma, the other local model measured, writes
+Gemini's `box_2d` even when asked for Qwen's, so it is asked in Gemini's (`localBoxes` picks by
+the model's name). The instruction is the same text with only the box key and order changed,
+so it keeps the same `prompt_version`. A local model's reply, whatever its convention, is
+rewritten in four ways and no others; Gemini's, constrained while decoding, is read as it is:
 
 - `bbox_2d` becomes `box_2d`, with the four numbers in Gemini's order;
 - an item with a box under any other key loses it, so that the reply fails validation and is
   retried: the order of such a box cannot be known;
-- a field written as a bare `null`, which is how this model says "not present" when its
-  output is not constrained, becomes the item of three nulls that means the same;
+- a field written as a bare `null`, which is how both local models say "not present" when
+  their output is not constrained, becomes the item of three nulls that means the same;
 - a field or test written as a bare string becomes a value it did not locate: page and box
   `null`. Seen with `Sexo` on documents with an identity card, the same in both attempts.
 
