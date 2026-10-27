@@ -14,7 +14,7 @@ Last updated: 2026-10-27.
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
 | F4 | Mock LIS, fusion engine and test mapping | design approved; blocks 1 to 5 done (below) |
-| F5 | Verification UI | not started |
+| F5 | Batches and verification UI | not started; batch workflow designed (section 5) |
 | F6 | Public demo on a self-hosted Dokploy | not started |
 
 Local open-weight vision models were approved on 2026-10-26 as the top priority, ahead of
@@ -1230,3 +1230,92 @@ As in `CLAUDE.md`, with these decisions for F6, taken by the product owner on 20
   and accepts new documents, for a demo from that machine on request. Uploaded documents
   are stored outside the repository tree, since they may be real.
 - One environment variable chooses the mode, replay or live.
+
+#### Batches: the demo as a workflow
+
+**Status: proposed on 2026-10-27 at the product owner's request; the four open decisions
+answered by the product owner the same day (below).** It sets the scope of F5 and of the
+final demo: not "upload a PDF and see the result", but the way a lab works. A technician
+creates a batch of documents, the batch is processed, and each document waits for
+verification until it is opened, checked and approved. As complete as possible, in both
+modes.
+
+**Life cycle.** A batch is the unit of work; each of its documents moves through:
+
+```
+queued → extracting → awaiting verification → in verification → approved
+             ↘ failed (can be retried)                       ↘ rejected (illegible, not a request…)
+```
+
+- **Extracting** is the whole chain for one document: extractor, fusion against `mock-lis`,
+  test mapping. Its result is stored as the document's *proposal*.
+- **A batch's state** is derived from its documents ("12 documents: 3 extracting, 7 awaiting
+  verification, 2 approved"), never stored on its own.
+- **In verification** locks the document to the technician who opened it.
+- **Approving** writes an immutable record: who, when, and the exact values and codes approved.
+  Only approved records feed the mapping memory, as already decided in F4.
+- **Rejecting** asks for a reason and keeps the document and its proposal.
+
+**One code path in both modes.** The queue and its worker are the same in replay and live
+mode; only what answers changes:
+
+- **Replay mode, the public demo:** a replay provider serves the recorded replies and waits
+  the latency measured when they were recorded. The visitor sees the batch advance document
+  by document, and the UI says the replies are recorded (model, date, latency).
+- **Live mode, the development machine:** the extractor calls Gemini or local Qwen.
+
+Nothing is staged: the workflow is the real one, and only the model's reply is recorded.
+
+**The queue.** A jobs table in the same SQLite database. The worker runs inside the Next.js
+server, so the demo stays one container, with a concurrency per provider: several calls at
+a time for Gemini, one for the local model. At start-up, jobs left in "extracting" go back
+to the queue.
+
+**Screens.**
+
+1. **Batches:** the list, with each batch's progress, and "New batch".
+2. **New batch:**
+   - Replay mode: pick from the bundled synthetic documents (those with recorded replies),
+     or "random batch of N".
+   - Live mode: synthetic documents and uploaded PDFs can be mixed in one batch. Uploads are
+     stored outside the repository tree, as already decided.
+   - In both modes, the provider is chosen per batch.
+3. **Worklist:** the documents awaiting verification, with "open the next one".
+4. **Verification:**
+   - The page viewer with the boxes: exact when they come from the OCR, approximate (a margin
+     and a visible mark) when they come from the model (`box_source`).
+   - The form with the traffic light and each field's provenance.
+   - The tests with their proposed codes.
+   - Keyboard navigation.
+   - Approve or reject, then straight on to the batch's next document.
+
+**Decisions of 2026-10-27, by the product owner:**
+
+1. **Separate sandboxes on the public demo.** Each visitor works in their own space, tied to
+   their session and deleted after some hours; visitors never see each other's batches.
+   Consequence: each sandbox starts from the same seeded mapping memory and learns only from
+   its own approvals.
+2. **The technician is picked, not logged in.** On entering, the visitor picks one of a few
+   synthetic technicians; no real authentication. Enough for the audit trail to say
+   "approved by …".
+3. **Approving also creates the request in `mock-lis`**, with its values and test codes. That
+   closes the loop up to the system of record, in addition to the approval record.
+4. **Live-mode batches may mix** uploaded PDFs and bundled synthetic documents.
+
+**Blocks, in order (each about 90 minutes, after F4 block 6):**
+
+1. **Batches and queue.**
+   - Tables for batches, documents, jobs, proposals and approvals, plus a requests table in
+     `mock-lis`.
+   - The worker and the replay provider.
+   - The sandbox and technician session.
+   - The API routes.
+2. **The batch list and the new-batch screen.**
+3. **The verification screen:** viewer, form, tests and keyboard.
+4. **Approval and rejection:**
+   - The immutable record.
+   - The request created in `mock-lis`.
+   - The mapping memory fed.
+   - On to the next document.
+
+F6 then records the replies for the bundled set, deploys on Dokploy and writes the README.
