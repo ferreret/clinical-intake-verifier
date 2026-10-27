@@ -1519,6 +1519,11 @@ added, and lines that were read can be dropped (kept in view struck through, wit
 What the approval records for each, and what the memory learns from it, is block 4's: the
 proposal is a drop or a correction for a read line, and nothing for an added one.
 
+**The app in Spanish, 2026-10-27, at the product owner's request.** An EN | ES switch on the
+entry page and in the header; every text in both languages, field labels from fields.json,
+the server's explanations translated by pattern (docs/workflow.md). The README and the docs
+stay in English.
+
 **Proposed: a decision log.** Per document, why each value and code was proposed: the
 reading (model, attempts, boxes, warnings), the links to the records and on what keys, each
 field's comparison and the rule that set its colour, and each line through memory, search

@@ -13,6 +13,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, api, type ProposalView } from "../../../_ui/api";
+import { useI18n } from "../../../_ui/i18n";
+import type { Messages } from "../../../_ui/messages/en";
 import { ArrowLeft, ArrowRight, FileText } from "../../../_ui/icons";
 import { useSession } from "../../../_ui/session";
 import { StateBadge } from "../../../_ui/states";
@@ -22,12 +24,15 @@ import { itemsOf, type Light } from "./model";
 import { Tests, type AddedLine, type Chosen } from "./tests";
 import { Viewer } from "./viewer";
 
-type Lock = { status: "mine" } | { status: "locked"; message: string } | { status: "closed"; message: string };
+/** Whether the document is this technician's to verify; otherwise why not, as the server said. */
+type Lock = { status: "mine" } | { status: "locked"; holder: string } | { status: "closed"; message: string };
 
 export default function VerifyPage() {
   const { id: batchId, docId } = useParams<{ id: string; docId: string }>();
   const router = useRouter();
-  const { technician } = useSession();
+  const { technician, technicians } = useSession();
+  const { t } = useI18n();
+  const m = t.verify;
   const [view, setView] = useState<ProposalView | null>(null);
   const [lock, setLock] = useState<Lock | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -104,11 +109,11 @@ export default function VerifyPage() {
         items.map((i) => [
           i.key,
           i.kind === "field"
-            ? { label: i.spec.label, read: i.fused.ai?.value ?? "" }
-            : { label: `Test line ${i.index + 1}`, read: view!.proposal.tests[i.index].text },
+            ? { label: t.fieldLabel(i.spec), read: i.fused.ai?.value ?? "" }
+            : { label: t.lens.testLine(i.index + 1), read: view!.proposal.tests[i.index].text },
         ]),
       ),
-    [items, view],
+    [items, view, t],
   );
 
   const focusItem = useCallback((key: string, moveCaret = true) => {
@@ -162,11 +167,11 @@ export default function VerifyPage() {
 
   const leave = useCallback(
     async (to: string) => {
-      if (touched.size > 0 && !window.confirm("Your changes to this document are not approved yet and will be lost. Leave anyway?")) return;
+      if (touched.size > 0 && !window.confirm(m.confirmLeave)) return;
       if (lock?.status === "mine") await api.release(docId).catch(() => undefined);
       router.push(to);
     },
-    [touched, lock, docId, router],
+    [touched, lock, docId, router, m],
   );
 
   // Keyboard: Alt+↓/↑ next and previous item, Alt+1/2 take the document's or the records'
@@ -265,23 +270,24 @@ export default function VerifyPage() {
               onClick={() => leave(`/batches/${batchId}`)}
               className="inline-flex items-center gap-1 text-xs text-slate-500 transition hover:text-slate-900"
             >
-              <ArrowLeft className="size-3.5" /> {view.batch?.name ?? "Batch"}
+              <ArrowLeft className="size-3.5" /> {view.batch?.name ?? m.batch}
             </button>
             <span className="ml-auto inline-flex items-center gap-2">
-              <NavButton disabled={!prev} onClick={() => prev && leave(`/batches/${batchId}/${prev.id}`)} label="Previous document" keys="Alt+←">
-                <ArrowLeft className="size-4" /> Previous
+              <NavButton disabled={!prev} onClick={() => prev && leave(`/batches/${batchId}/${prev.id}`)} label={m.previousTitle} keys="Alt+←">
+                <ArrowLeft className="size-4" /> {m.previous}
               </NavButton>
               <span className="px-1 text-sm text-slate-500 tabular-nums">
-                <span className="font-semibold text-slate-900">{at + 1}</span> of {siblings.length}
+                <span className="font-semibold text-slate-900">{m.position(at + 1, siblings.length)[0]}</span>
+                {m.position(at + 1, siblings.length)[1]}
               </span>
               <NavButton
                 primary
                 disabled={!next}
                 onClick={() => next && leave(`/batches/${batchId}/${next.id}`)}
-                label={next ? `Next document: ${next.fileName.replace(/\.pdf$/, "")}` : "Last document of the batch"}
+                label={next ? m.nextTitle(next.fileName.replace(/\.pdf$/, "")) : m.lastTitle}
                 keys="Alt+→"
               >
-                Next <ArrowRight className="size-4" />
+                {m.next} <ArrowRight className="size-4" />
               </NavButton>
             </span>
           </div>
@@ -290,16 +296,18 @@ export default function VerifyPage() {
             <h1 className="font-mono text-sm font-semibold">{view.document.fileName.replace(/\.pdf$/, "")}</h1>
             <StateBadge state={lock?.status === "mine" ? "in_verification" : view.document.state} />
             <span className="text-[11px] text-slate-500">
-              read by {extractor.model} in {(extractor.latency_ms / 1000).toFixed(1)} s
-              {view.proposal.recorded && " (recorded)"}
+              {m.readBy(extractor.model, (extractor.latency_ms / 1000).toLocaleString(t.locale, { maximumFractionDigits: 1, minimumFractionDigits: 1 }))}
+              {view.proposal.recorded && m.recorded}
             </span>
           </div>
           {lock && lock.status !== "mine" && (
             <div className="mt-2 flex items-center gap-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
-              <span className="flex-1">{lock.message}. Shown read-only.</span>
+              <span className="flex-1">
+                {m.readOnly(lock.status === "locked" ? m.lockedBy(technicians.find((p) => p.id === lock.holder)?.name ?? lock.holder) : m.closed(lock.message))}
+              </span>
               {lock.status === "locked" && (
                 <button type="button" onClick={() => open(true).then(setLock)} className="font-medium underline-offset-2 hover:underline">
-                  Take it over as {technician.name}
+                  {m.takeOver(technician.name)}
                 </button>
               )}
             </div>
@@ -310,11 +318,11 @@ export default function VerifyPage() {
           <div className="grid h-full overflow-y-auto @min-[88rem]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @min-[88rem]:overflow-hidden">
             <div className="@container space-y-4 p-4 @min-[88rem]:overflow-y-auto">
               <section>
-                <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">The lab&apos;s records</h2>
+                <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{m.records}</h2>
                 <Links view={view} />
               </section>
               <section>
-                <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">Fields · {fields.length}</h2>
+                <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{m.fieldsTitle(fields.length)}</h2>
                 <Fields
             view={view}
             items={fields}
@@ -330,8 +338,7 @@ export default function VerifyPage() {
             </div>
             <section className="@container p-4 pt-0 @min-[88rem]:overflow-y-auto @min-[88rem]:border-l @min-[88rem]:border-slate-200 @min-[88rem]:pt-4">
               <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
-                Requested tests · {tests.length} line{tests.length === 1 ? "" : "s"} read
-                {added.length > 0 && `, ${added.length} added`}
+                {m.testsTitle(tests.length, added.length)}
               </h2>
               <Tests
               view={view}
@@ -358,24 +365,24 @@ export default function VerifyPage() {
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs text-slate-500">
               {unresolved > 0 ? (
-                <span className="font-medium text-red-700">{unresolved} left to resolve</span>
+                <span className="font-medium text-red-700">{m.leftToResolve(unresolved)}</span>
               ) : (
-                <span className="font-medium text-emerald-700">Nothing left to resolve</span>
+                <span className="font-medium text-emerald-700">{m.nothingLeft}</span>
               )}
-              {touched.size > 0 && <> · {touched.size} change{touched.size === 1 ? "" : "s"}</>}
+              {touched.size > 0 && <> · {m.changes(touched.size)}</>}
             </span>
             <button
               type="button"
               onClick={toggleLens}
-              title="Point at a value in Read to see where it was read, magnified and joined to the page (Alt+Z)"
+              title={m.lensTitle}
               className={`hidden rounded-md px-2 py-1 text-xs font-medium ring-1 transition lg:inline-flex ${
                 lens ? "bg-brand-50 text-brand-700 ring-brand-200" : "text-slate-500 ring-slate-200 hover:bg-slate-50"
               }`}
             >
-              Lens {lens ? "on" : "off"}
+              {m.lens(lens)}
             </button>
             <button type="button" onClick={() => setHelp((h) => !h)} className="text-xs text-slate-500 underline-offset-2 hover:underline">
-              Shortcuts <kbd className="rounded bg-slate-100 px-1 font-mono">?</kbd>
+              {m.shortcuts} <kbd className="rounded bg-slate-100 px-1 font-mono">?</kbd>
             </button>
             <span className="ml-auto inline-flex gap-2">
               <button
@@ -383,19 +390,19 @@ export default function VerifyPage() {
                 onClick={() => leave(`/batches/${batchId}`)}
                 className="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
               >
-                Leave for later
+                {m.leave}
               </button>
               <button
                 type="button"
                 disabled
-                title="Approval is the next block of F5: it records exactly what you approve."
+                title={m.approveTitle}
                 className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white opacity-40"
               >
-                Approve
+                {m.approve}
               </button>
             </span>
           </div>
-          {help && <Shortcuts />}
+          {help && <Shortcuts m={m} switchLabel={t.common.switchTechnician} />}
         </footer>
       </div>
       <Lens
@@ -414,8 +421,8 @@ export default function VerifyPage() {
 /** Why a document could not be opened for verification: another technician has it, or it is done. */
 function lockedBy(e: unknown): Lock {
   const err = e as ApiError;
-  return err.status === 409 && /verifying/.test(err.message)
-    ? { status: "locked", message: err.message }
+  return err.status === 409 && typeof err.body.lockedBy === "string"
+    ? { status: "locked", holder: err.body.lockedBy }
     : { status: "closed", message: err.message };
 }
 
@@ -453,18 +460,10 @@ function NavButton({
   );
 }
 
-function Shortcuts() {
-  const rows = [
-    ["Alt + ↓ / ↑", "Next or previous field or line"],
-    ["Tab / Shift + Tab", "Next or previous input"],
-    ["Alt + 1 / Alt + 2", "In a conflict, take the document's or the records' value"],
-    ["Alt + → / ←", "Next or previous document of the batch"],
-    ["Alt + Z", "Lens on or off: the value's source, magnified and joined to the page"],
-    ["Esc", "Leave the input; close this list"],
-  ];
+function Shortcuts({ m, switchLabel }: { m: Messages["verify"]; switchLabel: string }) {
   return (
     <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-lg bg-slate-50 p-3 text-xs ring-1 ring-slate-200">
-      {rows.map(([k, v]) => (
+      {m.keys.map(([k, v]) => (
         <div key={k} className="contents">
           <dt>
             <kbd className="rounded bg-white px-1.5 py-0.5 font-mono text-[11px] ring-1 ring-slate-200">{k}</kbd>
@@ -473,7 +472,11 @@ function Shortcuts() {
         </div>
       ))}
       <p className="col-span-2 mt-1 text-[11px] text-slate-500">
-        On a page, click a box to go to its field. <Link href="/" className="underline">Switch technician</Link> from the header.
+        {m.keysNote}{" "}
+        <Link href="/" className="underline">
+          {switchLabel}
+        </Link>{" "}
+        {m.keysSwitch}
       </p>
     </dl>
   );

@@ -168,6 +168,19 @@ Three families of colour never stand in for each other:
 The entry page shows the product's four steps, the traffic light, the measured figures and a
 glimpse of the verification screen.
 
+**Languages: English and Spanish.** An EN | ES switch sits on the entry page and in the
+header. The choice is kept in the `civ_lang` cookie, so the server renders the next page in
+it; with no choice, the browser's Accept-Language decides (Catalan reads Spanish), else
+English (`_ui/lang.ts`).
+- **Every text** lives in `_ui/messages/en.ts` and `es.ts`; the compiler checks they have the
+  same shape. Texts with numbers or names are functions.
+- **Field labels** come from `schema/fields.json`, the one place fields are configured:
+  `label` in English, `label_es` in Spanish.
+- **The server's explanations** (why a record was linked, where a line's codes came from)
+  are written in English; the Spanish messages translate them by pattern, clause by
+  clause, and show an unknown one as it is. Unnamed batches are numbered in the visitor's
+  language. Extraction errors stay as the extractor wrote them.
+
 Pages showing documents still queued or reading poll every two seconds, and stop when
 nothing moves. The workflow's states have their own colours, kept apart from the traffic
 light's: green, orange and red say how sure a proposal is, never where a document is. In

@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { api } from "../../../_ui/api";
+import { useI18n } from "../../../_ui/i18n";
 import { LIGHT_BOX, type Item, type Light } from "./model";
 
 /** Margin around an approximate box, as a share of the page. */
@@ -37,6 +38,8 @@ export function Viewer({
   onFocus: (key: string) => void;
 }) {
   const [zoom, setZoom] = useState(0);
+  const { t } = useI18n();
+  const v = t.viewer;
   const scroller = useRef<HTMLDivElement>(null);
   const focusedPlace = items.find((i) => i.key === focused)?.place ?? null;
 
@@ -53,8 +56,8 @@ export function Viewer({
       const box = view?.querySelector<HTMLElement>(`[data-box="${CSS.escape(peek)}"]`);
       if (!view || !box) return;
       const r = box.getBoundingClientRect();
-      const v = view.getBoundingClientRect();
-      const inView = r.top >= v.top && r.bottom <= v.bottom && r.left >= v.left && r.right <= v.right;
+      const frame = view.getBoundingClientRect();
+      const inView = r.top >= frame.top && r.bottom <= frame.bottom && r.left >= frame.left && r.right <= frame.right;
       if (!inView) box.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
     }, DWELL_MS);
     return () => window.clearTimeout(timer);
@@ -64,15 +67,15 @@ export function Viewer({
     <div className="flex h-full flex-col overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200">
       <div className="flex items-center gap-3 border-b border-slate-200 bg-white/80 px-3 py-2 text-xs text-slate-600 backdrop-blur">
         <span className="font-medium text-slate-900">
-          {pages.length} page{pages.length === 1 ? "" : "s"}
+          {v.pages(pages.length)}
         </span>
-        {focusedPlace && <span className="hidden sm:inline">· page {focusedPlace.page}</span>}
+        {focusedPlace && <span className="hidden sm:inline">· {v.page(focusedPlace.page)}</span>}
         <span className="ml-auto inline-flex items-center gap-3">
           <span className="hidden items-center gap-1.5 xl:inline-flex">
-            <span className="h-2.5 w-4 rounded-sm border-2 border-slate-500" /> exact
+            <span className="h-2.5 w-4 rounded-sm border-2 border-slate-500" /> {v.exact}
           </span>
           <span className="hidden items-center gap-1.5 xl:inline-flex">
-            <span className="h-2.5 w-4 rounded-sm border-2 border-dashed border-slate-500" /> approximate
+            <span className="h-2.5 w-4 rounded-sm border-2 border-dashed border-slate-500" /> {v.approximate}
           </span>
           <span className="inline-flex overflow-hidden rounded-md ring-1 ring-slate-200">
             <button
@@ -80,7 +83,7 @@ export function Viewer({
               onClick={() => setZoom((z) => Math.max(0, z - 1))}
               disabled={zoom === 0}
               className="px-2 py-0.5 hover:bg-slate-50 disabled:opacity-40"
-              aria-label="Zoom out"
+              aria-label={v.zoomOut}
             >
               −
             </button>
@@ -90,7 +93,7 @@ export function Viewer({
               onClick={() => setZoom((z) => Math.min(ZOOMS.length - 1, z + 1))}
               disabled={zoom === ZOOMS.length - 1}
               className="px-2 py-0.5 hover:bg-slate-50 disabled:opacity-40"
-              aria-label="Zoom in"
+              aria-label={v.zoomIn}
             >
               +
             </button>
@@ -107,7 +110,7 @@ export function Viewer({
               style={{ aspectRatio: `${p.width_pt} / ${p.height_pt}` }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- rendered by our API per document, not a static asset */}
-              <img src={api.pageUrl(documentId, p.number)} alt={`Page ${p.number}`} className="absolute inset-0 size-full" loading="lazy" />
+              <img src={api.pageUrl(documentId, p.number)} alt={v.pageAlt(p.number)} className="absolute inset-0 size-full" loading="lazy" />
               {items
                 .filter((i) => i.place?.page === p.number)
                 .map((i) => {
@@ -120,7 +123,7 @@ export function Viewer({
                       type="button"
                       data-box={i.key}
                       onClick={() => onFocus(i.key)}
-                      title={exact ? "Where it was read" : "Approximate: placed by the local model"}
+                      title={exact ? v.boxExact : v.boxApprox}
                       className={`absolute rounded-[3px] border-2 transition ${LIGHT_BOX[lights[i.key] ?? "grey"]} ${
                         exact ? "" : "border-dashed"
                       } ${on ? "z-10 !border-brand-600 !bg-brand-500/15 shadow-[0_0_0_4px_rgb(99_102_241/0.25)]" : "opacity-60 hover:opacity-100"}`}
@@ -133,7 +136,7 @@ export function Viewer({
                     >
                       {on && !exact && (
                         <span className="absolute -top-5 left-0 rounded bg-brand-600 px-1 text-[10px] font-medium whitespace-nowrap text-white">
-                          approx.
+                          {v.approx}
                         </span>
                       )}
                     </button>

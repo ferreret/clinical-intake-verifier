@@ -38,6 +38,8 @@ export interface PrintedForms {
 export interface FieldSpec {
   name: string;
   label: string;
+  /** The label in Spanish, for the app in that language. */
+  label_es: string;
   group: string;
   type: FieldType;
   required: boolean;
@@ -59,6 +61,7 @@ export interface FieldSpec {
 export interface TestsSpec {
   name: string;
   label: string;
+  label_es: string;
   group: string;
   type: "array";
   item_type: "string";

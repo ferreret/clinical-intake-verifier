@@ -8,7 +8,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { ACTIVE_STATES, api, PROVIDER_LABEL, type BatchDetail, type DocumentState } from "../../_ui/api";
+import { ACTIVE_STATES, api, type BatchDetail, type DocumentState } from "../../_ui/api";
+import { useI18n } from "../../_ui/i18n";
 import { Avatar } from "../../_ui/avatar";
 import { ArrowRight, Clock, Cloud, Cpu, FileText, Retry, Upload } from "../../_ui/icons";
 import { usePolling } from "../../_ui/polling";
@@ -21,6 +22,8 @@ export default function BatchPage() {
   const [detail, setDetail] = useState<BatchDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
+  const { t } = useI18n();
+  const m = t.batch;
 
   const load = () => api.batch(id).then(setDetail, (e: Error) => setError(e.message));
   useEffect(() => void load(), [id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -63,17 +66,17 @@ export default function BatchPage() {
   return (
     <>
       <PageHeader
-        back={<BackLink href="/batches">Batches</BackLink>}
+        back={<BackLink href="/batches">{t.common.batches}</BackLink>}
         title={batch.name}
         subtitle={
           <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <span className="inline-flex items-center gap-1.5">
-              <ProviderIcon className="size-4 text-slate-400" /> {PROVIDER_LABEL[batch.provider]}
+              <ProviderIcon className="size-4 text-slate-400" /> {t.providers[batch.provider]}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Avatar name={creator} className="size-5 text-[9px]" /> {creator}
             </span>
-            <span>{new Date(batch.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</span>
+            <span>{new Date(batch.createdAt).toLocaleString(t.locale, { dateStyle: "medium", timeStyle: "short" })}</span>
           </span>
         }
       />
@@ -82,19 +85,19 @@ export default function BatchPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="text-sm font-medium">
-              {moving ? "Reading the documents…" : states.awaiting_verification > 0 ? "Ready for verification" : "Progress"}
+              {moving ? m.reading : states.awaiting_verification > 0 ? m.ready : m.progress}
             </div>
             <div className="mt-0.5 text-xs text-slate-500">
-              {done} of {documents.length} read
+              {m.read(done, documents.length)}
             </div>
           </div>
           <dl className="flex gap-8 text-right">
             <div>
-              <dt className="text-xs text-slate-500">To verify</dt>
+              <dt className="text-xs text-slate-500">{m.toVerify}</dt>
               <dd className="text-xl font-semibold tabular-nums text-violet-700">{states.awaiting_verification}</dd>
             </div>
             <div>
-              <dt className="text-xs text-slate-500">Mean read time</dt>
+              <dt className="text-xs text-slate-500">{m.meanTime}</dt>
               <dd className="text-xl font-semibold tabular-nums">{meanSeconds === null ? "–" : `${meanSeconds.toFixed(1)} s`}</dd>
             </div>
           </dl>
@@ -113,11 +116,11 @@ export default function BatchPage() {
             <thead className="bg-slate-50 text-left text-xs text-slate-500">
               <tr>
                 <th className="py-2.5 pl-5 font-medium">#</th>
-                <th className="px-3 py-2.5 font-medium">Document</th>
-                <th className="px-3 py-2.5 font-medium">State</th>
-                <th className="px-3 py-2.5 font-medium">Fields</th>
-                <th className="px-3 py-2.5 font-medium">Test lines</th>
-                <th className="px-3 py-2.5 font-medium">Read</th>
+                <th className="px-3 py-2.5 font-medium">{m.columns.document}</th>
+                <th className="px-3 py-2.5 font-medium">{m.columns.state}</th>
+                <th className="px-3 py-2.5 font-medium">{m.columns.fields}</th>
+                <th className="px-3 py-2.5 font-medium">{m.columns.tests}</th>
+                <th className="px-3 py-2.5 font-medium">{m.columns.read}</th>
                 <th className="py-2.5 pr-5" />
               </tr>
             </thead>
@@ -146,7 +149,7 @@ export default function BatchPage() {
                           disabled={retrying === d.id}
                           className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200 transition hover:bg-white disabled:opacity-50"
                         >
-                          <Retry className="size-3.5" /> Retry
+                          <Retry className="size-3.5" /> {m.retry}
                         </button>
                       )}
                     </span>
@@ -163,14 +166,14 @@ export default function BatchPage() {
                         {d.summary.recorded && (
                           <span
                             className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 ring-1 ring-amber-200"
-                            title={`The time the model took when recorded; replayed ${replaySpeed ?? 1}× faster here.`}
+                            title={m.recordedTitle(replaySpeed ?? 1)}
                           >
-                            recorded
+                            {m.recorded}
                           </span>
                         )}
                       </span>
                     ) : d.attempts > 1 ? (
-                      `attempt ${d.attempts}`
+                      m.attempt(d.attempts)
                     ) : (
                       <span className="text-slate-300">–</span>
                     )}
@@ -181,7 +184,7 @@ export default function BatchPage() {
                         href={`/batches/${batch.id}/${d.id}`}
                         className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap text-white shadow-sm shadow-brand-600/20 transition hover:bg-brand-700"
                       >
-                        Verify <ArrowRight className="size-3.5" />
+                        {m.verify} <ArrowRight className="size-3.5" />
                       </Link>
                     )}
                   </td>
@@ -192,7 +195,7 @@ export default function BatchPage() {
         </div>
       </section>
       <p className="mt-3 text-xs text-slate-500">
-        Colours are signals, never acceptance: green means a proposal with strong evidence, still to be approved.
+        {m.note}
       </p>
     </>
   );

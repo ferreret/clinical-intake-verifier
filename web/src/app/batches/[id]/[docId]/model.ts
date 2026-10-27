@@ -1,10 +1,9 @@
 /**
  * What the verification screen works on: the items a technician goes through (each field, then
- * each requested line), where each was found on the page, and the words for why each has its
- * colour.
+ * each requested line), where each was found on the page, and how each colour is drawn. The
+ * words for each are in the messages of the language (_ui/messages).
  */
-import type { FieldReason, FusedField, LinkStatus, TrafficLight } from "@/lib/fusion/types";
-import type { MappingSource } from "@/lib/mapping/propose";
+import type { FusedField, LinkStatus, TrafficLight } from "@/lib/fusion/types";
 import { FIELDS, type FieldSpec } from "@/lib/schema/fields";
 import type { BBox, BoxSource } from "@/lib/schema/prediction";
 
@@ -51,12 +50,7 @@ export function itemsOf(view: ProposalView): Item[] {
   return [...fields, ...tests];
 }
 
-export const GROUPS: { id: string; label: string }[] = [
-  { id: "patient", label: "Patient" },
-  { id: "physician", label: "Physician" },
-  { id: "request", label: "Request" },
-  { id: "insurer", label: "Insurer" },
-];
+export const GROUPS = ["patient", "physician", "request", "insurer"] as const;
 
 export const LIGHT_DOT: Record<Light, string> = {
   green: "bg-emerald-500",
@@ -73,38 +67,11 @@ export const LIGHT_BOX: Record<Light, string> = {
   grey: "border-slate-400 bg-slate-400/10",
 };
 
-export const REASON: Record<FieldReason, string> = {
-  agree: "The document and the lab's records agree",
-  lis_only: "Not on the document; taken from the lab's records",
-  ai_only: "Only on the document: the records cannot confirm it",
-  ai_only_doubtful: "Only on the document, and the reading looks doubtful",
-  conflict: "The document and the records disagree: choose",
-  candidate_agrees: "Agrees with a record not yet confirmed as this patient's",
-  candidate_only: "Only in a record not yet confirmed as this patient's",
-  default: "The system's default",
-  missing_required: "Missing, and required",
-  absent_optional: "Absent, and optional",
-};
-
-export const LINK_LABEL: Record<LinkStatus, string> = {
-  linked: "Linked",
-  candidate: "Candidate",
-  ambiguous: "Ambiguous",
-  none: "No record",
-};
-
 export const LINK_STYLE: Record<LinkStatus, string> = {
   linked: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   candidate: "bg-amber-50 text-amber-800 ring-amber-200",
   ambiguous: "bg-amber-50 text-amber-800 ring-amber-200",
   none: "bg-slate-50 text-slate-600 ring-slate-200",
-};
-
-export const MAPPING_SOURCE: Record<Exclude<MappingSource, null>, string> = {
-  memory: "Approved before for this insurer",
-  memory_elsewhere: "Approved before for other insurers",
-  search: "Best match in the catalog",
-  model: "Chosen by the model among the catalog's candidates",
 };
 
 export const codesKey = (codes: string[] | null) => (codes ? [...codes].sort().join(",") : "");

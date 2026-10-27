@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../../../_ui/api";
+import { useI18n } from "../../../_ui/i18n";
 import { LIGHT_DOT, type Item, type Light } from "./model";
 
 /** The window's width, by screen width. */
@@ -79,6 +80,7 @@ export function Lens({
   const place = item?.place ?? null;
   const page = place ? pages.find((p) => p.number === place.page) : undefined;
   const [geo, setGeo] = useState<Geometry | null>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!enabled || !shown || !place || !page) return;
@@ -157,8 +159,8 @@ export function Lens({
           <span className="shrink-0 font-semibold text-slate-700">{info?.label}</span>
           <span className="min-w-0 truncate text-slate-500">{info?.read}</span>
           <span className="ml-auto shrink-0 text-slate-400">
-            p. {place.page}
-            {!place.exact && " · approx."}
+            {t.lens.page(place.page)}
+            {!place.exact && t.lens.approx}
           </span>
         </div>
         <div className="relative overflow-hidden bg-white" style={{ height: r.h }}>

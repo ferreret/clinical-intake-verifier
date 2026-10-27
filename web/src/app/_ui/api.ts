@@ -46,6 +46,8 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** The whole reply, for what it says beyond the message. */
+    readonly body: Record<string, unknown> = {},
   ) {
     super(message);
   }
@@ -54,7 +56,7 @@ export class ApiError extends Error {
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init });
   const body = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new ApiError(res.status, body.error ?? `HTTP ${res.status}`);
+  if (!res.ok) throw new ApiError(res.status, body.error ?? `HTTP ${res.status}`, body as Record<string, unknown>);
   return body;
 }
 
@@ -89,11 +91,6 @@ export const api = {
   catalog: (q: string, signal?: AbortSignal) =>
     call<{ results: Candidate[]; names: Record<string, string> }>(`/api/catalog?q=${encodeURIComponent(q)}`, { signal }),
   pageUrl: (documentId: string, page: number) => `/api/documents/${documentId}/pages/${page}`,
-};
-
-export const PROVIDER_LABEL: Record<Provider, string> = {
-  gemini: "Gemini (cloud)",
-  local: "Qwen (local model)",
 };
 
 /** States that are still moving: a page showing them keeps polling. */

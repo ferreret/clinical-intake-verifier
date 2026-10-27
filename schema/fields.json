@@ -1,5 +1,5 @@
 {
-  "$comment": "Single source of truth for the intake fields. Per field, lis is the LIS value it is compared with by the fusion engine (record.column; patient.name and physician.name are first name and both surnames) and the compare mode for that comparison, or null when the LIS does not hold it; default is the system default, the third and lowest-priority source; printed, on a normalised field, lists the words it may be printed with, so that its value can be found on the page (month names of a date, the words for each value of an enum). Read by the Python generator/evaluator and by the Next.js app. Do not duplicate this configuration in prompts, backend or UI.",
+  "$comment": "Single source of truth for the intake fields. Per field, lis is the LIS value it is compared with by the fusion engine (record.column; patient.name and physician.name are first name and both surnames) and the compare mode for that comparison, or null when the LIS does not hold it; default is the system default, the third and lowest-priority source; printed, on a normalised field, lists the words it may be printed with, so that its value can be found on the page (month names of a date, the words for each value of an enum); label is the English name shown to people, label_es the Spanish one. Read by the Python generator/evaluator and by the Next.js app. Do not duplicate this configuration in prompts, backend or UI.",
   "version": 4,
   "compare_modes": {
     "exact": "String equality after trimming whitespace.",
@@ -13,6 +13,7 @@
     {
       "name": "Paciente",
       "label": "Patient name",
+      "label_es": "Nombre del paciente",
       "group": "patient",
       "type": "string",
       "required": true,
@@ -26,6 +27,7 @@
     {
       "name": "FechaNacimiento",
       "label": "Date of birth",
+      "label_es": "Fecha de nacimiento",
       "group": "patient",
       "type": "date",
       "required": true,
@@ -55,6 +57,7 @@
     {
       "name": "Edad",
       "label": "Age",
+      "label_es": "Edad",
       "group": "patient",
       "type": "string",
       "required": false,
@@ -68,6 +71,7 @@
     {
       "name": "Sexo",
       "label": "Sex",
+      "label_es": "Sexo",
       "group": "patient",
       "type": "enum",
       "required": true,
@@ -89,6 +93,7 @@
     {
       "name": "DocumentoIdentidad",
       "label": "Identity document",
+      "label_es": "Documento de identidad",
       "group": "patient",
       "type": "string",
       "required": true,
@@ -102,6 +107,7 @@
     {
       "name": "Telefono",
       "label": "Phone",
+      "label_es": "Teléfono",
       "group": "patient",
       "type": "string",
       "required": false,
@@ -115,6 +121,7 @@
     {
       "name": "NombreMedico",
       "label": "Requesting physician",
+      "label_es": "Médico solicitante",
       "group": "physician",
       "type": "string",
       "required": true,
@@ -128,6 +135,7 @@
     {
       "name": "NumeroColegiado",
       "label": "Physician registration number",
+      "label_es": "Número de colegiado",
       "group": "physician",
       "type": "string",
       "required": false,
@@ -141,6 +149,7 @@
     {
       "name": "NumeroPeticion",
       "label": "Request number",
+      "label_es": "Número de petición",
       "group": "request",
       "type": "string",
       "required": true,
@@ -155,6 +164,7 @@
     {
       "name": "NombreMutua",
       "label": "Insurer name",
+      "label_es": "Mutua",
       "group": "insurer",
       "type": "string",
       "required": false,
@@ -168,6 +178,7 @@
     {
       "name": "NumeroSolicitudMutua",
       "label": "Insurer request number",
+      "label_es": "Número de solicitud de la mutua",
       "group": "insurer",
       "type": "string",
       "required": false,
@@ -181,6 +192,7 @@
     {
       "name": "NumeroAutorizacion",
       "label": "Authorization number",
+      "label_es": "Número de autorización",
       "group": "insurer",
       "type": "string",
       "required": false,
@@ -194,6 +206,7 @@
     {
       "name": "NumeroTarjeta",
       "label": "Insurance card number",
+      "label_es": "Número de tarjeta",
       "group": "insurer",
       "type": "string",
       "required": false,
@@ -208,6 +221,7 @@
   "tests": {
     "name": "tests",
     "label": "Requested tests",
+    "label_es": "Pruebas solicitadas",
     "group": "request",
     "type": "array",
     "item_type": "string",

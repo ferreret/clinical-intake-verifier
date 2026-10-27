@@ -1,0 +1,333 @@
+/**
+ * Every text of the app, in Spanish: the same shape as `en.ts`. The explanations the server
+ * writes in English (record links, mapping reasons) are translated by pattern; one with no
+ * pattern is shown as it is.
+ */
+import type { Messages } from "./en";
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+const SERVER: [RegExp, (...m: string[]) => string][] = [
+  // Record links (lib/fusion/link.ts).
+  [/^identity document and name or birth date agree$/, () => "coinciden el documento de identidad y el nombre o la fecha de nacimiento"],
+  [
+    /^the identity document matches a record whose name and birth date do not$/,
+    () => "el documento de identidad coincide con un registro cuyo nombre y fecha de nacimiento no coinciden",
+  ],
+  [/^there is no identity document on the form$/, () => "el volante no trae documento de identidad"],
+  [/^the identity document matches no record$/, () => "el documento de identidad no coincide con ningún registro"],
+  [/^name and birth date match one record$/, () => "el nombre y la fecha de nacimiento coinciden con un registro"],
+  [/^name and birth date match (\d+) records$/, (n) => `el nombre y la fecha de nacimiento coinciden con ${n} registros`],
+  [/^the name matches (\d+) record\(s\) but no birth date does$/, (n) => `el nombre coincide con ${n} registro(s), pero ninguna fecha de nacimiento`],
+  [/^no record matches: a patient the lab has not seen$/, () => "ningún registro coincide: un paciente nuevo para el laboratorio"],
+  [/^registration number and name agree$/, () => "coinciden el número de colegiado y el nombre"],
+  [/^the registration number matches a record with another name$/, () => "el número de colegiado coincide con un registro de otro nombre"],
+  [/^the name matches one record$/, () => "el nombre coincide con un registro"],
+  [/^the name matches (\d+) records$/, (n) => `el nombre coincide con ${n} registros`],
+  [/^no record matches: a physician the lab does not know$/, () => "ningún registro coincide: un médico que el laboratorio no conoce"],
+  [/^the name matches a registered insurer$/, () => "el nombre coincide con una mutua registrada"],
+  [/^the name matches (\d+) insurers$/, (n) => `el nombre coincide con ${n} mutuas`],
+  [/^the document names no insurer$/, () => "el volante no nombra ninguna mutua"],
+  [/^the insurer is not registered in the LIS$/, () => "la mutua no está registrada en el LIS"],
+  // How a record is described (api/documents/[id]/proposal).
+  [/^(.+) · born (.+)$/, (doc, date) => `${doc} · nacido/a el ${date}`],
+  [/^No\. (.+)$/, (n) => `N.º ${n}`],
+  // Mapping reasons (lib/mapping/propose.ts, document.ts).
+  [/^approved with (\d+) different meanings for this insurer$/, (n) => `aprobada con ${n} significados distintos para esta mutua`],
+  [/^approved (\d+) times? for this insurer$/, (n) => `aprobada ${n} ${n === "1" ? "vez" : "veces"} para esta mutua`],
+  [/^approved (\d+) time\(s\) for this insurer$/, (n) => `aprobada ${n} ${n === "1" ? "vez" : "veces"} para esta mutua`],
+  [/^corrected (\d+) times$/, (n) => `corregida ${n} ${n === "1" ? "vez" : "veces"}`],
+  [/^approved (\d+) time\(s\) for other insurers$/, (n) => `aprobada ${n} ${n === "1" ? "vez" : "veces"} para otras mutuas`],
+  [/^closest catalog entry: (.+)$/, (label) => `la entrada más parecida del catálogo: ${label}`],
+  [/^no catalog entry stands out$/, () => "ninguna entrada del catálogo destaca"],
+  [/^nothing in the catalog looks like it$/, () => "nada del catálogo se le parece"],
+  [/^chosen by the model among the catalog candidates$/, () => "elegida por el modelo entre los candidatos del catálogo"],
+  [/^the model found no candidate that fits$/, () => "el modelo no encontró ningún candidato que encaje"],
+];
+
+/** One explanation, translated clause by clause (they are joined with "; " or ", "). */
+function server(text: string): string {
+  const one = (part: string) => {
+    for (const [re, to] of SERVER) {
+      const m = re.exec(part.trim());
+      if (m) return to(...m.slice(1));
+    }
+    return null;
+  };
+  const whole = one(text);
+  if (whole) return whole;
+  for (const sep of ["; ", ", "]) {
+    const parts = text.split(sep).map(one);
+    if (parts.length > 1 && parts.every((p) => p !== null)) return parts.join(sep);
+  }
+  return text;
+}
+
+export const es: Messages = {
+  locale: "es-ES",
+  language: { label: "Idioma", en: "English", es: "Español" },
+  fieldLabel: (spec) => spec.label_es,
+
+  common: {
+    batches: "Lotes",
+    switchTechnician: "Cambiar de técnico",
+    demo: "Demo",
+    demoLong: (speed) => `Demo · respuestas grabadas, ${speed}× más rápido`,
+    demoTitle: (speed) =>
+      `Las respuestas reales de los modelos, grabadas antes y reproducidas ${speed}× más rápido. No se envía nada a ningún modelo; tu trabajo queda en un espacio aislado solo tuyo.`,
+    live: "En vivo",
+    liveLong: "En vivo · se llama a los modelos ahora",
+    remove: "Quitar",
+    documents: (n) => plural(n, "documento"),
+  },
+
+  states: {
+    queued: "En cola",
+    extracting: "Leyendo",
+    failed: "Fallido",
+    awaiting_verification: "Por verificar",
+    in_verification: "En verificación",
+    approved: "Aprobado",
+    rejected: "Rechazado",
+  },
+  lights: { green: "verde", orange: "naranja", red: "rojo", grey: "gris" },
+  providers: { gemini: "Gemini (nube)", local: "Qwen (modelo local)" },
+
+  entry: {
+    demoBadge: "Demo · datos sintéticos",
+    eyebrow: "Peticiones de laboratorio clínico, con una persona en el bucle",
+    title: ["El modelo lee. Los registros comprueban.", "Una persona decide."],
+    lead: "El técnico deja de teclear volantes escaneados y pasa a verificarlos. Cada valor llega con un semáforo y su procedencia; el modelo es una fuente más, nunca la fuente de verdad.",
+    heroAlt: "Un volante de laboratorio escaneado cuyos campos fluyen a un panel de verificación, cada uno con una luz verde, ámbar o roja y una marca de comprobación",
+    steps: [
+      { title: "Leer", text: "Un modelo de visión lee el volante escaneado, campo a campo, y dice dónde encontró cada valor." },
+      { title: "Comprobar", text: "Los registros del laboratorio confirman o contradicen lo leído. Cuando discrepan, no gana el modelo." },
+      { title: "Mapear", text: "Cada prueba pedida, escrita a la manera de la mutua, recibe los códigos del laboratorio." },
+      { title: "Aprobar", text: "Nada cuenta hasta que un técnico lo aprueba: quién, cuándo y qué exactamente." },
+    ],
+    lightsTitle: "El semáforo",
+    lightsNote: "Un color es una señal, nunca una aceptación.",
+    lights: ["Coincide con los registros del laboratorio", "Solo lo dice el modelo", "Discrepan: decides tú", "Ausente, y opcional"],
+    figures: [
+      "precisión por campo, Gemini",
+      "errores de lectura mostrados en verde",
+      "líneas de pruebas que quedan para el técnico",
+      "documentos enlazados al paciente equivocado",
+    ],
+    start: "Empezar a trabajar",
+    startNote: "Elige qué técnico eres. Personas inventadas: esto no es un inicio de sesión.",
+    replayNote: (speed) =>
+      `Las respuestas reales de los modelos se grabaron antes y se reproducen ${speed}× más rápido. Tus lotes quedan un día en un espacio aislado solo tuyo.`,
+    opening: "Abriendo…",
+    continue: "Seguir donde lo dejaste",
+    role: "Técnico de laboratorio",
+    footer:
+      "Todos los documentos, personas y mutuas de aquí son sintéticos, generados por el proyecto. Cifras medidas: 200 peticiones sintéticas, leídas y comprobadas de principio a fin.",
+  },
+
+  batches: {
+    subtitle: "Cada documento se lee, se comprueba contra los registros del laboratorio y se mapea a sus códigos; después te espera.",
+    newBatch: "Nuevo lote",
+    tiles: { toVerify: "Por verificar", reading: "Leyendo", approved: "Aprobados", failed: "Fallidos" },
+    emptyTitle: "Todavía no hay lotes",
+    emptyText: "Mete unas cuantas peticiones sintéticas en un lote y mira cómo se leen, se comprueban y se mapean.",
+    emptyAction: "Crea tu primer lote",
+    toVerify: (n) => `${n} por verificar`,
+  },
+
+  newBatch: {
+    title: "Nuevo lote",
+    subtitle: "Elige quién lo lee y qué peticiones entran. Pasan a la cola en cuanto lo creas.",
+    whoReads: "Quién lo lee",
+    providers: {
+      gemini: { text: "El modelo de Google, en la nube. Lee el PDF directamente.", meta: "99,8 % de precisión por campo · unos 9 s por documento" },
+      local: {
+        title: "Qwen 3.6, local",
+        text: "Pesos abiertos en la GPU de esta máquina. Nada sale de la máquina.",
+        meta: "99,5 % de precisión por campo · unos 80 s por documento",
+      },
+    },
+    synthetic: "Peticiones sintéticas",
+    syntheticReplay: (provider) => `Las que tienen una respuesta grabada de ${provider}.`,
+    syntheticLive: "Generadas por el proyecto, con su verdad de referencia.",
+    filter: "Filtrar por nombre",
+    random: (n) => `Añadir ${n} al azar`,
+    clear: "Vaciar",
+    columns: { document: "Documento", pages: "Páginas", kind: "Tipo", lang: "Idioma" },
+    include: (name) => `Incluir ${name}`,
+    scanned: "Escaneado",
+    digital: "Digital",
+    handwriting: "Manuscrito",
+    yourPdfs: "Tus PDF",
+    yourPdfsHint: "Se guardan en esta máquina, fuera del repositorio, y los lee el modelo que elegiste.",
+    choosePdfs: "Elige los PDF que subir",
+    pdfLimit: "Hasta 20 MB cada uno",
+    name: "Nombre del lote",
+    namePlaceholder: "Opcional, p. ej. Correo de la mañana",
+    inBatch: "En este lote",
+    nothingYet: "Nada todavía: marca unas cuantas peticiones.",
+    readBy: (provider) => `Lo lee ${provider}`,
+    creating: "Creando…",
+    create: (n) => (n > 0 ? `Crear y leer ${plural(n, "documento")}` : "Crear y leer"),
+  },
+
+  batch: {
+    reading: "Leyendo los documentos…",
+    ready: "Listo para verificar",
+    progress: "Progreso",
+    read: (done, total) => `${done} de ${total} leídos`,
+    toVerify: "Por verificar",
+    meanTime: "Lectura media",
+    columns: { document: "Documento", state: "Estado", fields: "Campos", tests: "Líneas de pruebas", read: "Lectura" },
+    retry: "Reintentar",
+    recorded: "grabada",
+    recordedTitle: (speed) => `El tiempo que tardó el modelo al grabarse; aquí se reproduce ${speed}× más rápido.`,
+    attempt: (n) => `intento ${n}`,
+    verify: "Verificar",
+    note: "Los colores son señales, nunca aceptaciones: verde significa una propuesta con evidencia sólida, pendiente de aprobar.",
+  },
+
+  verify: {
+    batch: "Lote",
+    previous: "Anterior",
+    next: "Siguiente",
+    previousTitle: "Documento anterior",
+    nextTitle: (file) => `Documento siguiente: ${file}`,
+    lastTitle: "Último documento del lote",
+    position: (at, total) => [String(at), ` de ${total}`],
+    readBy: (model, seconds) => `leído por ${model} en ${seconds} s`,
+    recorded: " (grabado)",
+    readOnly: (message) => `${message}. Se muestra en solo lectura.`,
+    lockedBy: (holder) => `${holder} está verificando este documento`,
+    closed: (message) => server(message),
+    takeOver: (name) => `Tomar el relevo como ${name}`,
+    records: "Los registros del laboratorio",
+    fieldsTitle: (n) => `Campos · ${n}`,
+    testsTitle: (read, added) =>
+      `Pruebas solicitadas · ${plural(read, "línea")} ${read === 1 ? "leída" : "leídas"}${added > 0 ? `, ${added} ${added === 1 ? "añadida" : "añadidas"}` : ""}`,
+    leftToResolve: (n) => `${n} por resolver`,
+    nothingLeft: "Nada por resolver",
+    changes: (n) => plural(n, "cambio"),
+    lens: (on) => `Lupa ${on ? "activada" : "desactivada"}`,
+    lensTitle: "Pasa el puntero por un valor de «Leído» para ver dónde se leyó, ampliado y unido a la página (Alt+Z)",
+    shortcuts: "Atajos",
+    leave: "Dejar para luego",
+    approve: "Aprobar",
+    approveTitle: "La aprobación es el siguiente bloque de F5: registra exactamente lo que apruebas.",
+    confirmLeave: "Tus cambios en este documento aún no están aprobados y se perderán. ¿Salir de todos modos?",
+    keys: [
+      ["Alt + ↓ / ↑", "Campo o línea siguiente o anterior"],
+      ["Tab / Mayús + Tab", "Casilla siguiente o anterior"],
+      ["Alt + 1 / Alt + 2", "En un conflicto, tomar el valor del documento o el de los registros"],
+      ["Alt + → / ←", "Documento siguiente o anterior del lote"],
+      ["Alt + Z", "Activar o desactivar la lupa: el origen del valor, ampliado y unido a la página"],
+      ["Esc", "Salir de la casilla; cerrar esta lista"],
+    ],
+    keysNote: "En una página, pincha una caja para ir a su campo.",
+    keysSwitch: "desde la cabecera.",
+  },
+
+  records: {
+    patient: "Paciente",
+    physician: "Médico",
+    insurer: "Mutua",
+    lookAlike: (n) => `${n} registros se le parecen`,
+  },
+
+  links: { linked: "Enlazado", candidate: "Candidato", ambiguous: "Ambiguo", none: "Sin registro" },
+
+  fields: {
+    columns: { field: "Campo", read: "Leído", records: "Registros", proposed: "Propuesto", selected: "Seleccionado" },
+    groups: { patient: "Paciente", physician: "Médico", request: "Petición", insurer: "Mutua" },
+    sources: { lis: "de los registros", ai: "del documento", default: "por defecto" },
+    from: (source) => source,
+    page: (n) => `p. ${n}`,
+    candidate: "candidato",
+    noneChoose: "Ninguno: eliges tú",
+    choose: "Elige o escribe",
+    pick: "Seleccionar este valor",
+    changed: "Cambiado por ti",
+  },
+
+  reasons: {
+    agree: "El documento y los registros del laboratorio coinciden",
+    lis_only: "No está en el documento; tomado de los registros del laboratorio",
+    ai_only: "Solo en el documento: los registros no pueden confirmarlo",
+    ai_only_doubtful: "Solo en el documento, y la lectura parece dudosa",
+    conflict: "El documento y los registros discrepan: elige",
+    candidate_agrees: "Coincide con un registro aún no confirmado como de este paciente",
+    candidate_only: "Solo en un registro aún no confirmado como de este paciente",
+    default: "El valor por defecto del sistema",
+    missing_required: "Falta, y es obligatorio",
+    absent_optional: "Ausente, y opcional",
+  },
+
+  tests: {
+    columns: { read: "Leído", proposed: "Propuesto", selected: "Seleccionado" },
+    noLines: "No se leyó ninguna línea de pruebas.",
+    noPage: "sin página",
+    noneChoose: "Ninguno: eliges tú",
+    dropped: "Descartada: no es una prueba, o no se pidió",
+    drop: "Descartar la línea: no es una prueba, o no se pidió",
+    undo: "Deshacer: mantener la línea",
+    added: "Añadida por ti",
+    addedNote: "Añadida por ti · no leída",
+    addedPlaceholder: "Como lo dice el volante (opcional)",
+    addedLabel: "La prueba como la dice el volante",
+    nothingProposed: "Nada propuesto",
+    removeAdded: "Quitar esta prueba",
+    add: "Añadir una prueba que la lectura no encontró",
+  },
+
+  mappingSource: {
+    memory: "Aprobada antes para esta mutua",
+    memory_elsewhere: "Aprobada antes para otras mutuas",
+    search: "La mejor coincidencia del catálogo",
+    model: "Elegida por el modelo entre los candidatos del catálogo",
+  },
+
+  codes: {
+    remove: (code) => `Quitar ${code}`,
+    removeTitle: "Quitar este código",
+    add: "Añadir un código",
+    addTitle: "Añadir un código del catálogo",
+    choose: "Elige los códigos",
+    back: "Volver a lo propuesto",
+    search: "Buscar en el catálogo: nombre o código",
+    searchLabel: "Buscar en el catálogo",
+    close: "Cerrar la búsqueda",
+    catalog: "Catálogo",
+    candidates: "Candidatos para esta línea",
+    profile: (n) => `perfil · ${n} pruebas`,
+    searching: "Buscando…",
+    nothing: "Nada del catálogo se le parece",
+    typeToSearch: "Escribe para buscar en todo el catálogo",
+  },
+
+  viewer: {
+    pages: (n) => plural(n, "página"),
+    page: (n) => `página ${n}`,
+    exact: "exacta",
+    approximate: "aproximada",
+    zoomIn: "Ampliar",
+    zoomOut: "Reducir",
+    pageAlt: (n) => `Página ${n}`,
+    boxExact: "Donde se leyó",
+    boxApprox: "Aproximada: la colocó el modelo local",
+    approx: "aprox.",
+  },
+
+  lens: {
+    testLine: (n) => `Línea de prueba ${n}`,
+    page: (n) => `p. ${n}`,
+    approx: " · aprox.",
+  },
+
+  server,
+};
+
+/** The server's "the document is <state>, not awaiting verification", in Spanish. */
+SERVER.push([
+  /^the document is (\w+), not awaiting verification$/,
+  (state) => `el documento está ${(es.states as Record<string, string>)[state]?.toLowerCase() ?? state}, no pendiente de verificación`,
+]);

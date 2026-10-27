@@ -6,6 +6,7 @@
  * documents; in live mode, also a multipart form with `provider`, `name`, `documents`
  * (repeated) and PDF `files` (repeated), which can be mixed.
  */
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { appMode, type Provider } from "@/lib/batches/config";
@@ -15,6 +16,8 @@ import { getSession, noSession } from "@/lib/batches/session";
 import { listBundled, readBundled, saveUpload } from "@/lib/batches/sources";
 import { createBatch, listBatches, type NewDocument } from "@/lib/batches/store";
 import { looksLikePdf, sha256Hex } from "@/lib/extractor/pdf";
+
+import { LANG_COOKIE } from "../../_ui/lang";
 
 export const runtime = "nodejs";
 
@@ -74,8 +77,10 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   const count = (await listBatches(session.db)).length;
+  // An unnamed batch is numbered, in the visitor's language.
+  const word = (await cookies()).get(LANG_COOKIE)?.value === "es" ? "Lote" : "Batch";
   const batch = await createBatch(session.db, {
-    name: typeof name === "string" && name.trim() ? name.trim().slice(0, 100) : `Batch ${count + 1}`,
+    name: typeof name === "string" && name.trim() ? name.trim().slice(0, 100) : `${word} ${count + 1}`,
     provider: provider as Provider,
     createdBy: session.technician.id,
     documents,

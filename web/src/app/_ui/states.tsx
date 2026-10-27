@@ -3,17 +3,10 @@
  * own colours, kept apart from the traffic light's green, orange and red, which say how sure
  * a proposal is, never where a document is.
  */
-import type { DocumentState } from "./api";
+"use client";
 
-export const STATE_LABEL: Record<DocumentState, string> = {
-  queued: "Queued",
-  extracting: "Reading",
-  failed: "Failed",
-  awaiting_verification: "To verify",
-  in_verification: "In verification",
-  approved: "Approved",
-  rejected: "Rejected",
-};
+import type { DocumentState } from "./api";
+import { useI18n } from "./i18n";
 
 const STATE_STYLE: Record<DocumentState, { badge: string; dot: string; bar: string }> = {
   queued: { badge: "bg-slate-50 text-slate-600 ring-slate-200", dot: "bg-slate-400", bar: "bg-slate-200" },
@@ -37,24 +30,26 @@ export const BAR_ORDER: DocumentState[] = [
 ];
 
 export function StateBadge({ state }: { state: DocumentState }) {
+  const { t } = useI18n();
   const s = STATE_STYLE[state];
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset ${s.badge}`}>
       <span className={`size-1.5 rounded-full ${s.dot}`} aria-hidden />
-      {STATE_LABEL[state]}
+      {t.states[state]}
     </span>
   );
 }
 
 export function StatesBar({ states, total, className = "h-2" }: { states: Record<DocumentState, number>; total: number; className?: string }) {
+  const { t } = useI18n();
   return (
-    <div className={`flex w-full gap-0.5 overflow-hidden rounded-full bg-slate-100 ${className}`} role="img" aria-label={describe(states)}>
+    <div className={`flex w-full gap-0.5 overflow-hidden rounded-full bg-slate-100 ${className}`} role="img" aria-label={describe(states, t.states)}>
       {BAR_ORDER.filter((s) => states[s] > 0).map((s) => (
         <div
           key={s}
           className={`${STATE_STYLE[s].bar} transition-[width] duration-500 first:rounded-l-full last:rounded-r-full`}
           style={{ width: `${(100 * states[s]) / total}%` }}
-          title={`${STATE_LABEL[s]}: ${states[s]}`}
+          title={`${t.states[s]}: ${states[s]}`}
         />
       ))}
     </div>
@@ -63,34 +58,36 @@ export function StatesBar({ states, total, className = "h-2" }: { states: Record
 
 /** The states present, as small labelled dots. */
 export function StatesLegend({ states }: { states: Record<DocumentState, number> }) {
+  const { t } = useI18n();
   return (
     <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
       {BAR_ORDER.filter((s) => states[s] > 0).map((s) => (
         <li key={s} className="inline-flex items-center gap-1.5">
           <span className={`size-2 rounded-full ${STATE_STYLE[s].dot}`} aria-hidden />
-          <span className="font-medium tabular-nums text-slate-900">{states[s]}</span> {STATE_LABEL[s].toLowerCase()}
+          <span className="font-medium tabular-nums text-slate-900">{states[s]}</span> {t.states[s].toLowerCase()}
         </li>
       ))}
     </ul>
   );
 }
 
-export function describe(states: Record<DocumentState, number>): string {
+export function describe(states: Record<DocumentState, number>, labels: Record<DocumentState, string>): string {
   return BAR_ORDER.filter((s) => states[s] > 0)
-    .map((s) => `${states[s]} ${STATE_LABEL[s].toLowerCase()}`)
+    .map((s) => `${states[s]} ${labels[s].toLowerCase()}`)
     .join(" · ");
 }
 
 const LIGHT = {
-  green: { dot: "bg-emerald-500", label: "green" },
-  orange: { dot: "bg-amber-500", label: "orange" },
-  red: { dot: "bg-red-500", label: "red" },
-  grey: { dot: "bg-slate-300", label: "grey" },
+  green: { dot: "bg-emerald-500" },
+  orange: { dot: "bg-amber-500" },
+  red: { dot: "bg-red-500" },
+  grey: { dot: "bg-slate-300" },
 } as const;
 type Light = keyof typeof LIGHT;
 
 /** A count per traffic-light colour, drawn as a short stacked bar with the numbers beside it. */
 export function LightCounts({ counts }: { counts: Partial<Record<Light, number>> }) {
+  const { t } = useI18n();
   const lights = (Object.keys(LIGHT) as Light[]).filter((c) => (counts[c] ?? 0) > 0);
   const total = lights.reduce((a, c) => a + (counts[c] ?? 0), 0);
   if (total === 0) return <span className="text-slate-400">–</span>;
@@ -103,10 +100,10 @@ export function LightCounts({ counts }: { counts: Partial<Record<Light, number>>
       </span>
       <span className="inline-flex gap-2 text-xs tabular-nums text-slate-600">
         {lights.map((c) => (
-          <span key={c} className="inline-flex items-center gap-1" title={`${counts[c]} ${LIGHT[c].label}`}>
+          <span key={c} className="inline-flex items-center gap-1" title={`${counts[c]} ${t.lights[c]}`}>
             <span className={`size-1.5 rounded-full ${LIGHT[c].dot}`} aria-hidden />
             {counts[c]}
-            <span className="sr-only">{LIGHT[c].label}</span>
+            <span className="sr-only">{t.lights[c]}</span>
           </span>
         ))}
       </span>

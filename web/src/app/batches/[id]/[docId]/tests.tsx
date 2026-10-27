@@ -10,9 +10,10 @@
 import type { ReactNode, RefObject } from "react";
 
 import type { ProposalView } from "../../../_ui/api";
+import { useI18n } from "../../../_ui/i18n";
 import { Plus, Retry, X } from "../../../_ui/icons";
 import { CodeEditor } from "./codes";
-import { LIGHT_DOT, MAPPING_SOURCE, type Item } from "./model";
+import { LIGHT_DOT, type Item } from "./model";
 
 type TestItem = Extract<Item, { kind: "test" }>;
 
@@ -59,6 +60,8 @@ export function Tests({
   onRemoveAdded: (key: string) => void;
   onNames: (names: Record<string, string>) => void;
 }) {
+  const { t } = useI18n();
+  const m = t.tests;
   const register = (key: string) => (el: HTMLElement | null) => {
     if (el) inputs.current.set(key, el);
     else inputs.current.delete(key);
@@ -72,7 +75,7 @@ export function Tests({
   const rowStyle = (on: boolean) => `align-top transition ${on ? "bg-brand-50/60" : "hover:bg-slate-50/60"}`;
   const marker = (on: boolean) => on && <span className="absolute inset-y-0 left-0 w-0.5 bg-brand-600" aria-hidden />;
   const edited = (key: string) =>
-    touched.has(key) && <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand-600" title="Changed by you" aria-label="edited" />;
+    touched.has(key) && <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand-600" title={t.fields.changed} aria-label={t.fields.changed} />;
 
   return (
     <div className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
@@ -81,9 +84,9 @@ export function Tests({
           <tr>
             {/* Widths on the header cells: a fixed table takes them from its first row, skipping hidden ones. */}
             <th className="w-7 py-2" />
-            <th className="px-2 py-2">Read</th>
-            <th className="hidden w-[32%] px-2 py-2 @min-[44rem]:table-cell">Proposed</th>
-            <th className="w-[40%] px-2 py-2">Selected</th>
+            <th className="px-2 py-2">{m.columns.read}</th>
+            <th className="hidden w-[32%] px-2 py-2 @min-[44rem]:table-cell">{m.columns.proposed}</th>
+            <th className="w-[40%] px-2 py-2">{m.columns.selected}</th>
             <th className="w-9 py-2" />
           </tr>
         </thead>
@@ -91,47 +94,47 @@ export function Tests({
           {items.length === 0 && added.length === 0 && (
             <tr>
               <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
-                No test lines were read.
+                {m.noLines}
               </td>
             </tr>
           )}
           {items.map((i) => {
             const line = view.proposal.tests[i.index];
-            const m = line.mapping;
+            const mapping = line.mapping;
             const codes = chosen[i.key];
             const on = focused === i.key;
             const dropped = codes === null;
-            const source = m.source ? MAPPING_SOURCE[m.source] : m.reason;
+            const source = mapping.source ? t.mappingSource[mapping.source] : t.server(mapping.reason);
             return (
               <tr key={i.key} data-row={i.key} className={rowStyle(on)} onClick={() => onFocus(i.key)}>
                 <td className="relative py-2.5 pl-3">
                   {marker(on)}
-                  <span className={`mt-1 block size-2.5 rounded-full ${dropped ? "bg-slate-200" : LIGHT_DOT[m.state]}`} title={source} />
+                  <span className={`mt-1 block size-2.5 rounded-full ${dropped ? "bg-slate-200" : LIGHT_DOT[mapping.state]}`} title={source} />
                 </td>
                 <td className="px-2 py-2" data-read>
                   <div className={`truncate text-[13px] font-medium ${dropped ? "text-slate-400 line-through" : "text-slate-800"}`} title={line.text}>
                     {line.text}
                   </div>
-                  <div className="text-[11px] text-slate-400">{line.page ? `p. ${line.page}` : "no page"}</div>
+                  <div className="text-[11px] text-slate-400">{line.page ? t.fields.page(line.page) : m.noPage}</div>
                 </td>
                 <td className={`hidden px-2 py-2 @min-[44rem]:table-cell ${dropped ? "opacity-40" : ""}`}>
-                  <div className="flex flex-wrap gap-1">{m.codes ? m.codes.map(codeChip) : <span className="text-xs font-medium text-red-700">None: you choose</span>}</div>
+                  <div className="flex flex-wrap gap-1">{mapping.codes ? mapping.codes.map(codeChip) : <span className="text-xs font-medium text-red-700">{m.noneChoose}</span>}</div>
                   <div className="mt-0.5 truncate text-[11px] text-slate-500" title={source}>
                     {source}
-                    {m.evidence && m.source === "memory" && ` (${m.evidence.active})`}
+                    {mapping.evidence && mapping.source === "memory" && ` (${mapping.evidence.active})`}
                   </div>
                 </td>
                 <td className="px-2 py-1.5">
                   <div className="flex items-start gap-1.5">
                     <div className="min-w-0 flex-1">
                       {dropped ? (
-                        <div className="py-0.5 text-xs text-slate-500">Dropped: not a test, or not requested</div>
+                        <div className="py-0.5 text-xs text-slate-500">{m.dropped}</div>
                       ) : (
                         <CodeEditor
                           codes={codes ?? []}
                           names={names}
-                          proposed={m.codes}
-                          suggestions={m.candidates}
+                          proposed={mapping.codes}
+                          suggestions={mapping.candidates}
                           readOnly={readOnly}
                           addRef={register(i.key)}
                           onFocus={() => onFocus(i.key)}
@@ -146,11 +149,11 @@ export function Tests({
                 <td className="py-1.5 pr-2 text-right">
                   {!readOnly &&
                     (dropped ? (
-                      <RowAction label="Undo: keep the line" onClick={() => onChoose(i.key, m.codes ?? [])}>
+                      <RowAction label={m.undo} onClick={() => onChoose(i.key, mapping.codes ?? [])}>
                         <Retry className="size-3.5" />
                       </RowAction>
                     ) : (
-                      <RowAction label="Drop the line: not a test, or not requested" danger onClick={() => onChoose(i.key, null)}>
+                      <RowAction label={m.drop} danger onClick={() => onChoose(i.key, null)}>
                         <X className="size-3.5" />
                       </RowAction>
                     ))}
@@ -164,7 +167,7 @@ export function Tests({
               <tr key={a.key} data-row={a.key} className={rowStyle(on)} onClick={() => onFocus(a.key)}>
                 <td className="relative py-2.5 pl-3">
                   {marker(on)}
-                  <span className="mt-1 block size-2.5 rounded-full bg-brand-500" title="Added by you" />
+                  <span className="mt-1 block size-2.5 rounded-full bg-brand-500" title={m.added} />
                 </td>
                 <td className="px-2 py-1.5">
                   <input
@@ -172,14 +175,14 @@ export function Tests({
                     readOnly={readOnly}
                     onFocus={() => onFocus(a.key)}
                     onChange={(e) => onEditAdded(a.key, { text: e.target.value })}
-                    placeholder="As the form says it (optional)"
-                    aria-label="The test as the form says it"
+                    placeholder={m.addedPlaceholder}
+                    aria-label={m.addedLabel}
                     className="w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 py-1 text-[13px] font-medium focus:border-brand-400 focus:ring-2 focus:ring-brand-100 focus:outline-none"
                   />
-                  <div className="mt-0.5 text-[11px] text-brand-700">Added by you · not read</div>
+                  <div className="mt-0.5 text-[11px] text-brand-700">{m.addedNote}</div>
                 </td>
                 <td className="hidden px-2 py-2 @min-[44rem]:table-cell">
-                  <span className="text-xs text-slate-400">Nothing proposed</span>
+                  <span className="text-xs text-slate-400">{m.nothingProposed}</span>
                 </td>
                 <td className="px-2 py-1.5">
                   <CodeEditor
@@ -196,7 +199,7 @@ export function Tests({
                 </td>
                 <td className="py-1.5 pr-2 text-right">
                   {!readOnly && (
-                    <RowAction label="Remove this test" danger onClick={() => onRemoveAdded(a.key)}>
+                    <RowAction label={m.removeAdded} danger onClick={() => onRemoveAdded(a.key)}>
                       <X className="size-3.5" />
                     </RowAction>
                   )}
@@ -212,7 +215,7 @@ export function Tests({
           onClick={onAdd}
           className="flex w-full items-center gap-1.5 border-t border-slate-200 px-3 py-2 text-xs font-medium text-brand-700 transition hover:bg-brand-50/60"
         >
-          <Plus className="size-3.5" /> Add a test the reading missed
+          <Plus className="size-3.5" /> {m.add}
         </button>
       )}
     </div>

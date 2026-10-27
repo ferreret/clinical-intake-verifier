@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
+
+import { I18nProvider } from "./_ui/i18n";
+import { LANG_COOKIE, pickLang } from "./_ui/lang";
 import "./globals.css";
 
 // Downloaded at build time and served by the app itself: no request to Google from the browser.
@@ -19,10 +23,13 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: "Intake Verifier", description },
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const lang = pickLang((await cookies()).get(LANG_COOKIE)?.value, (await headers()).get("accept-language"));
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
-      <body className="min-h-screen font-sans antialiased">{children}</body>
+    <html lang={lang} className={`${sans.variable} ${mono.variable}`}>
+      <body className="min-h-screen font-sans antialiased">
+        <I18nProvider initial={lang}>{children}</I18nProvider>
+      </body>
     </html>
   );
 }

@@ -5,7 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { ACTIVE_STATES, api, PROVIDER_LABEL, type BatchSummary, type DocumentState } from "../_ui/api";
+import { ACTIVE_STATES, api, type BatchSummary, type DocumentState } from "../_ui/api";
+import { useI18n } from "../_ui/i18n";
 import { ArrowRight, Cloud, Cpu, Plus } from "../_ui/icons";
 import { usePolling } from "../_ui/polling";
 import { PageHeader } from "../_ui/session";
@@ -14,6 +15,7 @@ import { StatesBar, StatesLegend } from "../_ui/states";
 export default function BatchesPage() {
   const [batches, setBatches] = useState<BatchSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useI18n();
   const moving = batches?.some((b) => ACTIVE_STATES.some((s) => b.states[s] > 0)) ?? false;
 
   const load = () => api.batches().then((r) => setBatches(r.batches), (e: Error) => setError(e.message));
@@ -22,23 +24,23 @@ export default function BatchesPage() {
 
   const total = (s: DocumentState) => batches?.reduce((a, b) => a + b.states[s], 0) ?? 0;
   const tiles = [
-    { label: "To verify", value: total("awaiting_verification"), tone: "text-violet-700" },
-    { label: "Reading", value: total("extracting") + total("queued"), tone: "text-sky-700" },
-    { label: "Approved", value: total("approved"), tone: "text-teal-700" },
-    { label: "Failed", value: total("failed"), tone: "text-rose-700" },
+    { label: t.batches.tiles.toVerify, value: total("awaiting_verification"), tone: "text-violet-700" },
+    { label: t.batches.tiles.reading, value: total("extracting") + total("queued"), tone: "text-sky-700" },
+    { label: t.batches.tiles.approved, value: total("approved"), tone: "text-teal-700" },
+    { label: t.batches.tiles.failed, value: total("failed"), tone: "text-rose-700" },
   ];
 
   return (
     <>
       <PageHeader
-        title="Batches"
-        subtitle="Each document is read, checked against the lab's records and mapped to its codes, then waits for you."
+        title={t.common.batches}
+        subtitle={t.batches.subtitle}
         action={
           <Link
             href="/batches/new"
             className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm shadow-brand-600/20 transition hover:bg-brand-700"
           >
-            <Plus className="size-4" /> New batch
+            <Plus className="size-4" /> {t.batches.newBatch}
           </Link>
         }
       />
@@ -60,15 +62,13 @@ export default function BatchesPage() {
       {batches?.length === 0 && (
         <div className="card flex flex-col items-center px-6 py-12 text-center">
           <Image src="/empty-batches.webp" alt="" width={440} height={418} priority className="w-44 sm:w-52" />
-          <p className="mt-4 text-lg font-semibold">No batches yet</p>
-          <p className="mt-1 max-w-sm text-sm text-slate-600">
-            Put a few synthetic requests in a batch and watch them being read, checked and mapped.
-          </p>
+          <p className="mt-4 text-lg font-semibold">{t.batches.emptyTitle}</p>
+          <p className="mt-1 max-w-sm text-sm text-slate-600">{t.batches.emptyText}</p>
           <Link
             href="/batches/new"
             className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
           >
-            <Plus className="size-4" /> Create your first batch
+            <Plus className="size-4" /> {t.batches.emptyAction}
           </Link>
         </div>
       )}
@@ -92,13 +92,13 @@ export default function BatchesPage() {
                       <span className="truncate font-semibold">{b.name}</span>
                       {toVerify > 0 && (
                         <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 ring-1 ring-violet-200 ring-inset">
-                          {toVerify} to verify
+                          {t.batches.toVerify(toVerify)}
                         </span>
                       )}
                     </div>
                     <p className="mt-0.5 text-xs text-slate-500">
-                      {PROVIDER_LABEL[b.provider]} · {b.documents} document{b.documents === 1 ? "" : "s"} ·{" "}
-                      {new Date(b.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                      {t.providers[b.provider]} · {t.common.documents(b.documents)} ·{" "}
+                      {new Date(b.createdAt).toLocaleString(t.locale, { dateStyle: "medium", timeStyle: "short" })}
                     </p>
                     <StatesBar states={b.states} total={b.documents} className="mt-3.5 h-1.5" />
                     <div className="mt-2.5">

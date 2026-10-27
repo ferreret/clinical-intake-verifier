@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState, type Ref } from "react";
 
 import { api, type Candidate } from "../../../_ui/api";
+import { useI18n } from "../../../_ui/i18n";
 import { Plus, Search, X } from "../../../_ui/icons";
 import { codesKey } from "./model";
 
@@ -38,6 +39,8 @@ export function CodeEditor({
   onNames: (names: Record<string, string>) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const { t } = useI18n();
+  const m = t.codes;
   const changed = proposed !== null && codesKey(codes) !== codesKey(proposed);
 
   return (
@@ -56,8 +59,8 @@ export function CodeEditor({
                 type="button"
                 onClick={() => onChange(codes.filter((x) => x !== c))}
                 className="rounded p-0.5 text-slate-400 transition hover:bg-red-50 hover:text-red-700"
-                aria-label={`Remove ${c}`}
-                title="Remove this code"
+                aria-label={m.remove(c)}
+                title={m.removeTitle}
               >
                 <X className="size-3" />
               </button>
@@ -70,19 +73,19 @@ export function CodeEditor({
             type="button"
             onFocus={onFocus}
             onClick={() => setOpen(true)}
-            title="Add a code from the catalog"
-            aria-label={codes.length === 0 ? "Choose the codes" : "Add a code"}
+            title={m.addTitle}
+            aria-label={codes.length === 0 ? m.choose : m.add}
             className={`inline-flex items-center gap-1 rounded py-0.5 text-xs font-medium ring-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 ${
               codes.length === 0 ? "bg-red-50/60 px-1.5 text-red-700 ring-red-200 hover:bg-red-50" : "px-1 text-brand-700 ring-brand-200 hover:bg-brand-50"
             }`}
           >
             <Plus className="size-3" />
-            {codes.length === 0 && "Choose the codes"}
+            {codes.length === 0 && m.choose}
           </button>
         )}
         {!readOnly && !open && changed && (
           <button type="button" onClick={() => onChange(proposed)} className="ml-0.5 text-[11px] text-slate-500 underline-offset-2 hover:underline">
-            Back to proposed
+            {m.back}
           </button>
         )}
       </div>
@@ -117,6 +120,8 @@ function Picker({
   const [found, setFound] = useState<{ query: string; results: Candidate[]; names: Record<string, string> } | null>(null);
   const [active, setActive] = useState(0);
   const box = useRef<HTMLDivElement>(null);
+  const { t } = useI18n();
+  const m = t.codes;
 
   useEffect(() => {
     const q = query.trim();
@@ -176,16 +181,16 @@ function Picker({
               onPick(list[active], names);
             }
           }}
-          placeholder="Search the catalog: name or code"
-          aria-label="Search the catalog"
+          placeholder={m.search}
+          aria-label={m.searchLabel}
           className="min-w-0 flex-1 py-1.5 text-[13px] focus:outline-none"
         />
-        <button type="button" onClick={onClose} className="rounded p-0.5 text-slate-400 hover:text-slate-700" aria-label="Close the search">
+        <button type="button" onClick={onClose} className="rounded p-0.5 text-slate-400 hover:text-slate-700" aria-label={m.close}>
           <X className="size-3.5" />
         </button>
       </div>
       <div className="px-2 pt-1.5 pb-0.5 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-        {typed ? "Catalog" : "Candidates for this line"}
+        {typed ? m.catalog : m.candidates}
       </div>
       <ul className="max-h-64 overflow-y-auto pb-1" role="listbox">
         {list.map((c, i) => (
@@ -200,13 +205,13 @@ function Picker({
               <span className="min-w-0 flex-1 truncate text-slate-700" title={c.label}>
                 {c.label}
               </span>
-              {c.kind === "profile" && <span className="shrink-0 text-[10px] text-slate-400">profile · {c.codes.length} tests</span>}
+              {c.kind === "profile" && <span className="shrink-0 text-[10px] text-slate-400">{m.profile(c.codes.length)}</span>}
             </button>
           </li>
         ))}
         {list.length === 0 && (
           <li className="px-2 py-1.5 text-xs text-slate-400">
-            {searching ? "Searching…" : typed ? "Nothing in the catalog looks like it" : "Type to search the whole catalog"}
+            {searching ? m.searching : typed ? m.nothing : m.typeToSearch}
           </li>
         )}
       </ul>
