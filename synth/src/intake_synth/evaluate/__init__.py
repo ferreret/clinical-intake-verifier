@@ -41,7 +41,8 @@ def evaluate_against(
 
     The baseline is re-scored here against the same goldens, so an old report of it, made
     against goldens that have changed since, can never leak into the comparison. Deltas and
-    flips cover only the documents evaluated, not failed, in both runs.
+    flips cover only the documents evaluated, not failed, in both runs; the documents that fail
+    in one run and not in the other are listed apart, with the end-to-end recall of both.
     """
     if run_dir.resolve() == baseline_dir.resolve():
         raise LoadError("the baseline is the run itself")
@@ -60,12 +61,26 @@ def evaluate_against(
         if _scored(base) == common
         else evaluate_run(baseline_dir, golden_dir, threshold, common)
     )
+    failed = {
+        name: {f["id"]: f["code"] for f in r["failures"]["documents"]}
+        for name, r in (("run", report), ("base", base))
+    }
     report["baseline"] = compare_reports(
         after,
         before,
         only_in_run=len(_scored(report) - common),
         only_in_baseline=len(_scored(base) - common),
         rejected=base["documents"]["rejected"],
+        newly_failing=[
+            {"id": i, "code": c} for i, c in sorted(failed["run"].items()) if i in _scored(base)
+        ],
+        recovered=[
+            {"id": i, "code": c} for i, c in sorted(failed["base"].items()) if i in _scored(report)
+        ],
+        end_to_end={
+            k: (base["end_to_end"][k], report["end_to_end"][k])
+            for k in ("field_recall", "test_recall")
+        },
     )
     return report
 

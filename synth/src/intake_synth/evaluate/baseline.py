@@ -3,6 +3,11 @@
 Both runs are scored by the same harness against the same golden directory, restricted to the
 documents evaluated in both, so the comparison never mixes goldens, thresholds or document sets.
 What comes out is the change in every metric and the list of fields and tests that flipped.
+
+A document that fails in one run is left out of those metrics, so a change that makes the model
+fail on the hardest documents could look like an improvement in them. The documents that fail
+in this run and were scored in the baseline (and the other way round) are therefore listed,
+and the end-to-end recall, which counts a failed document's values as missed, is compared too.
 """
 
 from __future__ import annotations
@@ -84,8 +89,15 @@ def compare_reports(
     only_in_run: int,
     only_in_baseline: int,
     rejected: list[dict],
+    newly_failing: list[dict] = (),
+    recovered: list[dict] = (),
+    end_to_end: dict | None = None,
 ) -> dict:
-    """The ``baseline`` section of a report. Both reports cover the same documents."""
+    """The ``baseline`` section of a report. Both reports cover the same documents.
+
+    ``newly_failing`` and ``recovered`` are the documents that fail in one run and are scored in
+    the other, and ``end_to_end`` the full runs' end-to-end recalls, before and after.
+    """
     t_after, t_before = after["tests"], before["tests"]
     b_after, b_before = after["boxes"]["all"], before["boxes"]["all"]
     return {
@@ -112,6 +124,10 @@ def compare_reports(
             for k in ("located", "with_box", "located_rate", "iou_median")
         },
         "flips": flips(before, after),
+        "failures": {"newly_failing": list(newly_failing), "recovered": list(recovered)},
+        "end_to_end": {k: _delta(*end_to_end[k]) for k in ("field_recall", "test_recall")}
+        if end_to_end
+        else None,
     }
 
 
@@ -129,7 +145,7 @@ def _arrow(d: dict, fmt) -> str:
 
 def console_lines(b: dict) -> list[str]:
     d, f, t, x = b["documents"], b["fields"]["total"], b["tests"], b["boxes"]
-    fl = b["flips"]
+    fl, fa, e = b["flips"], b["failures"], b["end_to_end"]
     return [
         (
             f"  baseline  : {b['run']['id']}, {d['common']} documents in common "
@@ -143,6 +159,18 @@ def console_lines(b: dict) -> list[str]:
         (
             f"  flipped   : {len(fl['fixed'])} fixed, {len(fl['broken'])} broken, "
             f"{len(fl['changed'])} changed while still wrong"
+        ),
+        (
+            f"  failures  : {len(fa['newly_failing'])} newly failing, {len(fa['recovered'])} recovered"
+            + (
+                f"   end-to-end field recall {_pp(e['field_recall'])}  test recall {_pp(e['test_recall'])}"
+                if e
+                else ""
+            )
+        ),
+        *(
+            f"  FAILS NOW : {x['id']} ({x['code']}), scored in the baseline"
+            for x in fa["newly_failing"]
         ),
         *(f"  REJECTED  : baseline {rej['file']}: {rej['reason']}" for rej in d["rejected"]),
     ]
@@ -214,6 +242,32 @@ def markdown_lines(b: dict) -> list[str]:
         ],
     ]
     lines += ["### Tests and boxes", "", *_table(["", "baseline", "this run", "change"], rows)]
+
+    fa, e = b["failures"], b["end_to_end"]
+    lines += [
+        "### Failures",
+        "",
+        (
+            "Left out of the metrics above, so listed here: a run that fails on the hard "
+            "documents can look better on the rest."
+        ),
+        "",
+    ]
+    if e:
+        lines += _table(
+            ["end to end", "baseline", "this run", "change"],
+            [
+                [label, _pct(e[k]["before"]), _pct(e[k]["after"]), _pp(e[k])]
+                for label, k in (("field recall", "field_recall"), ("test recall", "test_recall"))
+            ],
+        )
+    for key, title in (
+        ("newly_failing", "Failing now, scored in the baseline"),
+        ("recovered", "Scored now, failing in the baseline"),
+    ):
+        lines += [f"**{title} ({len(fa[key])})**", ""]
+        lines += [f"- {x['id']}: {x['code']}" for x in fa[key]] or ["None."]
+        lines += [""]
 
     header = [
         "document",

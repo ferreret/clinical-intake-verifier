@@ -304,3 +304,22 @@ def test_cli_with_baseline(tmp_path, golden_dir, goldens):
     assert "0 fixed, 2 broken" in result.output
     md = (run / "eval" / "report.md").read_text(encoding="utf-8")
     assert "## Against baseline" in md and "### Broken (2)" in md
+
+
+def test_baseline_lists_documents_that_fail_now(tmp_path, golden_dir, goldens):
+    # The run fails on a document the baseline read: its metrics leave it out, so it must show
+    # as failing now, and the end-to-end recall must drop.
+    base = write_run(tmp_path / "base", [perfect(g) for g in goldens])
+    preds = [perfect(g) for g in goldens]
+    preds[0]["extractor"]["error"] = {"code": "invalid_json", "message": "x"}
+    preds[0]["fields"] = {k: None for k in preds[0]["fields"]}
+    preds[0]["tests"] = []
+    run = write_run(tmp_path / "run", preds)
+
+    b = evaluate_against(run, base, golden_dir)["baseline"]
+    assert b["failures"] == {
+        "newly_failing": [{"id": goldens[0]["id"], "code": "invalid_json"}],
+        "recovered": [],
+    }
+    assert b["fields"]["total"]["precision"]["delta"] == 0  # what the metrics alone would say
+    assert b["end_to_end"]["field_recall"]["delta"] < 0

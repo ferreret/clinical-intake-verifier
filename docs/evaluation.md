@@ -186,6 +186,7 @@ adds to both reports, and to the summary, how the new run differs from the old o
   baseline  : 20261022-135208-gemini-3.8-flash-p1, 5 documents in common (0 only here, 0 only there)
   delta     : fields precision +6.5 pp  recall +6.5 pp  invented +0   tests F1 +0.0 pp   boxes located -1.1 pp
   flipped   : 3 fixed, 0 broken, 0 changed while still wrong
+  failures  : 0 newly failing, 0 recovered   end-to-end field recall +6.5 pp  test recall +0.0 pp
 ```
 
 **The baseline is scored again, not read from its old report.** Both runs are scored by the same
@@ -197,6 +198,13 @@ run with a change in the answer key.
 **Only documents evaluated in both runs are compared.** A document missing from either run, or
 failed in either, is left out of the comparison and counted as "only here" or "only there". The
 report of the run itself still covers all of its documents.
+
+**Documents that fail in one run and not the other are listed.** Leaving them out of the metrics
+would let a change that makes the model fail on the hardest documents look like an improvement
+on the rest. So the comparison lists the documents that fail now and were scored in the
+baseline (each with its error code, also as a `FAILS NOW` line in the summary) and those that
+recovered, and compares the end-to-end recalls of the two full runs, which count a failed
+document's values and tests as missed.
 
 What the comparison gives:
 
