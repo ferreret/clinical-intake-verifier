@@ -3,7 +3,7 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import type { TrafficLight } from "@/lib/fusion/types";
 import type { LisDb } from "@/lib/lis/db";
@@ -190,20 +190,37 @@ export type OpenResult = { ok: true; document: BatchDocument } | { ok: false; re
  * One locked by another technician stays theirs unless `takeOver` is asked for.
  */
 export async function openDocument(db: LisDb, id: string, technician: string, takeOver = false): Promise<OpenResult> {
-  const doc = await getDocument(db, id);
-  if (!doc) return { ok: false, reason: "missing" };
-  if (doc.state === "in_verification" && doc.lockedBy !== technician && !takeOver) {
-    return { ok: false, reason: "locked", document: doc };
+  // The lock is taken only if the document is still as it was read: an approval or another
+  // technician's opening in between would otherwise be undone (an approved document back in
+  // verification, to be decided twice). If it changed, it is read and judged again.
+  let doc: BatchDocument | null = null;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    doc = await getDocument(db, id);
+    if (!doc) return { ok: false, reason: "missing" };
+    if (doc.state === "in_verification" && doc.lockedBy !== technician && !takeOver) {
+      return { ok: false, reason: "locked", document: doc };
+    }
+    if (doc.state !== "awaiting_verification" && doc.state !== "in_verification") {
+      return { ok: false, reason: "not_ready", document: doc };
+    }
+    const at = now();
+    const done = await db
+      .update(batchDocuments)
+      .set({ state: "in_verification", lockedBy: technician, lockedAt: at, updatedAt: at })
+      .where(
+        and(
+          eq(batchDocuments.id, id),
+          eq(batchDocuments.state, doc.state),
+          doc.lockedBy === null ? isNull(batchDocuments.lockedBy) : eq(batchDocuments.lockedBy, doc.lockedBy),
+        ),
+      )
+      .returning({ id: batchDocuments.id });
+    if (done.length > 0) {
+      return { ok: true, document: { ...doc, state: "in_verification", lockedBy: technician, lockedAt: at, updatedAt: at } };
+    }
   }
-  if (doc.state !== "awaiting_verification" && doc.state !== "in_verification") {
-    return { ok: false, reason: "not_ready", document: doc };
-  }
-  const at = now();
-  await db
-    .update(batchDocuments)
-    .set({ state: "in_verification", lockedBy: technician, lockedAt: at, updatedAt: at })
-    .where(eq(batchDocuments.id, id));
-  return { ok: true, document: { ...doc, state: "in_verification", lockedBy: technician, lockedAt: at, updatedAt: at } };
+  // Still changing under us: someone else is working on it.
+  return { ok: false, reason: "locked", document: doc ?? undefined };
 }
 
 /** The technician leaves it unfinished: it waits for verification again. Only its holder can. */
