@@ -350,15 +350,53 @@ export default function VerifyPage() {
     }
   }
 
+  const worked = touched.size > 0 || confirmed.size > 0 || Object.keys(chosenLinks).length > 0;
+  const unsaved = worked && !view?.decision;
   const leave = useCallback(
     async (to: string) => {
-      const worked = touched.size > 0 || confirmed.size > 0 || Object.keys(chosenLinks).length > 0;
-      if (worked && !view?.decision && !window.confirm(m.confirmLeave)) return;
+      if (unsaved && !window.confirm(m.confirmLeave)) return;
       if (lock?.status === "mine") await api.release(docId).catch(() => undefined);
       router.push(to);
     },
-    [touched, confirmed, chosenLinks, view, lock, docId, router, m],
+    [unsaved, lock, docId, router, m],
   );
+
+  // Leaving any other way than the page's own buttons: the header's links, the browser's Back,
+  // closing the tab. The document is released all the same (releasing twice does nothing), and
+  // work is not lost without the question: the browser's own on closing or reloading, ours on a
+  // link. The Back button cannot be asked about; it still releases.
+  const exit = useRef({ unsaved, mine: false, ask: m.confirmLeave });
+  const mine = lock?.status === "mine";
+  useEffect(() => {
+    exit.current = { unsaved, mine, ask: m.confirmLeave };
+  }, [unsaved, mine, m]);
+  useEffect(() => {
+    function beforeUnload(e: BeforeUnloadEvent) {
+      if (exit.current.unsaved) e.preventDefault();
+    }
+    function pageHide() {
+      if (exit.current.mine) api.releaseOnExit(docId);
+    }
+    function linkClick(e: MouseEvent) {
+      if (!exit.current.unsaved || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const link = (e.target as Element | null)?.closest?.("a[href]");
+      if (!link || link.getAttribute("target") === "_blank") return;
+      if (!window.confirm(exit.current.ask)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+    window.addEventListener("beforeunload", beforeUnload);
+    window.addEventListener("pagehide", pageHide);
+    document.addEventListener("click", linkClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnload);
+      window.removeEventListener("pagehide", pageHide);
+      document.removeEventListener("click", linkClick, true);
+      // Unmounted: the page was left by a link or Back.
+      if (exit.current.mine) api.releaseOnExit(docId);
+    };
+  }, [docId]);
 
   // Keyboard: Alt+↓/↑ next and previous item, Alt+1/2 take the document's or the records'
   // value in a conflict, Alt+→/← next and previous document, ? the list of shortcuts.

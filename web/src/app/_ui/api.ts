@@ -110,6 +110,10 @@ export const api = {
   reject: (documentId: string, reason: RejectReason, note: string) =>
     call<{ decision: Decision; next: string | null }>(`/api/documents/${documentId}/reject`, postJson({ reason, note })),
   release: (documentId: string) => call<{ released: boolean }>(`/api/documents/${documentId}/release`, { method: "POST" }),
+  /** The same on the way out, when the page may be gone before an ordinary request finishes. */
+  releaseOnExit: (documentId: string) => {
+    void fetch(withBase(`/api/documents/${documentId}/release`), { method: "POST", keepalive: true }).catch(() => undefined);
+  },
   catalog: (q: string, signal?: AbortSignal) =>
     call<{ results: Candidate[]; names: Record<string, string> }>(`/api/catalog?q=${encodeURIComponent(q)}`, { signal }),
   searchRecords: (kind: RecordKind, q: string, signal?: AbortSignal) =>

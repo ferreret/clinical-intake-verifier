@@ -225,9 +225,11 @@ session shell and the state badges.
 
   Opening a document locks it to the technician (`POST /api/documents/:id/open`); another
   technician sees it read-only and can take it over. Leaving it for later, or moving to
-  another document, releases it (`POST /api/documents/:id/release`). The technician's
-  changes stay in the page until they approve: leaving with changes or confirmations asks
-  first.
+  another document, releases it (`POST /api/documents/:id/release`), and so does leaving any
+  other way: a link in the header, the browser's Back, closing or reloading the tab. The
+  technician's changes stay in the page until they approve: leaving with changes or
+  confirmations asks first, by the page's buttons and links as by the browser's own question
+  on closing or reloading; only Back cannot be asked about.
 
 **The look.** It is defined in `globals.css`:
 - Geist type, downloaded by `next/font` at build time and served by the app;
