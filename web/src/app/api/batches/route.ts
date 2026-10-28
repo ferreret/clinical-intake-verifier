@@ -17,7 +17,7 @@ import { deleteAllBatches } from "@/lib/batches/remove";
 import { PROVIDERS } from "@/lib/batches/schema";
 import { getSession, noSession } from "@/lib/batches/session";
 import { listBundled, readBundled, saveUpload } from "@/lib/batches/sources";
-import { countReading, createBatch, listBatches, type NewDocument } from "@/lib/batches/store";
+import { countReading, createBatch, listBatches, releaseExpiredLocks, type NewDocument } from "@/lib/batches/store";
 import { looksLikePdf, sha256Hex } from "@/lib/extractor/pdf";
 
 import { LANG_COOKIE } from "../../_ui/lang";
@@ -34,6 +34,7 @@ const MAX_BODY = { replay: 64 * 1024, live: MAX_DOCUMENTS * MAX_BYTES + 1024 * 1
 export async function GET(): Promise<NextResponse> {
   const session = await getSession();
   if (!session) return noSession();
+  await releaseExpiredLocks(session.db);
   return NextResponse.json({ batches: await listBatches(session.db) });
 }
 

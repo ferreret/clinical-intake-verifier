@@ -8,7 +8,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { TrafficLight } from "@/lib/fusion/types";
 import type { LisDb } from "@/lib/lis/db";
 
-import type { Provider } from "./config";
+import { lockMinutes, type Provider } from "./config";
 import { batchDocuments, batches, DOCUMENT_STATES, proposals, type DocumentState } from "./schema";
 
 export type Batch = typeof batches.$inferSelect;
@@ -198,6 +198,25 @@ export type OpenResult = { ok: true; document: BatchDocument } | { ok: false; re
  * A technician opens a document to verify it: it is locked to them while in verification.
  * One locked by another technician stays theirs unless `takeOver` is asked for.
  */
+/** When a lock taken at `lockedAt` has run out, at `now`: its page has not renewed it. */
+export function lockExpired(lockedAt: string | null, now: Date = new Date()): boolean {
+  return lockedAt !== null && Date.parse(lockedAt) < now.getTime() - lockMinutes() * 60 * 1000;
+}
+
+/**
+ * Documents whose lock ran out go back to waiting for verification, so that the batch screens
+ * show them as to verify rather than in someone's hands. Returns how many.
+ */
+export async function releaseExpiredLocks(db: LisDb, now: Date = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - lockMinutes() * 60 * 1000).toISOString();
+  const done = await db
+    .update(batchDocuments)
+    .set({ state: "awaiting_verification", lockedBy: null, lockedAt: null, updatedAt: now.toISOString() })
+    .where(and(eq(batchDocuments.state, "in_verification"), sql`${batchDocuments.lockedAt} < ${cutoff}`))
+    .returning({ id: batchDocuments.id });
+  return done.length;
+}
+
 export async function openDocument(db: LisDb, id: string, technician: string, takeOver = false): Promise<OpenResult> {
   // The lock is taken only if the document is still as it was read: an approval or another
   // technician's opening in between would otherwise be undone (an approved document back in
@@ -206,7 +225,8 @@ export async function openDocument(db: LisDb, id: string, technician: string, ta
   for (let attempt = 0; attempt < 5; attempt += 1) {
     doc = await getDocument(db, id);
     if (!doc) return { ok: false, reason: "missing" };
-    if (doc.state === "in_verification" && doc.lockedBy !== technician && !takeOver) {
+    // A lock its page stopped renewing is free: no taking over needed.
+    if (doc.state === "in_verification" && doc.lockedBy !== technician && !takeOver && !lockExpired(doc.lockedAt)) {
       return { ok: false, reason: "locked", document: doc };
     }
     if (doc.state !== "awaiting_verification" && doc.state !== "in_verification") {

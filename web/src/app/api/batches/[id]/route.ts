@@ -8,13 +8,14 @@ import { NextResponse } from "next/server";
 
 import { getSession, noSession } from "@/lib/batches/session";
 import { deleteBatch } from "@/lib/batches/remove";
-import { getBatch, summarise } from "@/lib/batches/store";
+import { getBatch, releaseExpiredLocks, summarise } from "@/lib/batches/store";
 
 export const runtime = "nodejs";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const session = await getSession();
   if (!session) return noSession();
+  await releaseExpiredLocks(session.db);
   const found = await getBatch(session.db, (await ctx.params).id);
   if (!found) return NextResponse.json({ error: "no such batch" }, { status: 404 });
   const summaries = await summarise(session.db, found.documents.map((d) => d.id));

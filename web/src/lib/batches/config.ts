@@ -10,6 +10,7 @@
 import os from "node:os";
 import path from "node:path";
 
+import { LOCK_RENEW_MINUTES } from "./locks";
 import { PROVIDERS } from "./schema";
 
 export type AppMode = "replay" | "live";
@@ -100,6 +101,17 @@ export function sandboxTtlHours(): number {
 export function maxSandboxes(): number {
   const n = Number.parseInt(process.env.MAX_SANDBOXES ?? "", 10);
   return n > 0 ? n : 500;
+}
+
+/**
+ * Minutes a document stays locked to a technician without word from their page, which renews
+ * the lock every LOCK_RENEW_MINUTES while it is open: a lock outlives its page only when the
+ * page could not say goodbye (a browser that hung, a network or power cut), and then counts as
+ * free. At least three renewals' worth, so that one renewal lost on the way does not free it.
+ */
+export function lockMinutes(): number {
+  const n = Number(process.env.LOCK_MINUTES ?? "30");
+  return n >= 3 * LOCK_RENEW_MINUTES ? n : 30;
 }
 
 export function sandboxIdleMinutes(): number {

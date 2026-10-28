@@ -231,6 +231,11 @@ session shell and the state badges.
   confirmations asks first, by the page's buttons and links as by the browser's own question
   on closing or reloading; only Back cannot be asked about.
 
+  While the page is open it renews its lock every 5 minutes. A lock not renewed for
+  `LOCK_MINUTES` (30) has outlived its page, gone without a word (a browser that hung, a
+  network or power cut): it counts as free, so another technician opens the document without
+  taking it over, and the batch screens show it as to verify again.
+
 **The look.** It is defined in `globals.css`:
 - Geist type, downloaded by `next/font` at build time and served by the app;
 - an indigo brand colour and soft white cards on a light grey ground;

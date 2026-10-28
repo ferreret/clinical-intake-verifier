@@ -1693,6 +1693,10 @@ F6 then records the replies for the bundled set, deploys on Dokploy and writes t
   record search fits the window, the server's refusals are shown in Spanish, approving waits
   while a chosen link is fused again, an edit undoes a confirmation, a baseline comparison
   lists the documents that fail now, and the small JSON bodies are read up to 256 KB.
+- **Locks run out** (proposed after the audit, approved by the product owner and done on
+  2026-10-28): an open verification page renews its lock every 5 minutes, and a lock not
+  renewed for `LOCK_MINUTES` (30) counts as free, so a hung browser or a cut no longer keeps a
+  document in someone's hands for good.
 - **A desktop application** (decided by the product owner on 2026-10-28): verifying a request
   needs a large screen, with the document and the form side by side, so it is not made for
   phones. The audit's findings at phone width (the verification header, the shortcuts

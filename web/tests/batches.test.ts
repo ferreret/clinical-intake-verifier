@@ -19,6 +19,7 @@ import {
   getProposal,
   listBatches,
   openDocument,
+  releaseExpiredLocks,
   releaseDocument,
   requeueInterrupted,
   retryDocument,
@@ -304,6 +305,33 @@ describe("verification locks", () => {
     expect(await releaseDocument(db, doc.id, "T02")).toBe(true);
     expect((await getBatch(db, batch.id))!.documents[0]).toMatchObject({ state: "awaiting_verification", lockedBy: null });
     expect(await openDocument(db, "nope", "T01")).toEqual({ ok: false, reason: "missing" });
+  });
+
+  it("frees a lock its page stopped renewing, and only that one", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const batch = await createBatch(db, {
+      name: "B",
+      provider: "gemini",
+      createdBy: "T01",
+      documents: [await newDoc("doc-a.pdf"), await newDoc("doc-b.pdf")],
+    });
+    const [stale, fresh] = (await getBatch(db, batch.id))!.documents;
+    await db.update(batchDocuments).set({ state: "awaiting_verification" }).where(eq(batchDocuments.batchId, batch.id));
+    await openDocument(db, stale.id, "T01");
+    await openDocument(db, fresh.id, "T01");
+    // T01's page for the first one went away 40 minutes ago, past the 30 a lock lasts.
+    const old = new Date(Date.now() - 40 * 60 * 1000).toISOString();
+    await db.update(batchDocuments).set({ lockedAt: old }).where(eq(batchDocuments.id, stale.id));
+
+    expect(await openDocument(db, fresh.id, "T02")).toMatchObject({ ok: false, reason: "locked" });
+    expect(await openDocument(db, stale.id, "T02")).toMatchObject({ ok: true, document: { lockedBy: "T02" } });
+
+    await db.update(batchDocuments).set({ lockedBy: "T01", lockedAt: old }).where(eq(batchDocuments.id, stale.id));
+    expect(await releaseExpiredLocks(db)).toBe(1);
+    const [a, b] = (await getBatch(db, batch.id))!.documents;
+    expect(a).toMatchObject({ state: "awaiting_verification", lockedBy: null });
+    expect(b).toMatchObject({ state: "in_verification", lockedBy: "T01" });
   });
 });
 

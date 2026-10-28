@@ -13,6 +13,8 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { LOCK_RENEW_MINUTES } from "@/lib/batches/locks";
+
 import { ApiError, api, providerOf, type ChosenLinks, type Decision, type ProposalView, type RecordKind, type RejectReason } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
 import { ArrowLeft, ArrowRight, Check as CheckIcon, FileText, Keyboard, List as ListIcon, Lock as LockIcon } from "../../../_ui/icons";
@@ -102,6 +104,16 @@ export default function VerifyPage() {
     (takeOver = false) => api.open(docId, takeOver).then(() => ({ status: "mine" }) as Lock, lockedBy),
     [docId],
   );
+
+  // While the page is open, its lock is renewed: a lock runs out only when its page is gone
+  // without a word (a browser that hung, a cut), and then another technician can open it.
+  // If someone took it over meanwhile, the page learns so and turns read-only.
+  const holding = lock?.status === "mine" && !view?.decision;
+  useEffect(() => {
+    if (!holding) return;
+    const timer = window.setInterval(() => void open().then(setLock), LOCK_RENEW_MINUTES * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [holding, open]);
 
   useEffect(() => {
     let current = true;
