@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fuse } from "@/lib/fusion/fuse";
+import { fuse, storedForm } from "@/lib/fusion/fuse";
 import { searchRecords } from "@/lib/lis/records";
 import type { FusedDocument, LisSnapshot } from "@/lib/fusion/types";
 import { FIELD_NAMES } from "@/lib/schema/fields";
@@ -214,5 +214,15 @@ describe("fusion", () => {
     expect(doc.extractor_error).toBe("api_error");
     expect(doc.links.patient.status).toBe("none");
     expect(states(doc).Paciente).toBe("red:missing_required");
+  });
+});
+
+describe("an age as the records keep it", () => {
+  const age = { stored_as: "years" as const };
+  it("proposes an age in years as the number alone", () => {
+    for (const read of ["22", "22 años", "22 a.", "22 anys", "1 año"]) expect(storedForm(age, read)).toBe(read.split(" ")[0]);
+  });
+  it("leaves an age in any other unit or shape as read", () => {
+    for (const read of ["18 meses", "1 año y 6 meses", "3 semanas", "10 dies"]) expect(storedForm(age, read)).toBe(read);
   });
 });

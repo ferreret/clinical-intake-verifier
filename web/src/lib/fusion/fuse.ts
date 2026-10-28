@@ -65,9 +65,15 @@ function lisAliases(source: LisSource, recordId: string, lis: LisSnapshot): stri
 
 /** A value read from the document as the system of record keeps it (fields.json, stored_as). */
 export function storedForm(spec: Pick<FieldSpec, "stored_as">, value: string): string {
-  if (spec.stored_as === "digits") return value.replace(/\D+/g, "") || value;
+  if (spec.stored_as === "years") return YEARS.exec(value)?.[1] ?? value;
   return value;
 }
+
+/**
+ * An age in years: the number, with at most a word for years after it ("22", "22 años",
+ * "22 a.", "22 anys"). "18 meses" or "1 año y 6 meses" are not, and are not turned into one.
+ */
+const YEARS = /^\s*(\d{1,3})\s*(?:años?|anys?|a\.?|years?|y\.?)?\s*$/i;
 
 function field(
   spec: FieldSpec,

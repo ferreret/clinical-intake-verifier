@@ -1547,9 +1547,11 @@ stay in English.
 **After the product owner's first look at approval, 2026-10-27:**
 
 - **An age is proposed as a number.** `fields.json` gains `stored_as`: the form the system
-  of record keeps a value read from the document in. Edad is `digits`, so "22 anys" is
-  proposed as 22; the reading stays exact (the extractor's rule), and the evaluation
-  already compares ages by their digits. Proposals made before keep their value.
+  of record keeps a value read from the document in. Edad is `years` (`digits` until
+  2026-10-28), so "22 anys" is proposed as 22, while "18 meses" or "1 año y 6 meses" stay as
+  read for the technician to put in years, instead of becoming 18 or 16; the reading stays
+  exact (the extractor's rule), and the evaluation already compares ages by their digits.
+  Proposals made before keep their value.
 - **Read-only is obvious.** A document another technician has open showed inputs that
   looked editable but were not: they now look disabled, and the notice stands out with
   taking it over as a button.

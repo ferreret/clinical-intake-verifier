@@ -54,9 +54,11 @@ export interface FieldSpec {
   lis: LisSpec | null;
   /**
    * The form the system of record keeps a value read from the document in, which the fusion
-   * engine proposes: `digits`, the number alone ("22 años" → "22"). The reading stays exact.
+   * engine proposes: `years`, an age in years as the number alone ("22 años" → "22"); an age
+   * in any other unit or shape ("18 meses") stays as read, for the technician to put in years.
+   * The reading stays exact.
    */
-  stored_as?: "digits";
+  stored_as?: "years";
   /** System default, the lowest-priority source; null for none. */
   default: string | null;
   description: string;

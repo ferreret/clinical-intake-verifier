@@ -66,7 +66,7 @@
       "pattern": null,
       "lis": null,
       "default": null,
-      "stored_as": "digits",
+      "stored_as": "years",
       "description": "Age exactly as printed (may include a unit such as 'años')."
     },
     {
