@@ -17,7 +17,7 @@ import { deleteAllBatches } from "@/lib/batches/remove";
 import { PROVIDERS } from "@/lib/batches/schema";
 import { getSession, noSession } from "@/lib/batches/session";
 import { listBundled, readBundled, saveUpload } from "@/lib/batches/sources";
-import { createBatch, listBatches, type NewDocument } from "@/lib/batches/store";
+import { countReading, createBatch, listBatches, type NewDocument } from "@/lib/batches/store";
 import { looksLikePdf, sha256Hex } from "@/lib/extractor/pdf";
 
 import { LANG_COOKIE } from "../../_ui/lang";
@@ -26,6 +26,10 @@ export const runtime = "nodejs";
 
 const MAX_DOCUMENTS = 50;
 const MAX_BYTES = 20 * 1024 * 1024;
+/** Documents a sandbox may have queued or being read at once, so that one visitor cannot hold up the queue. */
+const MAX_READING = 100;
+/** A request's size, checked before it is read: bundled names only in replay mode, or uploads too in live mode. */
+const MAX_BODY = { replay: 64 * 1024, live: MAX_DOCUMENTS * MAX_BYTES + 1024 * 1024 };
 
 export async function GET(): Promise<NextResponse> {
   const session = await getSession();
@@ -45,6 +49,8 @@ export async function POST(req: Request): Promise<NextResponse> {
   const session = await getSession();
   if (!session) return noSession();
   const mode = appMode();
+  const length = Number(req.headers.get("content-length") ?? NaN);
+  if (!(length <= MAX_BODY[mode])) return NextResponse.json({ error: `send at most ${MAX_BODY[mode]} bytes, with their length` }, { status: 413 });
 
   let provider: unknown;
   let name: unknown;
@@ -74,15 +80,25 @@ export async function POST(req: Request): Promise<NextResponse> {
   const unknown = bundled.filter((d) => typeof d !== "string" || !available.has(d));
   if (unknown.length > 0) return bad(`not available for ${provider}: ${unknown.map(String).join(", ")}`);
 
+  if ((await countReading(session.db)) + bundled.length + files.length > MAX_READING) {
+    return NextResponse.json({ error: `at most ${MAX_READING} documents queued or being read at once: wait for some to be read` }, { status: 429 });
+  }
+
   const documents: NewDocument[] = [];
   for (const d of bundled as string[]) {
     documents.push({ fileName: d, sha256: sha256Hex(new Uint8Array(await readBundled(d))), origin: "bundled", location: d });
   }
+  // Every upload is checked before any is saved: one refused would otherwise leave the others
+  // stored with no batch, where nothing can delete them, and they may be real documents.
+  const uploads: { name: string; pdf: Uint8Array }[] = [];
   for (const f of files) {
     if (f.size > MAX_BYTES) return bad(`${f.name} exceeds ${MAX_BYTES} bytes`);
     const pdf = new Uint8Array(await f.arrayBuffer());
     if (!looksLikePdf(pdf)) return bad(`${f.name} is not a PDF`);
-    documents.push({ fileName: f.name || "upload.pdf", sha256: sha256Hex(pdf), origin: "upload", location: await saveUpload(pdf) });
+    uploads.push({ name: f.name || "upload.pdf", pdf });
+  }
+  for (const u of uploads) {
+    documents.push({ fileName: u.name, sha256: sha256Hex(u.pdf), origin: "upload", location: await saveUpload(u.pdf) });
   }
 
   const count = (await listBatches(session.db)).length;

@@ -94,10 +94,17 @@ export function sandboxTtlHours(): number {
 /**
  * Sandboxes kept at most: a new visitor beyond it takes the place of the one unused for
  * longest, so that visits (or a robot) cannot fill the disk. About half a megabyte each.
+ * Only one unused for SANDBOX_IDLE_MINUTES is taken: when none is, the new visitor is told
+ * the demo is full, rather than someone's work being deleted while they use it.
  */
 export function maxSandboxes(): number {
   const n = Number.parseInt(process.env.MAX_SANDBOXES ?? "", 10);
   return n > 0 ? n : 500;
+}
+
+export function sandboxIdleMinutes(): number {
+  const n = Number(process.env.SANDBOX_IDLE_MINUTES ?? "30");
+  return n >= 0 ? n : 30;
 }
 
 /** Documents read at a time per provider, across workspaces: Gemini in parallel, the local GPU one by one. */

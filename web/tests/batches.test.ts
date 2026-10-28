@@ -24,7 +24,7 @@ import {
   retryDocument,
   summarise,
 } from "@/lib/batches/store";
-import { createSandbox, isWorkspaceId, listWorkspaces, openWorkspace, sweepSandboxes } from "@/lib/batches/workspace";
+import { createSandbox, isWorkspaceId, listWorkspaces, openWorkspace, SandboxesFull, sweepSandboxes } from "@/lib/batches/workspace";
 import { sha256Hex } from "@/lib/extractor/pdf";
 import { loadLis, openLis } from "@/lib/lis/db";
 import { requests } from "@/lib/lis/schema";
@@ -173,6 +173,11 @@ describe("workspaces", () => {
       expect(now).toHaveLength(before.length + 2);
       expect(now).toEqual(expect.arrayContaining([second, third]));
       expect(now).not.toContain(first);
+
+      // None unused for long enough: the new visitor waits, nobody's sandbox is deleted.
+      await expect(createSandbox()).rejects.toBeInstanceOf(SandboxesFull);
+      expect(await listWorkspaces()).toEqual(expect.arrayContaining(now));
+      expect(await listWorkspaces()).toHaveLength(before.length + 2);
     } finally {
       delete process.env.MAX_SANDBOXES;
     }

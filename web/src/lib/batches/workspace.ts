@@ -13,7 +13,7 @@ import path from "node:path";
 
 import { openLis, type LisDb } from "@/lib/lis/db";
 
-import { dataDir, maxSandboxes, sandboxTtlHours, templateDb } from "./config";
+import { dataDir, maxSandboxes, sandboxIdleMinutes, sandboxTtlHours, templateDb } from "./config";
 
 export const LIVE_WORKSPACE = "live";
 const SANDBOX_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -68,15 +68,24 @@ export async function workspaceExists(id: string): Promise<boolean> {
   return isWorkspaceId(id) && (await fs.stat(fileOf(id)).catch(() => null)) !== null;
 }
 
-/** A new sandbox, ready to use; beyond MAX_SANDBOXES, the ones unused for longest make room. */
-export async function createSandbox(): Promise<string> {
+/** There is no room for another sandbox: every one was used in the last minutes. */
+export class SandboxesFull extends Error {}
+
+/**
+ * A new sandbox, ready to use; beyond MAX_SANDBOXES, the ones unused for longest make room,
+ * if they have been idle for SANDBOX_IDLE_MINUTES. Throws SandboxesFull when too few have.
+ */
+export async function createSandbox(now: Date = new Date()): Promise<string> {
   const sandboxes = await Promise.all(
     (await listWorkspaces())
       .filter((w) => w !== LIVE_WORKSPACE)
       .map(async (w) => ({ id: w, used: (await fs.stat(fileOf(w)).catch(() => null))?.mtimeMs ?? 0 })),
   );
   sandboxes.sort((a, b) => a.used - b.used);
-  for (const old of sandboxes.slice(0, Math.max(0, sandboxes.length - maxSandboxes() + 1))) await deleteSandbox(old.id);
+  const excess = sandboxes.slice(0, Math.max(0, sandboxes.length - maxSandboxes() + 1));
+  const idleSince = now.getTime() - sandboxIdleMinutes() * 60 * 1000;
+  if (excess.some((s) => s.used > idleSince)) throw new SandboxesFull("every sandbox is in use: try again later");
+  for (const old of excess) await deleteSandbox(old.id);
   const id = randomUUID();
   await openWorkspace(id);
   return id;

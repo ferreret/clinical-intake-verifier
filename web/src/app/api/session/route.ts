@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { appMode, replaySpeed } from "@/lib/batches/config";
 import { endSession, getSession, startSession } from "@/lib/batches/session";
 import { technician, TECHNICIANS } from "@/lib/batches/technicians";
+import { SandboxesFull } from "@/lib/batches/workspace";
 
 export const runtime = "nodejs";
 
@@ -26,8 +27,13 @@ export async function POST(req: Request): Promise<NextResponse> {
   if (!tech) {
     return NextResponse.json({ error: `technician must be one of ${TECHNICIANS.map((t) => t.id).join(", ")}` }, { status: 400 });
   }
-  const session = await startSession(tech);
-  return NextResponse.json({ ...modeInfo(), technicians: TECHNICIANS, technician: session.technician });
+  try {
+    const session = await startSession(tech);
+    return NextResponse.json({ ...modeInfo(), technicians: TECHNICIANS, technician: session.technician });
+  } catch (err) {
+    if (err instanceof SandboxesFull) return NextResponse.json({ error: err.message }, { status: 503 });
+    throw err;
+  }
 }
 
 export async function DELETE(): Promise<NextResponse> {

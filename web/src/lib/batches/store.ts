@@ -150,6 +150,15 @@ export async function hasQueued(db: LisDb): Promise<boolean> {
   return row !== undefined;
 }
 
+/** Documents queued or being read in the workspace. */
+export async function countReading(db: LisDb): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(batchDocuments)
+    .where(inArray(batchDocuments.state, ["queued", "extracting"]));
+  return Number(row?.n ?? 0);
+}
+
 /** The proposal is stored and the document waits for a technician. */
 export async function completeDocument(db: LisDb, id: string, proposal: Omit<StoredProposal, "documentId" | "createdAt">): Promise<void> {
   await db.transaction(async (tx) => {
