@@ -10,9 +10,18 @@
 *.jpg
 *.jpeg
 *.png
+*.webp
+*.heic
+*.heif
+*.gif
+*.bmp
+*.doc
+*.docx
+*.odt
 !docs/**/*.png
-# The app's share image: synthetic artwork, never a document.
+# The app's share image and illustrations: synthetic artwork, never a document.
 !web/src/app/opengraph-image.jpg
+!web/public/*.webp
 
 # Salidas del generador sintetico (se regeneran)
 /generated/
@@ -21,9 +30,8 @@
 # ============================================================
 #  Secretos
 # ============================================================
-.env
-.env.local
-.env*.local
+.env*
+!.env.example
 *.key
 credentials.json
 
@@ -51,8 +59,11 @@ venv/
 #  Base de datos local
 # ============================================================
 *.db
+*.db-*
 *.sqlite
 *.sqlite3
+*.sqlite-*
+*.sqlite3-*
 
 # ============================================================
 #  Sistema

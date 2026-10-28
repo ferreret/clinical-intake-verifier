@@ -23,10 +23,14 @@ export function appMode(): AppMode {
 
 /**
  * A path from the environment, relative to the working directory (web/), or the default.
- * Data, not code: the build must not trace what is there.
+ * Data, not code: the build must not trace what is there. A leading "~" is the home folder,
+ * as in a shell: written in .env.local it would otherwise be a folder named "~" inside the
+ * repository, where live mode's uploads must never go.
  */
 function dir(name: string, fallback: string): string {
-  return path.resolve(/* turbopackIgnore: true */ process.cwd(), process.env[name]?.trim() || fallback);
+  const value = process.env[name]?.trim() || fallback;
+  const home = value === "~" || value.startsWith("~/") ? path.join(os.homedir(), value.slice(1)) : value;
+  return path.resolve(/* turbopackIgnore: true */ process.cwd(), home);
 }
 
 /**
