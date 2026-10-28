@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { hideModels, providerOf } from "@/app/_ui/api";
 import { pickLang } from "@/app/_ui/lang";
 import { es } from "@/app/_ui/messages/es";
 import { FIELDS, TESTS } from "@/lib/schema/fields";
@@ -27,5 +28,23 @@ describe("the app's language", () => {
       "el documento está aprobado, no pendiente de verificación",
     );
     expect(es.server("something new")).toBe("something new");
+  });
+});
+
+describe("errors as the screens show them", () => {
+  it("never name a model's make", () => {
+    const shown = [
+      "GEMINI_API_KEY is not set (put it in web/.env.local)",
+      "empty Gemini reply (MAX_TOKENS)",
+      "[GoogleGenerativeAI Error]: models/gemini-3.8-flash is not found",
+      'local model: HTTP 400 {"error":"model qwen/qwen3.6-35b-a3b not loaded"}',
+      "LM Studio is not running",
+    ].map(hideModels);
+    for (const text of shown) expect(text).not.toMatch(/gemini|qwen|google|lm studio/i);
+    expect(shown[0]).toBe("the cloud model's key is not set (put it in web/.env.local)");
+  });
+  it("name a recorded model by where it runs", () => {
+    expect(providerOf("models/gemini-3.8-flash")).toBe("gemini");
+    expect(providerOf("qwen/qwen3.6-35b-a3b")).toBe("local");
   });
 });

@@ -16,7 +16,21 @@ export type { BatchSummary, BundledInfo, Candidate, ChosenLinks, Decision, Docum
 export type Provider = Batch["provider"];
 
 /** Which provider a recorded model id belongs to, so that the screens name it as t.providers does. */
-export const providerOf = (model: string): Provider => (/^gemini/i.test(model) ? "gemini" : "local");
+export const providerOf = (model: string): Provider => (/^(models\/)?gemini/i.test(model) ? "gemini" : "local");
+
+/**
+ * A server's error as the screens show it: without the models' makes, which the stored error
+ * keeps ("GEMINI_API_KEY is not set", "empty Gemini reply", a local model's id in its server's
+ * reply). The screens name the models by where they run.
+ */
+export function hideModels(text: string): string {
+  return text
+    .replace(/\bGEMINI_API_KEY\b/g, "the cloud model's key")
+    .replace(/\b(models\/)?gemini[\w.\-/:]*/gi, "cloud model")
+    .replace(/\bgoogle[\w.\-]*/gi, "cloud")
+    .replace(/\b[\w.\-]*\/?qwen[\w.\-/:]*/gi, "local model")
+    .replace(/\bLM Studio\b/gi, "local model server");
+}
 
 export interface SessionInfo {
   mode: "replay" | "live";
@@ -71,7 +85,7 @@ export class ApiError extends Error {
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(withBase(url), { cache: "no-store", ...init });
   const body = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new ApiError(res.status, body.error ?? `HTTP ${res.status}`, body as Record<string, unknown>);
+  if (!res.ok) throw new ApiError(res.status, hideModels(body.error ?? `HTTP ${res.status}`), body as Record<string, unknown>);
   return body;
 }
 

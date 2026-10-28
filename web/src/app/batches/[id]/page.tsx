@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { ACTIVE_STATES, api, providerOf, type BatchDetail, type DocumentState } from "../../_ui/api";
+import { ACTIVE_STATES, api, hideModels, providerOf, type BatchDetail, type DocumentState } from "../../_ui/api";
 import { useI18n } from "../../_ui/i18n";
 import { Avatar } from "../../_ui/avatar";
 import { DeleteBatchDialog } from "../../_ui/delete-batch";
@@ -151,7 +151,7 @@ export default function BatchPage() {
                       )}
                       <span className="font-mono text-xs">{d.fileName.replace(/\.pdf$/, "")}</span>
                     </span>
-                    {d.state === "failed" && d.error && <p className="mt-1 max-w-xs text-xs text-rose-700">{d.error}</p>}
+                    {d.state === "failed" && d.error && <p className="mt-1 max-w-xs text-xs text-rose-700">{hideModels(d.error)}</p>}
                   </td>
                   <td className="px-3 py-3">
                     <span className="inline-flex items-center gap-2">

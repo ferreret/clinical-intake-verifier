@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef } from "react";
 
-import { providerOf } from "../../../_ui/api";
+import { hideModels, providerOf } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
 import { X } from "../../../_ui/icons";
 import { useSession } from "../../../_ui/session";
@@ -159,7 +159,7 @@ export function DecisionLog({ work, items, onFocus, onClose }: { work: Work; ite
                       mapping.model.status === "asked"
                         ? l.modelAsked(t.providers[providerOf(mapping.model.model)], mapping.model.lines, mapping.model.cached)
                         : mapping.model.status === "unavailable"
-                          ? l.modelUnavailable(mapping.model.error)
+                          ? l.modelUnavailable(hideModels(mapping.model.error))
                           : l.modelNotNeeded,
                     ]
                   : [l.noTrace]

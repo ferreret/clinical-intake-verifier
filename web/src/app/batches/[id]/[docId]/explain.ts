@@ -11,7 +11,7 @@
 import type { MemoryEntry } from "@/lib/mapping/memory";
 import { compareKey, valuesMatch } from "@/lib/schema/compare";
 
-import type { ProposalView } from "../../../_ui/api";
+import { hideModels, type ProposalView } from "../../../_ui/api";
 import type { Messages } from "../../../_ui/messages/en";
 import { codesKey, type Check, type Item, type Light } from "./model";
 import type { AddedLine, Chosen } from "./tests";
@@ -167,7 +167,7 @@ export function explainLine(item: TestItem, w: Work, t: Messages): Step[] {
           : { kind: "model", text: l.modelNone, tone: "red" },
       );
     } else if (m.state === "red" && model?.status === "unavailable") {
-      steps.push({ kind: "model", text: l.modelUnavailable(model.error), tone: "red" });
+      steps.push({ kind: "model", text: l.modelUnavailable(hideModels(model.error)), tone: "red" });
     } else if (seen) {
       steps.push({ kind: "model", text: l.modelNotNeeded });
     }
