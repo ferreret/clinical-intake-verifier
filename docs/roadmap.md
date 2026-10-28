@@ -15,7 +15,7 @@ Last updated: 2026-10-27.
 | F3 | Evaluation harness | done, first full run measured (below) |
 | F4 | Mock LIS, fusion engine and test mapping | done: blocks 1 to 6, measured end to end on real readings (below) |
 | F5 | Batches and verification UI | done: batches, queue, their screens, the verification screen, approval and rejection (section 5) |
-| F6 | Public demo on a self-hosted Dokploy | blocks 1 to 3 done: recorded replies, both deployments live since 2026-10-27, the README; CI next |
+| F6 | Public demo on a self-hosted Dokploy | done: recorded replies, both deployments live since 2026-10-27, the README, CI (2026-10-28) |
 
 Local open-weight vision models were approved on 2026-10-26 as the top priority, ahead of
 F4 block 6 (section 3).
@@ -1669,4 +1669,22 @@ F6 then records the replies for the bundled set, deploys on Dokploy and writes t
   state, a confirmation outliving an edit, the evaluation baseline hiding failed documents,
   and size limits on the small JSON routes.
 
-**Next: CI**, the tests and the evaluation on the recorded runs on every commit.
+### F6 block 4 done on 2026-10-28: CI
+
+`.github/workflows/ci.yml`, on every push to `main` and every pull request, three jobs:
+
+- **Web app:** types, lint, tests and the production build.
+- **Generator and harness:** ruff (lint and format) and pytest.
+- **Evaluation, with no key:** the recorded readings of the 200 requests of seed 42, Gemini's
+  and the local model's, from the release archive the demo uses. The requests and their
+  ground truth are regenerated from the seed rather than downloaded, so the step also checks
+  that the generator still makes the same documents (the readings name each PDF by its hash).
+  Both runs are scored, fused with the mock LIS, and the fusion scored; then
+  `.github/evaluation/gate.py` sets every measure against `.github/evaluation/floor.json`:
+  precision and recall must not fall, and invented values, wrong links, wrong green, wrong
+  values and disagreements missed must not rise. The table goes to the job's summary and the
+  reports are kept as an artifact.
+
+The readings themselves are not re-made: that needs the models, a key and a GPU. What CI
+re-runs on them is the code that judges them, the extractor's boundary, the compare modes and
+the fusion engine, which is what changes from commit to commit.

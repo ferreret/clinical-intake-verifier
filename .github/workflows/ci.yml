@@ -1,0 +1,121 @@
+# Every push to main and every pull request: the web app's checks, the Python package's, and
+# the evaluation of the recorded readings against the floor in .github/evaluation/floor.json.
+# No key is needed: the readings were recorded once, with the models; what CI re-runs on them
+# is the code that judges them.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+  # The release whose archive holds the recorded readings (docs/deploy.md).
+  DEMO_DATA: demo-data-2026-10-27
+
+jobs:
+  web:
+    name: Web app · types, lint, tests, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  synth:
+    name: Generator and harness · lint, tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: synth
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: synth/uv.lock
+      - run: uv sync --locked
+      - run: uv run ruff check
+      - run: uv run ruff format --check
+      - run: uv run pytest -q
+
+  evaluation:
+    name: Evaluation · recorded readings of 200 requests
+    runs-on: ubuntu-latest
+    env:
+      DATA: ${{ github.workspace }}/data
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: synth/uv.lock
+      - name: Install
+        run: |
+          npm --prefix web ci
+          uv --directory synth sync --locked
+
+      - name: Fetch the recorded readings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$DEMO_DATA" --repo "$GITHUB_REPOSITORY" --dir "$DATA"
+          tar -xzf "$DATA/$DEMO_DATA.tar.gz" -C "$DATA"
+
+      # Regenerated, not downloaded: the readings name each PDF by its hash, so this also
+      # checks that the generator still makes the same documents from the same seed.
+      - name: Regenerate the 200 requests and their ground truth (seed 42)
+        run: uv --directory synth run intake-synth generate --n 200 --seed 42 --out "$DATA/synth/seed-42"
+
+      - name: Score the extraction
+        run: |
+          for run in gemini local; do
+            uv --directory synth run intake-synth evaluate "$DATA/demo/runs/$run" \
+              --golden "$DATA/synth/seed-42" --out "$DATA/ci/eval-$run"
+          done
+
+      - name: Fuse with the mock LIS, and score the fusion
+        run: |
+          npm --prefix web run -s seed-lis -- "$DATA/synth/seed-42" "$DATA/ci/lis.sqlite"
+          for run in gemini local; do
+            npm --prefix web run -s fuse -- --golden "$DATA/synth/seed-42" --run "$DATA/demo/runs/$run" \
+              --db "$DATA/ci/lis.sqlite" --out "$DATA/ci/fusion-$run"
+            uv --directory synth run intake-synth evaluate-fusion "$DATA/ci/fusion-$run"
+          done
+
+      - name: Gate against the floor
+        run: python3 .github/evaluation/gate.py "$DATA/ci"
+
+      - name: Keep the reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-reports
+          path: |
+            data/ci/**/report.md
+            data/ci/**/report.json
+          if-no-files-found: ignore

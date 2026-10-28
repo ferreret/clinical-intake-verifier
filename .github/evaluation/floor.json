@@ -1,0 +1,13 @@
+{
+  "about": "What CI's evaluation must not fall below, on the recorded readings of the 200 requests of seed 42 (release demo-data-2026-10-27). The readings do not change; what can is the code that judges them: the extractor's boundary, the compare modes, the fusion engine. Raise a floor when a change improves it; lowering one needs a reason in its commit.",
+  "runs": {
+    "gemini": {
+      "extraction": { "documents": 200, "precision": 0.9975, "recall": 0.9975, "invented": 0 },
+      "fusion": { "wrong_links": 0, "wrong_green": 0, "wrong_values": 5, "disagreements_missed": 0 }
+    },
+    "local": {
+      "extraction": { "documents": 200, "precision": 0.9951, "recall": 0.9960, "invented": 3 },
+      "fusion": { "wrong_links": 0, "wrong_green": 0, "wrong_values": 7, "disagreements_missed": 1 }
+    }
+  }
+}

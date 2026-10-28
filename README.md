@@ -9,6 +9,7 @@ A request form is scanned, a vision model reads it, and a technician **verifies 
 instead of typing it in.
 
 [![Live demo](https://img.shields.io/badge/▶_Live_demo-online-22c55e?style=for-the-badge)](https://demos.nicolasbarcelo.dev/verificador-peticiones)
+[![CI](https://img.shields.io/github/actions/workflow/status/ferreret/clinical-intake-verifier/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white)](https://github.com/ferreret/clinical-intake-verifier/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/F1–F6-live-6366f1?style=for-the-badge)](#%EF%B8%8F-status)
 [![Licence](https://img.shields.io/badge/licence-MIT-0ea5e9?style=for-the-badge)](LICENSE)
 
@@ -104,6 +105,13 @@ numbers in bold are the ones that must stay at zero: they would let an error thr
 Every reading error ended **orange or red, never green**: the records disagreed with it, or
 could not confirm it.
 
+> [!TIP]
+> **Measured on every commit.** [CI](.github/workflows/ci.yml) regenerates the 200 requests
+> from their seed, scores the recorded readings of both models and fuses them with the mock
+> LIS, and fails if any measure falls below its floor in
+> [`.github/evaluation/floor.json`](.github/evaluation/floor.json): a change to the code that
+> judges the readings cannot quietly make the numbers above worse.
+
 > [!CAUTION]
 > Synthetic data flatters any system: its wording is cleaner than real forms. These numbers
 > show that the method works and is measured, not what it would score on real requests.
@@ -161,7 +169,7 @@ The workflow and the screens are described in [docs/workflow.md](docs/workflow.m
 | **F3** | 📏 Evaluation harness against the golden sample | ✅ done |
 | **F4** | 🔀 Mock LIS, fusion engine and test mapping to lab codes | ✅ done, measured end to end |
 | **F5** | 👩‍🔬 Batches, processing queue and the verification screen, with explicit approval | ✅ done |
-| **F6** | 🚀 Public demo on a self-hosted Dokploy, and this README | 🟢 live · CI next |
+| **F6** | 🚀 Public demo on a self-hosted Dokploy, this README, and CI | ✅ live |
 
 > [!NOTE]
 > **F3 comes before the UI on purpose.** Without per-field metrics there is no way to know
