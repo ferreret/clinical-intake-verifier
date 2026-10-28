@@ -5,6 +5,7 @@
  * is linked only on a strong match (the identity document agrees, and so does the name or
  * the birth date); anything weaker is offered as a candidate the technician confirms.
  */
+import { similarity } from "@/lib/extractor/locate";
 import { valuesMatch } from "@/lib/schema/compare";
 import { fieldSpec } from "@/lib/schema/fields";
 
@@ -66,6 +67,22 @@ export function parseChosenLinks(value: unknown): ChosenLinks | null {
   return out;
 }
 
+/**
+ * How alike a name read from a form must be to a record's to offer it as a candidate, from 0
+ * to 1: the same edit-distance similarity the OCR boxes are placed with, on the name as written
+ * or surnames first, letters only and without accents. Measured on 2026-10-28: the misread
+ * "INIELA VARELA, MODESTO" scores 0.91 against its record, while another patient born the same
+ * day scores 0.28 at most, over the 200 and 1,000 requests of seed 42.
+ */
+export const CLOSE_NAME = 0.8;
+
+function nameSimilarity(read: string, p: LisPatient): number {
+  const key = (v: string) =>
+    v.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z ]+/g, " ").replace(/\s+/g, " ").trim();
+  const asRead = key(read);
+  return Math.max(similarity(asRead, key(fullName(p))), similarity(asRead, key(`${p.lastName1} ${p.lastName2} ${p.firstName}`)));
+}
+
 export function linkPatient(doc: DocumentValues, lis: LisSnapshot): RecordLink {
   const name = doc.Paciente;
   const birth = doc.FechaNacimiento;
@@ -107,6 +124,17 @@ export function linkPatient(doc: DocumentValues, lis: LisSnapshot): RecordLink {
     const status = byName.length === 1 ? "candidate" : "ambiguous";
     return link("patient", status, `the name matches ${byName.length} record(s) but no birth date does; ${noDoc}`, byName, [
       "name",
+    ]);
+  }
+  // Neither the identity document nor the name agrees, which a typo in one and a misreading
+  // of the other can both cause: a record with the same birth date and a close name is
+  // offered, never linked, so that the technician does not register the patient twice.
+  const close = name === null ? [] : lis.patients.filter((p) => birthOf(p) && nameSimilarity(name, p) >= CLOSE_NAME);
+  if (close.length > 0) {
+    const status = close.length === 1 ? "candidate" : "ambiguous";
+    return link("patient", status, `the birth date matches and the name is close to ${close.length} record(s); ${noDoc}`, close, [
+      "birth_date",
+      "close_name",
     ]);
   }
   return link("patient", "none", "no record matches: a patient the lab has not seen");

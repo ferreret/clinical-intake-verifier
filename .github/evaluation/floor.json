@@ -7,7 +7,7 @@
     },
     "local": {
       "extraction": { "documents": 200, "precision": 0.9951, "recall": 0.9960, "invented": 3 },
-      "fusion": { "wrong_links": 0, "wrong_green": 0, "wrong_values": 7, "disagreements_missed": 1 }
+      "fusion": { "wrong_links": 0, "wrong_green": 0, "wrong_values": 5, "disagreements_missed": 0 }
     }
   }
 }

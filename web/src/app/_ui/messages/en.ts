@@ -119,7 +119,7 @@ export const en = {
     empty: (list: string) => `Not found on the document, so left empty rather than guessed: ${list}.`,
     // Records
     matchedOn: (keys: string) => `Agreed on: ${keys}.`,
-    keys: { doc_id: "identity document", name: "name", birth_date: "birth date", colegiado: "registration number" } as Record<string, string>,
+    keys: { doc_id: "identity document", name: "name", birth_date: "birth date", close_name: "a close name", colegiado: "registration number" } as Record<string, string>,
     candidates: (n: number) => `${n} records look like it; none is taken without the technician.`,
     chosenByYou: "Set by you, searching the records.",
     // Fields

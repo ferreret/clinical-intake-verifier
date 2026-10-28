@@ -236,7 +236,9 @@ make, which measures the engine alone, at no cost and on any commit. With
 
 **Links.** A patient is linked only when the identity document agrees and so does the name
 or the birth date; a weaker match is a candidate the technician confirms, and several are
-ambiguous. Each link is scored against the golden's `lis` block: `linked`, `candidate_right`,
+ambiguous. When neither the identity document nor the name agrees, a record with the same
+birth date and a close name is still offered as a candidate, so that a typo in one and a
+misreading of the other do not make a known patient look new. Each link is scored against the golden's `lis` block: `linked`, `candidate_right`,
 `ambiguous_with_right`, `correct_none` (no record, rightly), `false_candidate`,
 `candidate_wrong`, `missed`, and **`wrong_link`**, the worst outcome.
 

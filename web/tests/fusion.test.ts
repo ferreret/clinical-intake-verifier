@@ -153,6 +153,17 @@ describe("fusion", () => {
     expect(states(ambiguous).Telefono).toBe("orange:ai_only");
   });
 
+  it("offers a patient with the same birth date and a close name when nothing else agrees", () => {
+    // A typo in the identity document and a misread surname: without this, a new patient.
+    const misread = { ...MARIA, Paciente: "GARCÍA LÓPES, MARIA", DocumentoIdentidad: "12345679Z" };
+    const doc = fuse(prediction(misread), LIS);
+    expect(doc.links.patient).toMatchObject({ status: "candidate", state: "red", recordId: "P1", matchedOn: ["birth_date", "close_name"] });
+    expect(states(doc).Paciente).not.toMatch(/^green/);
+    // Another person born the same day is not close, and the birth date alone offers nobody.
+    const stranger = fuse(prediction({ ...misread, Paciente: "Joan Puig Serra" }), LIS);
+    expect(stranger.links.patient).toMatchObject({ status: "none", recordId: null });
+  });
+
   it("never links on the identity document alone", () => {
     const doc = fuse(prediction({ ...MARIA, Paciente: "Otra Persona Distinta", FechaNacimiento: "01/01/2000" }), LIS);
     expect(doc.links.patient).toMatchObject({ status: "candidate", state: "red" });

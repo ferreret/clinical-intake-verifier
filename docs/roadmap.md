@@ -1236,11 +1236,24 @@ per document by a TypeScript batch script, like `extract-batch.ts`, and scored i
      they will be noticed.
    - **Model calls:** 23.5 per 100 documents, about 3.1 s each.
 
-   **Proposal, not approved: candidates by birth date and a similar name.** When neither the
-   identity document nor the name agrees, a patient whose birth date agrees and whose name
-   is close (the similarity the OCR boxes use) could be offered as a candidate. That would
-   catch `synth-000186`. It needs measuring against the scenarios of new patients, so that
-   it does not offer false candidates.
+   **Candidates by birth date and a close name: approved by the product owner and done on
+   2026-10-28.** When neither the identity document nor the name agrees, a patient whose
+   birth date agrees and whose name is close (the edit-distance similarity the OCR boxes use,
+   on the name as written or surnames first) is offered as a candidate, never linked
+   (`CLOSE_NAME`, 0.8, in `lib/fusion/link.ts`). Measured before adopting it, with the
+   threshold anywhere from 0.7 to 0.9:
+
+   | Set | Patients found as candidates | False candidates | Wrong links | Wrong green |
+   |---|---|---|---|---|
+   | golden, 200 requests | 21 (as before) | 0 | 0 | 0 |
+   | Gemini v6 | 21 (as before) | 0 | 0 | 0 |
+   | Qwen v6 + OCR | **21, from 20: `synth-000186` found** | 0 | 0 | 0 |
+   | golden, 1,000 requests (190 new patients) | 118 (as before) | 0 | 0 | 0 |
+
+   The misread "INIELA VARELA, MODESTO" scores 0.91 against its record; another patient born
+   the same day scores 0.28 at most, over both sets. With Qwen's readings, the wrong values
+   fall from 7 to 5 and every planted disagreement is now caught red (50 of 50): the patient's
+   fields are compared with the candidate's record. CI's floor is raised to match.
 
 #### Decisions
 
