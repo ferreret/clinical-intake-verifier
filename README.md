@@ -96,7 +96,8 @@ cp .env.example .env.local        # then put your key in GEMINI_API_KEY
 npm run dev
 ```
 
-`POST /api/extract` takes a multipart form with a `file` field and returns a prediction:
+In live mode (`APP_MODE=live` in `.env.local`), `POST /api/extract` takes a multipart form
+with a `file` field and returns a prediction:
 
 ```bash
 curl -F "file=@../data/synth/seed-42/synth-000003.pdf" http://localhost:3000/api/extract

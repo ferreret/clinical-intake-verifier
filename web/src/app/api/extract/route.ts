@@ -3,8 +3,13 @@
  * local; EXTRACTOR_PROVIDER by default) and `model`.
  * Responds with a prediction (docs/extractor-contract.md). When the model call failed the
  * prediction is still returned, with `extractor.error` set, under status 502.
+ *
+ * Live mode only. Replay mode, the public demo, calls no model: there the route would let
+ * anyone render any PDF on the server, and spend the deployment's key if it had one.
  */
 import { NextResponse } from "next/server";
+
+import { appMode } from "@/lib/batches/config";
 import { ConfigError, extract, InvalidPdfError, PROVIDERS, type Provider } from "@/lib/extractor";
 
 export const runtime = "nodejs";
@@ -13,6 +18,7 @@ export const maxDuration = 60;
 const MAX_BYTES = 20 * 1024 * 1024;
 
 export async function POST(req: Request): Promise<NextResponse> {
+  if (appMode() !== "live") return NextResponse.json({ error: "the extractor is called in live mode only" }, { status: 404 });
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
   if (!(file instanceof File)) {
