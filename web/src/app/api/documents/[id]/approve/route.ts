@@ -6,6 +6,8 @@
  */
 import { NextResponse } from "next/server";
 
+import { jsonBody, tooLarge } from "@/lib/http";
+
 import { approveDocument, type ApprovalInput } from "@/lib/batches/decide";
 import { getSession, noSession } from "@/lib/batches/session";
 import { parseChosenLinks } from "@/lib/fusion/link";
@@ -39,7 +41,9 @@ function parse(body: unknown): ApprovalInput | null {
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const session = await getSession();
   if (!session) return noSession();
-  const input = parse(await req.json().catch(() => null));
+  const read = await jsonBody(req);
+  if ("tooLarge" in read) return tooLarge();
+  const input = parse(read.body);
   if (!input) return NextResponse.json({ error: "expected { fields, lines, added, confirmed }" }, { status: 400 });
   const result = await approveDocument(session.db, (await ctx.params).id, session.technician.id, input);
   if (result.ok) return NextResponse.json({ decision: result.decision, next: result.next });

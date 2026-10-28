@@ -6,6 +6,8 @@
  */
 import { NextResponse } from "next/server";
 
+import { jsonBody, tooLarge } from "@/lib/http";
+
 import { getSession, noSession } from "@/lib/batches/session";
 import { getProposal } from "@/lib/batches/store";
 import { fuse } from "@/lib/fusion/fuse";
@@ -18,7 +20,9 @@ export const runtime = "nodejs";
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const session = await getSession();
   if (!session) return noSession();
-  const body = (await req.json().catch(() => ({}))) as { links?: unknown };
+  const read = await jsonBody(req);
+  if ("tooLarge" in read) return tooLarge();
+  const body = (read.body ?? {}) as { links?: unknown };
   const links = parseChosenLinks(body.links);
   if (!links) return NextResponse.json({ error: "expected { links: { patient|physician|insurer: id or null } }" }, { status: 400 });
   const proposal = await getProposal(session.db, (await ctx.params).id);

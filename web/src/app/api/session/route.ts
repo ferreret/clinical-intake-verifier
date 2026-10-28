@@ -9,6 +9,8 @@
  */
 import { NextResponse } from "next/server";
 
+import { jsonBody, tooLarge } from "@/lib/http";
+
 import { appMode, replaySpeed } from "@/lib/batches/config";
 import { endSession, getSession, startSession } from "@/lib/batches/session";
 import { technician, TECHNICIANS } from "@/lib/batches/technicians";
@@ -22,7 +24,9 @@ export async function GET(): Promise<NextResponse> {
 }
 
 export async function POST(req: Request): Promise<NextResponse> {
-  const body = (await req.json().catch(() => null)) as { technician?: unknown } | null;
+  const read = await jsonBody(req);
+  if ("tooLarge" in read) return tooLarge();
+  const body = read.body as { technician?: unknown } | null;
   const tech = typeof body?.technician === "string" ? technician(body.technician) : null;
   if (!tech) {
     return NextResponse.json({ error: `technician must be one of ${TECHNICIANS.map((t) => t.id).join(", ")}` }, { status: 400 });

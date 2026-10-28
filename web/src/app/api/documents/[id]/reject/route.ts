@@ -5,6 +5,8 @@
  */
 import { NextResponse } from "next/server";
 
+import { jsonBody, tooLarge } from "@/lib/http";
+
 import { REJECT_REASONS, rejectDocument, type RejectReason } from "@/lib/batches/decide";
 import { getSession, noSession } from "@/lib/batches/session";
 
@@ -13,7 +15,9 @@ export const runtime = "nodejs";
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const session = await getSession();
   if (!session) return noSession();
-  const body = (await req.json().catch(() => ({}))) as { reason?: unknown; note?: unknown };
+  const read = await jsonBody(req);
+  if ("tooLarge" in read) return tooLarge();
+  const body = (read.body ?? {}) as { reason?: unknown; note?: unknown };
   const reason = body.reason as RejectReason;
   const note = typeof body.note === "string" ? body.note : "";
   if (!REJECT_REASONS.includes(reason)) return NextResponse.json({ error: `reason must be one of ${REJECT_REASONS.join(", ")}` }, { status: 400 });
