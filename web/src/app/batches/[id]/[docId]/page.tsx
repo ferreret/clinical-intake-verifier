@@ -53,7 +53,7 @@ export default function VerifyPage() {
   const [rejecting, setRejecting] = useState(false);
   // Links the technician set by searching the records, and the search open, if any.
   const [chosenLinks, setChosenLinks] = useState<ChosenLinks>({});
-  const [searching, setSearching] = useState<RecordKind | null>(null);
+  const [searching, setSearching] = useState<{ kind: RecordKind; anchor: HTMLElement } | null>(null);
   // The decision log: one item's steps unfolded under its row, and the whole log open.
   const [why, setWhy] = useState<string | null>(null);
   const [logOpen, setLogOpen] = useState(false);
@@ -504,7 +504,7 @@ export default function VerifyPage() {
             <div className="@container space-y-4 p-4 @min-[88rem]:overflow-y-auto">
               <section>
                 <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{m.records}</h2>
-                <Links view={view} readOnly={readOnly} onSearch={setSearching} />
+                <Links view={view} readOnly={readOnly} onSearch={(kind, anchor) => setSearching({ kind, anchor })} />
               </section>
               <section>
                 <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{m.fieldsTitle(fields.length)}</h2>
@@ -681,16 +681,17 @@ export default function VerifyPage() {
       )}
       {searching && (
         <RecordSearch
-          kind={searching}
-          current={view.proposal.fused.links[searching].recordId}
-          chosen={searching in chosenLinks}
+          kind={searching.kind}
+          anchor={searching.anchor}
+          current={view.proposal.fused.links[searching.kind].recordId}
+          chosen={searching.kind in chosenLinks}
           onPick={(id) => {
             setSearching(null);
-            void relink(searching, id);
+            void relink(searching.kind, id);
           }}
           onReset={() => {
             setSearching(null);
-            void relink(searching, undefined);
+            void relink(searching.kind, undefined);
           }}
           onClose={() => setSearching(null)}
         />

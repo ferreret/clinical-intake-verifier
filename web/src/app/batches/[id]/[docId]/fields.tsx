@@ -26,7 +26,7 @@ const RECORDS: RecordKind[] = ["patient", "physician", "insurer"];
 
 const same = (a: string | null | undefined, b: string | null | undefined) => (a ?? "").trim() === (b ?? "").trim() && !!a?.trim();
 
-export function Links({ view, readOnly, onSearch }: { view: ProposalView; readOnly: boolean; onSearch: (kind: RecordKind) => void }) {
+export function Links({ view, readOnly, onSearch }: { view: ProposalView; readOnly: boolean; onSearch: (kind: RecordKind, anchor: HTMLElement) => void }) {
   const { t } = useI18n();
   return (
     <div className="grid gap-2 @min-[40rem]:grid-cols-3">
@@ -60,7 +60,7 @@ export function Links({ view, readOnly, onSearch }: { view: ProposalView; readOn
             {!readOnly && (
               <button
                 type="button"
-                onClick={() => onSearch(k)}
+                onClick={(e) => onSearch(k, e.currentTarget)}
                 title={t.records.search[k]}
                 aria-label={t.records.search[k]}
                 className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-500 ring-1 ring-slate-200 transition hover:bg-brand-50 hover:text-brand-700 hover:ring-brand-300"
