@@ -14,8 +14,8 @@ Last updated: 2026-10-27.
 | F2 | Extractor: Gemini Flash, structured output and boxes | done, verified against the live API |
 | F3 | Evaluation harness | done, first full run measured (below) |
 | F4 | Mock LIS, fusion engine and test mapping | done: blocks 1 to 6, measured end to end on real readings (below) |
-| F5 | Batches and verification UI | blocks 1 to 3 of 4 done: batches, queue, their screens and the verification screen (section 5) |
-| F6 | Public demo on a self-hosted Dokploy | not started |
+| F5 | Batches and verification UI | done: batches, queue, their screens, the verification screen, approval and rejection (section 5) |
+| F6 | Public demo on a self-hosted Dokploy | blocks 1 to 3 done: recorded replies, both deployments live since 2026-10-27, the README; CI next |
 
 Local open-weight vision models were approved on 2026-10-26 as the top priority, ahead of
 F4 block 6 (section 3).
@@ -1648,3 +1648,25 @@ demo's data comes from a release archive. The details are in [deploy.md](deploy.
   2026-10-27 says they do; the template has none yet).
 
 F6 then records the replies for the bundled set, deploys on Dokploy and writes the README.
+
+### F6 block 3 done on 2026-10-28: the README, and an audit
+
+- **The README** says what the project shows and links the portfolio's live demo (decided by
+  the product owner): the status of every phase, the results measured end to end on the 200
+  requests, how a request goes through, and how to run the app in either mode, the replay
+  one from the release archive.
+- **An audit of the whole repository** on 2026-10-28, in four parts (server and queue, the
+  domain logic, the UI, deployment and compliance), found no secret, real data or real name,
+  and a ground truth that matches its PDFs. Its high and medium findings are fixed, one commit
+  each, from `66a4b76` to `916b83c`: Ctrl+Enter approving behind the reject panel, a second
+  client per sandbox, the extractor route open in replay mode, a document reopened after its
+  approval, queue errors that left documents stuck, swapped surnames comparing equal,
+  approval without format checks, a broken mapping reply cached, an age losing its unit, Alt
+  shortcuts while typing, a lock kept when leaving another way, model names in error
+  messages, gaps in `.gitignore`, and no limits on what one visitor can take from the demo.
+  The low ones are left for later: the verification header and the shortcuts dialog at phone
+  width, the record search's height, untranslated server errors, relinking with no pending
+  state, a confirmation outliving an edit, the evaluation baseline hiding failed documents,
+  and size limits on the small JSON routes.
+
+**Next: CI**, the tests and the evaluation on the recorded runs on every commit.
