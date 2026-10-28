@@ -103,3 +103,20 @@ export function fieldSpec(name: string): FieldSpec {
   if (!spec) throw new Error(`unknown field ${name}`);
   return spec;
 }
+
+/**
+ * Whether a value is in its field's form: its pattern, its enum, and for a date one that
+ * exists ("31/02/1990" matches the pattern and is no date). Checked on approval, and by the
+ * verification screen before it; an empty value is the business of `required`.
+ */
+export function inForm(spec: FieldSpec, value: string): boolean {
+  if (!value) return true;
+  if (spec.pattern && !new RegExp(spec.pattern).test(value)) return false;
+  if (spec.enum && !spec.enum.includes(value)) return false;
+  if (spec.type === "date") {
+    const [d, m, y] = value.split("/").map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d));
+    if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return false;
+  }
+  return true;
+}

@@ -4,7 +4,7 @@
  * words for each are in the messages of the language (_ui/messages).
  */
 import type { FusedField, LinkStatus, TrafficLight } from "@/lib/fusion/types";
-import { FIELDS, type FieldSpec } from "@/lib/schema/fields";
+import { FIELDS, inForm, type FieldSpec } from "@/lib/schema/fields";
 import type { BBox, BoxSource } from "@/lib/schema/prediction";
 
 import type { ProposalView } from "../../../_ui/api";
@@ -93,8 +93,11 @@ const needsCheck = (state: Light) => state === "red" || state === "orange";
 export function checkOf(item: Item, view: ProposalView, value: string | undefined, codes: string[] | null | undefined, confirmed: boolean): Check {
   if (item.kind === "field") {
     const v = (value ?? "").trim();
-    const confirmable = needsCheck(item.fused.state) && v === (item.fused.value ?? "").trim();
-    return { pending: (item.spec.required && !v) || (confirmable && !confirmed), confirmable };
+    // A value out of its field's form (a date that does not exist, a sex other than H/M/U) has
+    // to be changed: it cannot be confirmed as it is.
+    const valid = inForm(item.spec, v);
+    const confirmable = valid && needsCheck(item.fused.state) && v === (item.fused.value ?? "").trim();
+    return { pending: (item.spec.required && !v) || !valid || (confirmable && !confirmed), confirmable };
   }
   if (codes === null) return { pending: false, confirmable: false };
   const m = view.proposal.tests[item.index].mapping;

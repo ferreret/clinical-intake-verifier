@@ -392,6 +392,7 @@ export const en = {
     candidate: "candidate",
     noneChoose: "None: you choose",
     choose: "Choose or type",
+    notInForm: "Not in this field's form: a real date as dd/mm/yyyy, a sex H, M or U",
     pick: "Select this value",
     changed: "Changed by you",
   },

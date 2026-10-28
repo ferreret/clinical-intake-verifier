@@ -199,7 +199,9 @@ session shell and the state badges.
   **Approving** (`lib/batches/decide.ts`, F4 decision 9). A red or orange field or line is
   resolved one by one: by changing it, or by confirming it as proposed with its check
   button (Alt+Enter). A green one is covered by the approval itself. Required fields need a
-  value and every kept line its codes. Approve stays disabled until nothing is left, and the
+  value, every value its field's form (`inForm`: the pattern, the enum, and a date that
+  exists; one out of it cannot be confirmed, only changed), and every kept line its codes.
+  Approve stays disabled until nothing is left, and the
   server checks it all again. Then, in one transaction:
   - the decision, written once: who, when, and per field and line what was proposed, what
     was approved and how (kept, confirmed, changed; for lines also corrected, chosen,

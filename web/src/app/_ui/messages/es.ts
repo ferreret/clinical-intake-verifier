@@ -3,11 +3,20 @@
  * writes in English (record links, mapping reasons) are translated by pattern; one with no
  * pattern is shown as it is.
  */
+import { fieldSpec, isFieldName } from "@/lib/schema/fields";
+
 import type { Messages } from "./en";
+
+/** A field's name as the screens show it, for the server's texts that use its key. */
+const fieldLabel = (name: string) => (isFieldName(name) ? fieldSpec(name).label_es : name);
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 const SERVER: [RegExp, (...m: string[]) => string][] = [
+  // Why a document cannot be approved yet (lib/batches/decide.ts).
+  [/^(\w+) is required$/, (name) => `${fieldLabel(name)}: es obligatorio`],
+  [/^(\w+) is not in its form: (.*)$/, (name, value) => `${fieldLabel(name)}: «${value}» no tiene la forma del campo`],
+  [/^(\w+) is (red|orange): change or confirm it$/, (name, s) => `${fieldLabel(name)} está en ${s === "red" ? "rojo" : "naranja"}: cámbialo o confírmalo`],
   // Record links (lib/fusion/link.ts).
   [/^identity document and name or birth date agree$/, () => "coinciden el documento de identidad y el nombre o la fecha de nacimiento"],
   [
@@ -443,6 +452,7 @@ export const es: Messages = {
     candidate: "candidato",
     noneChoose: "Ninguno: eliges tú",
     choose: "Elige o escribe",
+    notInForm: "No tiene la forma del campo: una fecha que exista, dd/mm/aaaa, un sexo H, M o U",
     pick: "Seleccionar este valor",
     changed: "Cambiado por ti",
   },

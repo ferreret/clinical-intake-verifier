@@ -25,7 +25,7 @@ import { requests } from "@/lib/lis/schema";
 import { readSnapshot } from "@/lib/lis/snapshot";
 import { DbMemory } from "@/lib/mapping/memory";
 import { textKey } from "@/lib/mapping/propose";
-import { FIELDS } from "@/lib/schema/fields";
+import { FIELDS, inForm } from "@/lib/schema/fields";
 
 import { catalogOf, memoryScope } from "./pipeline";
 import { batchDocuments, decisions, type ApprovalRecord, type FieldAction, type LineAction } from "./schema";
@@ -70,6 +70,7 @@ export function checkApproval(
     const proposed = clean(f.value) || null;
     const changed = value !== proposed;
     if (spec.required && !value) problems.push(`${spec.name} is required`);
+    if (value && !inForm(spec, value)) problems.push(`${spec.name} is not in its form: ${value}`);
     if (needs(f.state) && !changed && !confirmed.has(`f:${spec.name}`)) problems.push(`${spec.name} is ${f.state}: change or confirm it`);
     const action: FieldAction = changed ? "changed" : needs(f.state) ? "confirmed" : "kept";
     return { name: spec.name, value, proposed, state: f.state, action };

@@ -302,10 +302,13 @@ describe("verification locks", () => {
   });
 });
 
+/** A value in the field's form, for a required field the document left empty. */
+const filler = (f: (typeof FIELDS)[number]) => (f.type === "date" ? "01/01/2000" : (f.enum?.[0] ?? "X"));
+
 /** An approval that resolves everything as proposed: required fields filled, red and orange confirmed. */
 function resolved(proposal: NonNullable<Awaited<ReturnType<typeof getProposal>>>): ApprovalInput {
   const fused = new Map(proposal.fused.fields.map((f) => [f.name, f]));
-  const fields = Object.fromEntries(FIELDS.map((f) => [f.name, fused.get(f.name)!.value ?? (f.required ? "X" : null)]));
+  const fields = Object.fromEntries(FIELDS.map((f) => [f.name, fused.get(f.name)!.value ?? (f.required ? filler(f) : null)]));
   const confirmed = FIELDS.filter((f) => fields[f.name] === fused.get(f.name)!.value && ["red", "orange"].includes(fused.get(f.name)!.state));
   return {
     fields,
@@ -396,16 +399,21 @@ describe("decisions", () => {
     // Resolved: required fields filled, the other red and orange ones confirmed, a code chosen
     // for the red line, the first line confirmed, a test added.
     const fused = new Map(proposal.fused.fields.map((f) => [f.name, f]));
-    const fields = Object.fromEntries(FIELDS.map((f) => [f.name, fused.get(f.name)!.value ?? (f.required ? "X" : null)]));
+    const fields = Object.fromEntries(FIELDS.map((f) => [f.name, fused.get(f.name)!.value ?? (f.required ? filler(f) : null)]));
     const confirmed = FIELDS.filter((f) => ["red", "orange"].includes(fused.get(f.name)!.state) && fields[f.name] === fused.get(f.name)!.value).map(
       (f) => `f:${f.name}`,
     );
-    const approved = await approveDocument(db, first.id, "T01", {
-      fields,
-      lines: [["BQ0001"], ["BQ0001"]],
-      added: [{ text: "", codes: ["BQ0001"] }],
-      confirmed: [...confirmed, "t:0"],
-    });
+    const resolution = { lines: [["BQ0001"], ["BQ0001"]], added: [{ text: "", codes: ["BQ0001"] }], confirmed: [...confirmed, "t:0"] };
+
+    // A value out of its field's form is refused, whatever the technician confirmed.
+    const malformed = await approveDocument(db, first.id, "T01", { ...resolution, fields: { ...fields, FechaNacimiento: "31/02/1990", Sexo: "X" } });
+    expect(malformed).toMatchObject({ ok: false, reason: "invalid" });
+    expect(malformed.ok ? [] : malformed.problems).toEqual([
+      "FechaNacimiento is not in its form: 31/02/1990",
+      "Sexo is not in its form: X",
+    ]);
+
+    const approved = await approveDocument(db, first.id, "T01", { ...resolution, fields });
     expect(approved).toMatchObject({ ok: true, next: second.id, decision: { decision: "approved", technician: "T01" } });
 
     const decision = (await getDecision(db, first.id))!;

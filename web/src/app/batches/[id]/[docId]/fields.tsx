@@ -12,6 +12,7 @@
 import type { RefObject } from "react";
 
 import type { RecordKind } from "@/lib/fusion/types";
+import { inForm } from "@/lib/schema/fields";
 
 import type { ProposalView } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
@@ -240,9 +241,13 @@ function FieldRow({
             onFocus={() => onFocus(key)}
             onChange={(e) => onChange(key, e.target.value)}
             placeholder={conflict ? f.choose : "–"}
+            aria-invalid={!inForm(spec, value.trim()) || undefined}
+            title={inForm(spec, value.trim()) ? undefined : f.notInForm}
             className={`min-w-0 flex-1 rounded-md border px-2 py-1 text-[13px] font-semibold focus:outline-none ${
               on ? "border-brand-400 ring-2 ring-brand-100" : "border-slate-200"
-            } ${readOnly ? "cursor-not-allowed bg-slate-100 text-slate-500" : "bg-white"} ${!value.trim() && (fused.state === "red" || spec.required) ? "border-red-300 bg-red-50/40" : ""}`}
+            } ${readOnly ? "cursor-not-allowed bg-slate-100 text-slate-500" : "bg-white"} ${
+              (!value.trim() && (fused.state === "red" || spec.required)) || !inForm(spec, value.trim()) ? "border-red-300 bg-red-50/40" : ""
+            }`}
           />
           {touched.has(key) && !checks[key]?.confirmable && (
             <span className="size-1.5 shrink-0 rounded-full bg-brand-600" title={f.changed} aria-label={f.changed} />

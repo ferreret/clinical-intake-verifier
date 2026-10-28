@@ -670,7 +670,7 @@ export default function VerifyPage() {
               <p className="font-medium">{m.notApproved}</p>
               <ul className="mt-1 list-disc pl-4">
                 {problems.map((p) => (
-                  <li key={p}>{p}</li>
+                  <li key={p}>{t.server(p)}</li>
                 ))}
               </ul>
             </div>
