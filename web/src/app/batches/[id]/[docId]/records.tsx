@@ -21,9 +21,22 @@ const DEBOUNCE_MS = 150;
 const GAP = 8;
 const MAX_WIDTH = 576;
 
+/** The results list's tallest, before it scrolls (max-h-80). */
+const LIST_MAX = 320;
+
+/** The box's height with every part shown, its list up to LIST_MAX: what it would take. */
+function naturalHeight(box: HTMLElement | null): number {
+  if (!box) return 0;
+  const parts = [...box.children] as HTMLElement[];
+  const border = box.offsetHeight - box.clientHeight;
+  return border + parts.reduce((h, c) => h + (c.tagName === "UL" ? Math.min(c.scrollHeight, LIST_MAX) : c.offsetHeight), 0);
+}
+
 /**
  * Where the box goes: under the button (over it if there is no room below), its right edge
- * at the button's when it fits, and never over the document nor past the window's edge.
+ * at the button's when it fits, and never over the document nor past the window's edge. When
+ * it fits neither way, it takes the larger side, as tall as that side: its list scrolls, and
+ * the search field and "no record" stay in reach.
  */
 function place(anchor: HTMLElement, height: number) {
   const a = anchor.getBoundingClientRect();
@@ -33,9 +46,12 @@ function place(anchor: HTMLElement, height: number) {
   const max = window.innerWidth - GAP;
   const width = Math.min(MAX_WIDTH, max - min);
   const left = Math.min(Math.max(a.right - width, min), max - width);
-  const below = a.bottom + GAP;
-  const top = below + height <= window.innerHeight - GAP ? below : Math.max(GAP, a.top - GAP - height);
-  return { top, left, width };
+  const room = { below: window.innerHeight - a.bottom - 2 * GAP, above: a.top - 2 * GAP };
+  if (height <= room.below) return { top: a.bottom + GAP, left, width, maxHeight: room.below };
+  if (height <= room.above) return { top: a.top - GAP - height, left, width, maxHeight: room.above };
+  return room.below >= room.above
+    ? { top: a.bottom + GAP, left, width, maxHeight: room.below }
+    : { top: GAP, left, width, maxHeight: room.above };
 }
 
 export function RecordSearch({
@@ -65,7 +81,7 @@ export function RecordSearch({
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLDivElement>(null);
-  const [at, setAt] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [at, setAt] = useState<ReturnType<typeof place> | null>(null);
   // Hidden until placed, and a hidden input takes no focus.
   const placed = at !== null;
   useEffect(() => {
@@ -73,7 +89,7 @@ export function RecordSearch({
   }, [placed]);
 
   useLayoutEffect(() => {
-    const follow = () => setAt(place(anchor, box.current?.offsetHeight ?? 0));
+    const follow = () => setAt(place(anchor, naturalHeight(box.current)));
     follow();
     // The box grows with the results, and the form under it can scroll.
     const grows = new ResizeObserver(follow);
@@ -136,9 +152,9 @@ export function RecordSearch({
       role="dialog"
       aria-label={r.search[kind]}
       style={at ?? { visibility: "hidden" }}
-      className="card fixed z-40 overflow-hidden shadow-2xl!"
+      className="card fixed z-40 flex flex-col overflow-hidden shadow-2xl!"
     >
-      <div className="flex items-center gap-2 border-b border-slate-100 px-4">
+      <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 px-4">
         <Search className="size-4 shrink-0 text-slate-400" />
         <input
           ref={input}
@@ -164,8 +180,8 @@ export function RecordSearch({
           <X className="size-4" />
         </button>
       </div>
-      <div className="px-4 pt-2.5 pb-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">{r.search[kind]}</div>
-      <ul className="max-h-80 overflow-y-auto pb-1" role="listbox">
+      <div className="shrink-0 px-4 pt-2.5 pb-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">{r.search[kind]}</div>
+      <ul className="max-h-80 min-h-0 flex-1 overflow-y-auto pb-1" role="listbox">
         {results.map((rec, i) => (
           <li key={rec.id} role="option" aria-selected={i === active}>
             <button
@@ -184,7 +200,7 @@ export function RecordSearch({
           <li className="px-4 py-2 text-sm text-slate-400">{searching ? t.codes.searching : typed ? r.nothingFound : r.typeToSearch}</li>
         )}
       </ul>
-      <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 bg-slate-50/60 px-4 py-2.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-100 bg-slate-50/60 px-4 py-2.5">
         <button
           type="button"
           onClick={() => onPick(null)}
