@@ -538,8 +538,32 @@ export const es: Messages = {
   server,
 };
 
-/** The server's "the document is <state>, not awaiting verification", in Spanish. */
-SERVER.push([
-  /^the document is (\w+), not awaiting verification$/,
-  (state) => `el documento está ${(es.states as Record<string, string>)[state]?.toLowerCase() ?? state}, no pendiente de verificación`,
-]);
+/** A document's state as the screens name it, for the server's texts that use its key. */
+const stateLabel = (state: string) => (es.states as Record<string, string>)[state]?.toLowerCase() ?? state;
+const colour = (light: string) => (light === "red" ? "rojo" : light === "orange" ? "naranja" : light);
+
+/** The server's errors and refusals that name a document's state or a line, in Spanish. */
+SERVER.push(
+  [/^the document is (\w+), not awaiting verification$/, (state) => `el documento está ${stateLabel(state)}, no pendiente de verificación`],
+  [/^no proposal yet; the document is (\w+)$/, (state) => `aún no hay propuesta: el documento está ${stateLabel(state)}`],
+  [/^only a failed document can be retried; this one is (\w+)$/, (state) => `solo se puede reintentar un documento fallido; este está ${stateLabel(state)}`],
+  // Why a document cannot be approved yet: its lines and added tests (lib/batches/decide.ts).
+  [/^line (\d+) \((.*)\) is (red|orange): change or confirm it$/, (n, text, light) => `la línea ${n} (${text}) está en ${colour(light)}: cámbiala o confírmala`],
+  [/^line (\d+) \((.*)\) has no codes$/, (n, text) => `la línea ${n} (${text}) no tiene códigos`],
+  [/^line (\d+) \((.*)\): not in the catalog: (.+)$/, (n, text, codes) => `la línea ${n} (${text}): no están en el catálogo: ${codes}`],
+  [/^added test (\d+) has no codes$/, (n) => `la prueba añadida ${n} no tiene códigos`],
+  [/^added test (\d+): not in the catalog: (.+)$/, (n, codes) => `la prueba añadida ${n}: no están en el catálogo: ${codes}`],
+  [/^expected (\d+) read lines, got (\d+)$/, (want, got) => `se esperaban ${want} líneas leídas y llegaron ${got}`],
+  // Other refusals the screens show (app/api).
+  [/^the document is not in verification by you$/, () => "el documento no está en verificación a tu nombre"],
+  [/^not ready to approve$/, () => "todavía no se puede aprobar"],
+  [/^no such document$/, () => "no existe ese documento"],
+  [/^no proposal for this document$/, () => "este documento no tiene propuesta"],
+  [/^say why in a note$/, () => "explica el motivo en una nota"],
+  [/^(.+) is verifying this document$/, (who) => `${who} está verificando este documento`],
+  [/^pick a technician first \(POST \/api\/session\)$/, () => "elige primero un técnico"],
+  [/^every sandbox is in use: try again later$/, () => "la demo está llena: vuelve a intentarlo dentro de un rato"],
+  [/^at most (\d+) documents queued or being read at once: wait for some to be read$/, (n) => `como mucho ${n} documentos en cola o leyéndose a la vez: espera a que se lean algunos`],
+  [/^at most (\d+) documents per batch$/, (n) => `como mucho ${n} documentos por lote`],
+  [/^a batch needs at least one document$/, () => "un lote necesita al menos un documento"],
+);

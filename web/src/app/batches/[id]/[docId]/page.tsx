@@ -472,7 +472,7 @@ export default function VerifyPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [items, focused, readOnly, next, prev, batchId, leave, focusItem, toggleLens, checks, confirmed, toggleConfirm, canApprove, approve, goPending, rejecting, help, logOpen, searching]);
 
-  if (error) return <p className="text-sm text-rose-700">{error}</p>;
+  if (error) return <p className="text-sm text-rose-700">{t.server(error)}</p>;
   if (!view) {
     return (
       <div className="grid h-[calc(100vh-6rem)] gap-4 lg:grid-cols-2">

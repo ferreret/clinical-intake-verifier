@@ -189,7 +189,7 @@ export default function Home() {
               {m.startOverNote}
             </p>
           )}
-          {error && <p className="mt-4 text-sm text-rose-700">{error}</p>}
+          {error && <p className="mt-4 text-sm text-rose-700">{t.server(error)}</p>}
         </section>
 
         <footer className="border-t border-slate-200 py-6 text-xs text-slate-500">

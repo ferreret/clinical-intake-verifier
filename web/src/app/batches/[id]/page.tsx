@@ -45,7 +45,7 @@ export default function BatchPage() {
     }
   }
 
-  if (error && !detail) return <p className="text-sm text-rose-700">{error}</p>;
+  if (error && !detail) return <p className="text-sm text-rose-700">{t.server(error)}</p>;
   if (!detail) {
     return (
       <div className="space-y-4">
@@ -122,7 +122,7 @@ export default function BatchPage() {
         </div>
       </section>
 
-      {error && <p className="mb-4 text-sm text-rose-700">{error}</p>}
+      {error && <p className="mb-4 text-sm text-rose-700">{t.server(error)}</p>}
 
       <section className="card overflow-hidden">
         <div className="overflow-x-auto">

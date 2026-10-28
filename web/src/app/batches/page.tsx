@@ -74,7 +74,7 @@ export default function BatchesPage() {
         </div>
       )}
 
-      {error && <p className="text-sm text-rose-700">{error}</p>}
+      {error && <p className="text-sm text-rose-700">{t.server(error)}</p>}
       {batches === null && !error && <div className="card h-28 animate-pulse" />}
 
       {batches?.length === 0 && (

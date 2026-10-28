@@ -304,7 +304,7 @@ export default function NewBatchPage() {
             {provider === "gemini" ? <Cloud className="size-4" /> : <Cpu className="size-4" />}
             {m.readBy(t.providers[provider])}
           </div>
-          {error && <p className="text-sm text-rose-700">{error}</p>}
+          {error && <p className="text-sm text-rose-700">{t.server(error)}</p>}
           <button
             type="button"
             onClick={create}
