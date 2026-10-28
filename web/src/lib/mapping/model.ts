@@ -209,6 +209,17 @@ export function resolveProvider(name?: string): Provider {
   throw new Error(`unknown model provider "${which}": use gemini or local`);
 }
 
+/** A reply's text as the object the schema asks for, or null when it is not one. */
+function replyObject(text: unknown): Record<string, unknown> | null {
+  if (typeof text !== "string") return null;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Asks the provider (or the cache) which codes each line means. */
 export async function consult(
   req: ModelRequest,
@@ -223,21 +234,28 @@ export async function consult(
   const file = cacheDir ? path.join(cacheDir, `${key}.json`) : null;
 
   let reply: ProviderReply | null = null;
+  let parsed: Record<string, unknown> | null = null;
   let cached = false;
   let latencyMs = 0;
   if (file) {
     try {
       reply = JSON.parse(await fs.readFile(file, "utf8")) as ProviderReply;
-      cached = true;
+      // A reply cached before replies were checked may be broken: it is asked again.
+      parsed = replyObject(reply.text);
+      cached = parsed !== null;
     } catch {
       // Not cached yet.
     }
   }
-  if (!reply) {
+  if (!parsed) {
     const t0 = Date.now();
     for (let attempt = 1; ; attempt++) {
       try {
         reply = await provider.complete(prompt.system, prompt.user, prompt.schema);
+        // Checked before it is cached: a truncated or empty reply would otherwise be served
+        // from the cache for good, to every later request with the same prompt.
+        parsed = replyObject(reply.text);
+        if (!parsed) throw new Error("the model's reply is not the JSON object asked for");
         break;
       } catch (err) {
         // A provider that knows it cannot answer (replay mode, no recorded reply) is not retried.
@@ -252,7 +270,6 @@ export async function consult(
     }
   }
 
-  const parsed = JSON.parse(reply.text) as Record<string, unknown>;
   const choices = new Map<string, string[] | null>();
   for (const line of req.lines) {
     const allowed = new Set(lineOptions(line, catalog).map((o) => o.code));
@@ -260,5 +277,5 @@ export async function consult(
     const codes = [...new Set(raw.filter((c): c is string => typeof c === "string" && allowed.has(c)))].sort();
     choices.set(line.id, codes.length > 0 ? codes : null);
   }
-  return { choices, usage: reply.usage, latencyMs, cached };
+  return { choices, usage: reply!.usage, latencyMs, cached };
 }

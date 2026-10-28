@@ -1,14 +1,14 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { openLis } from "@/lib/lis/db";
 import { loadCatalog, readCatalog, type Catalog, type CatalogFile } from "@/lib/mapping/catalog";
 import { proposeDocument } from "@/lib/mapping/document";
 import { DbMemory, InMemoryMemory, type MappingMemory } from "@/lib/mapping/memory";
-import { buildPrompt, type Provider } from "@/lib/mapping/model";
+import { buildPrompt, consult, type Provider } from "@/lib/mapping/model";
 import { GREEN_APPROVALS, propose, textKey } from "@/lib/mapping/propose";
 import { browse, codeNames } from "@/lib/mapping/browse";
 import { CatalogIndex } from "@/lib/mapping/search";
@@ -206,5 +206,50 @@ describe("model layer", () => {
     expect(enumOf).toEqual(expect.arrayContaining(["BQ0004", "BQ0005"]));
     expect(enumOf).not.toContain("PF07");
     expect(prompt.user).toContain('lab profile "Iones" = BQ0004, BQ0005');
+  });
+});
+
+describe("model replies", () => {
+  const req = { insurer: null, language: "es", formLines: ["IONES"], lines: [{ id: "L1", text: "IONES", candidates: INDEX_SYNC_IONES }] };
+  /** A provider that answers each call with the next of `texts`. */
+  const scripted = (texts: string[]): Provider & { calls: number } => {
+    const p = {
+      name: "local" as const,
+      model: "fake",
+      calls: 0,
+      async complete() {
+        return { text: texts[p.calls++], usage: { inputTokens: 1, outputTokens: 1 } };
+      },
+    };
+    return p;
+  };
+
+  it("asks again for a broken reply found in the cache, and caches the good one instead", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "civ-cache-"));
+    try {
+      const first = await consult(req, CATALOG, scripted(['{"L1": ["BQ0004"]}']), dir);
+      const [file] = await readdir(dir);
+      await writeFile(path.join(dir, file), JSON.stringify({ text: '{"L1": ["MI', usage: { inputTokens: 1, outputTokens: 1 } }));
+      const provider = scripted(['{"L1": ["BQ0004"]}']);
+      const again = await consult(req, CATALOG, provider, dir);
+      expect(provider.calls).toBe(1);
+      expect(again).toMatchObject({ cached: false, choices: first.choices });
+      expect(await consult(req, CATALOG, scripted([]), dir)).toMatchObject({ cached: true, choices: first.choices });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("retries a reply that is not the JSON object asked for", async () => {
+    vi.useFakeTimers();
+    try {
+      const provider = scripted(["", '{"L1": ["BQ0004"]}']);
+      const out = consult(req, CATALOG, provider, null);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect((await out).choices.get("L1")).toEqual(["BQ0004"]);
+      expect(provider.calls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
