@@ -63,7 +63,8 @@ export default function VerifyPage() {
   const [touched, setTouched] = useState<Set<string>>(new Set());
   // Red and orange items confirmed as proposed.
   const [confirmed, setConfirmed] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState<"approving" | "rejecting" | null>(null);
+  // "relinking" while a chosen link is fused again: approving then would send the old links.
+  const [busy, setBusy] = useState<"approving" | "rejecting" | "relinking" | null>(null);
   const [problems, setProblems] = useState<string[] | null>(null);
   const [rejecting, setRejecting] = useState(false);
   // Links the technician set by searching the records, and the search open, if any.
@@ -315,7 +316,8 @@ export default function VerifyPage() {
    * take the new proposal, and field confirmations start over, the comparison having changed.
    */
   async function relink(kind: RecordKind, id: string | null | undefined) {
-    if (!view) return;
+    if (!view || busy) return;
+    setBusy("relinking");
     const next: ChosenLinks = { ...chosenLinks };
     if (id === undefined) delete next[kind];
     else next[kind] = id;
@@ -335,6 +337,8 @@ export default function VerifyPage() {
       setView({ ...view, proposal: { ...view.proposal, fused }, records: { ...view.records, ...records } });
     } catch (e) {
       setProblems([(e as Error).message]);
+    } finally {
+      setBusy(null);
     }
   }
 
