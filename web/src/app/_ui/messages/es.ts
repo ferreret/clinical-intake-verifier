@@ -96,7 +96,7 @@ export const es: Messages = {
     rejected: "Rechazado",
   },
   lights: { green: "verde", orange: "naranja", red: "rojo", grey: "gris" },
-  providers: { gemini: "Gemini (nube)", local: "Qwen (modelo local)" },
+  providers: { gemini: "Modelo Cloud", local: "Modelo Local" },
 
   entry: {
     demoBadge: "Demo · datos sintéticos",
@@ -114,7 +114,7 @@ export const es: Messages = {
     lightsNote: "Un color es una señal, nunca una aceptación.",
     lights: ["Coincide con los registros del laboratorio", "Solo lo dice el modelo", "Discrepan: decides tú", "Ausente, y opcional"],
     figures: [
-      "precisión por campo, Gemini",
+      "precisión por campo, Modelo Cloud",
       "errores de lectura mostrados en verde",
       "líneas de pruebas que quedan para el técnico",
       "documentos enlazados al paciente equivocado",
@@ -217,8 +217,8 @@ export const es: Messages = {
     modelNone: "No encontró ningún candidato que encaje: la línea sigue en rojo.",
     modelUnavailable: (error) => `No se pudo consultar (${server(error)}): la línea sigue en rojo.`,
     modelNotNeeded: "No consultado: al modelo solo van las líneas que quedan en rojo.",
-    modelAsked: (provider, model, lines, cached) =>
-      `Se consultó a ${model} (${provider}) por ${lines} ${lines === 1 ? "línea roja" : "líneas rojas"}${cached ? ", desde sus respuestas grabadas" : ""}.`,
+    modelAsked: (model, lines, cached) =>
+      `Se consultó al ${model} por ${lines} ${lines === 1 ? "línea roja" : "líneas rojas"}${cached ? ", desde sus respuestas grabadas" : ""}.`,
     language: (lang) => `El idioma del volante no se lee; al modelo se le dijo ${lang === "es" ? "español" : lang}.`,
     noTrace: "Este documento se procesó antes de que se guardara el registro: no se sabe qué tenía la memoria entonces ni cómo se consultó al modelo.",
     result: (light, codes, source) => `${light}: ${codes}, ${source}.`,
@@ -283,15 +283,14 @@ export const es: Messages = {
     subtitle: "Elige quién lo lee y qué peticiones entran. Pasan a la cola en cuanto lo creas.",
     whoReads: "Quién lo lee",
     providers: {
-      gemini: { text: "El modelo de Google, en la nube. Lee el PDF directamente.", meta: "99,8 % de precisión por campo · unos 9 s por documento" },
+      gemini: { text: "Un modelo en la nube. Lee el PDF directamente.", meta: "99,8 % de precisión por campo · unos 9 s por documento" },
       local: {
-        title: "Qwen 3.6, local",
         text: "Pesos abiertos en la GPU de esta máquina. Nada sale de la máquina.",
         meta: "99,5 % de precisión por campo · unos 80 s por documento",
       },
     },
     synthetic: "Peticiones sintéticas",
-    syntheticReplay: (provider) => `Las que tienen una respuesta grabada de ${provider}.`,
+    syntheticReplay: (provider) => `Las que tienen una respuesta grabada del ${provider}.`,
     syntheticLive: "Generadas por el proyecto, con su verdad de referencia.",
     filter: "Filtrar por nombre",
     random: (n) => `Añadir ${n} al azar`,
@@ -309,7 +308,7 @@ export const es: Messages = {
     namePlaceholder: "Opcional, p. ej. Correo de la mañana",
     inBatch: "En este lote",
     nothingYet: "Nada todavía: marca unas cuantas peticiones.",
-    readBy: (provider) => `Lo lee ${provider}`,
+    readBy: (provider) => `Lo lee el ${provider}`,
     creating: "Creando…",
     create: (n) => (n > 0 ? `Crear y leer ${plural(n, "documento")}` : "Crear y leer"),
   },
@@ -339,7 +338,7 @@ export const es: Messages = {
     nextTitle: (file) => `Documento siguiente: ${file}`,
     lastTitle: "Último documento del lote",
     position: (at, total) => [String(at), ` de ${total}`],
-    readBy: (model, seconds) => `leído por ${model} en ${seconds} s`,
+    readBy: (model, seconds) => `leído por el ${model} en ${seconds} s`,
     recorded: " (grabado)",
     readOnly: (message) => `${message}. Se muestra en solo lectura.`,
     lockedBy: (holder) => `${holder} está verificando este documento`,

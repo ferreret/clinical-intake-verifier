@@ -126,7 +126,7 @@ export default function NewBatchPage() {
                       <p.icon className="size-5" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block font-medium">{p.id === "gemini" ? "Gemini Flash" : m.providers.local.title}</span>
+                      <span className="block font-medium">{t.providers[p.id]}</span>
                       <span className="mt-0.5 block text-xs text-slate-600">{m.providers[p.id].text}</span>
                       <span className="mt-2 block text-[11px] text-slate-500">{m.providers[p.id].meta}</span>
                     </span>

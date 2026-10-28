@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { ACTIVE_STATES, api, type BatchDetail, type DocumentState } from "../../_ui/api";
+import { ACTIVE_STATES, api, providerOf, type BatchDetail, type DocumentState } from "../../_ui/api";
 import { useI18n } from "../../_ui/i18n";
 import { Avatar } from "../../_ui/avatar";
 import { DeleteBatchDialog } from "../../_ui/delete-batch";
@@ -176,7 +176,7 @@ export default function BatchPage() {
                         <Clock className="size-3.5 text-slate-400" />
                         <span className="tabular-nums">{seconds(d.summary.latencyMs / 1000)}</span>
                         <span className="text-slate-400">·</span>
-                        <span>{d.summary.model}</span>
+                        <span>{t.providers[providerOf(d.summary.model)]}</span>
                         {d.summary.recorded && (
                           <span
                             className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 ring-1 ring-amber-200"

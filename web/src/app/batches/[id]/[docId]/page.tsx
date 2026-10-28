@@ -13,7 +13,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ApiError, api, type ChosenLinks, type Decision, type ProposalView, type RecordKind, type RejectReason } from "../../../_ui/api";
+import { ApiError, api, providerOf, type ChosenLinks, type Decision, type ProposalView, type RecordKind, type RejectReason } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
 import { ArrowLeft, ArrowRight, Check as CheckIcon, FileText, Keyboard, List as ListIcon, Lock as LockIcon } from "../../../_ui/icons";
 import { useSession } from "../../../_ui/session";
@@ -475,7 +475,7 @@ export default function VerifyPage() {
             <h1 className="font-mono text-sm font-semibold">{view.document.fileName.replace(/\.pdf$/, "")}</h1>
             <StateBadge state={lock?.status === "mine" ? "in_verification" : view.document.state} />
             <span className="text-[11px] text-slate-500">
-              {m.readBy(extractor.model, (extractor.latency_ms / 1000).toLocaleString(t.locale, { maximumFractionDigits: 1, minimumFractionDigits: 1 }))}
+              {m.readBy(t.providers[providerOf(extractor.model)], (extractor.latency_ms / 1000).toLocaleString(t.locale, { maximumFractionDigits: 1, minimumFractionDigits: 1 }))}
               {view.proposal.recorded && m.recorded}
             </span>
           </div>

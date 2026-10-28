@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef } from "react";
 
+import { providerOf } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
 import { X } from "../../../_ui/icons";
 import { useSession } from "../../../_ui/session";
@@ -105,7 +106,7 @@ export function DecisionLog({ work, items, onFocus, onClose }: { work: Work; ite
           <Section title={l.sections.reading}>
             <Lines
               lines={[
-                l.extractor(ex.model, ex.prompt_version, ex.input_mode),
+                l.extractor(t.providers[providerOf(ex.model)], ex.prompt_version, ex.input_mode),
                 l.attempts(ex.attempts, seconds, view.proposal.recorded),
                 ex.input_mode === "page-images" ? l.boxes(ocr, placed.length - ocr) : l.boxesModel,
                 prediction.warnings.length > 0
@@ -156,7 +157,7 @@ export function DecisionLog({ work, items, onFocus, onClose }: { work: Work; ite
                       l.scope(scopeWho ?? ""),
                       l.language(mapping.language),
                       mapping.model.status === "asked"
-                        ? l.modelAsked(mapping.model.provider, mapping.model.model, mapping.model.lines, mapping.model.cached)
+                        ? l.modelAsked(t.providers[providerOf(mapping.model.model)], mapping.model.lines, mapping.model.cached)
                         : mapping.model.status === "unavailable"
                           ? l.modelUnavailable(mapping.model.error)
                           : l.modelNotNeeded,

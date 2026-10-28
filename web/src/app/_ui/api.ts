@@ -15,6 +15,9 @@ import type { Candidate } from "@/lib/mapping/search";
 export type { BatchSummary, BundledInfo, Candidate, ChosenLinks, Decision, DocumentState, RecordKind, RejectReason, Technician };
 export type Provider = Batch["provider"];
 
+/** Which provider a recorded model id belongs to, so that the screens name it as t.providers does. */
+export const providerOf = (model: string): Provider => (/^gemini/i.test(model) ? "gemini" : "local");
+
 export interface SessionInfo {
   mode: "replay" | "live";
   /** Replay mode: how many times faster than measured the recorded replies come. */
