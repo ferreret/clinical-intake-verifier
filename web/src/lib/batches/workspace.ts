@@ -32,10 +32,22 @@ function fileOf(id: string): string {
   return path.join(workspacesDir(), `${id}.sqlite`);
 }
 
-const opened = new Map<string, Promise<LisDb>>();
+const KEY = Symbol.for("clinical-intake-verifier.workspaces");
+type WithWorkspaces = typeof globalThis & { [KEY]?: Map<string, Promise<LisDb>> };
+
+/**
+ * The open databases, on the global object like the queue: the queue, started with the
+ * server, and the routes load their own copies of this module, and would otherwise each
+ * keep a client to the same file, of which deleting a sandbox closed only one.
+ */
+function openedDbs(): Map<string, Promise<LisDb>> {
+  const g = globalThis as WithWorkspaces;
+  return (g[KEY] ??= new Map());
+}
 
 /** The workspace's database, created from the template the first time. */
 export function openWorkspace(id: string): Promise<LisDb> {
+  const opened = openedDbs();
   let db = opened.get(id);
   if (!db) {
     db = (async () => {
@@ -87,6 +99,7 @@ export async function listWorkspaces(): Promise<string[]> {
 /** Deletes a sandbox and everything in it: the visitor starting from scratch, or the sweep. */
 export async function deleteSandbox(id: string): Promise<void> {
   if (id === LIVE_WORKSPACE) throw new Error("the live workspace is not a sandbox");
+  const opened = openedDbs();
   const db = opened.get(id);
   opened.delete(id);
   if (db) (await db.catch(() => null))?.$client.close();
