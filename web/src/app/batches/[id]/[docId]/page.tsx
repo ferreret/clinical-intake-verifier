@@ -226,6 +226,14 @@ export default function VerifyPage() {
   const prev = at > 0 ? siblings[at - 1] : null;
   const next = at >= 0 && at < siblings.length - 1 ? siblings[at + 1] : null;
 
+  // The pages of the documents either side, fetched ahead into the browser's cache (they are
+  // immutable), so that moving to them shows the document at once.
+  const ahead = [next, prev].flatMap((s) => (s?.pages ? Array.from({ length: s.pages }, (_, i) => api.pageUrl(s.id, i + 1)) : [])).join(" ");
+  useEffect(() => {
+    if (!ahead) return;
+    for (const url of ahead.split(" ")) new Image().src = url;
+  }, [ahead]);
+
   const unresolved = items.filter((i) => checks[i.key]?.pending).length + added.filter((a) => a.codes.length === 0).length;
 
   /**

@@ -7,6 +7,7 @@
  * when the server stops: on start, documents left extracting go back to the queue.
  */
 import { appMode, concurrency, type Provider } from "./config";
+import { documentPages } from "./pages";
 import { proposeFor, readDocument } from "./pipeline";
 import { PROVIDERS } from "./schema";
 import { readBundled, readUpload } from "./sources";
@@ -72,6 +73,8 @@ export class BatchQueue {
       const { prediction, recorded } = await readDocument(pdf, doc, doc.provider);
       const { fused, tests, trace } = await proposeFor(db, prediction);
       await completeDocument(db, doc.id, { prediction, fused, tests, recorded, trace });
+      // Ready for the viewer before anyone opens it; a failure here is the viewer's to show.
+      void documentPages(`${workspace}:${doc.id}`, async () => pdf).catch(() => undefined);
     } catch (err) {
       await failDocument(db, doc.id, err instanceof Error ? err.message : String(err));
     }

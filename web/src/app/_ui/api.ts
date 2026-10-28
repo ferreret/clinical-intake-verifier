@@ -42,7 +42,8 @@ export interface ProposalView {
   codes: Record<string, string>;
   /** LIS records linked or offered as candidates, by id. */
   records: Record<string, RecordView>;
-  siblings: Pick<BatchDocument, "id" | "position" | "fileName" | "state">[];
+  /** The batch's documents in order; `pages` is null until a document is read. */
+  siblings: (Pick<BatchDocument, "id" | "position" | "fileName" | "state"> & { pages: number | null })[];
   /** The technician's decision, once the document is approved or rejected. */
   decision: Decision | null;
 }

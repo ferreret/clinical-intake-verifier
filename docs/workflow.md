@@ -104,7 +104,9 @@ session shell and the state badges.
 - **`/batches/:id/:document`, verification:** the pages on the left, the proposal on the
   right.
   - **Pages.** They are rendered on the server (`/api/documents/:id/pages/:n`, 130 dpi, the
-    last 12 documents kept), so the browser needs no PDF library. Every value read has a box:
+    last 60 documents kept), so the browser needs no PDF library. The queue renders them as
+    soon as a document is read, and the screen fetches those of the documents either side
+    ahead, so moving through a batch does not wait for them. Every value read has a box:
     - **Exact:** placed by the page's OCR, or by Gemini (99.4% at IoU 0.5).
     - **Approximate:** the local model's own boxes (15.6% where the OCR could not place the
       value), drawn dashed with a margin.

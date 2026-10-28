@@ -41,9 +41,16 @@ export interface LisFile {
 
 export type LisDb = Awaited<ReturnType<typeof openLis>>;
 
+/**
+ * How long a write waits for another connection's lock, in ms. The client keeps a pool of
+ * connections and a transaction takes one of its own, so documents completed at the same time
+ * would otherwise fail at once with SQLITE_BUSY.
+ */
+const BUSY_TIMEOUT_MS = 5000;
+
 /** Opens the LIS at a libSQL URL (`file:…` or `:memory:`) and brings its schema up to date. */
 export async function openLis(url: string) {
-  const db = drizzle(createClient({ url }), { schema });
+  const db = drizzle(createClient({ url, timeout: BUSY_TIMEOUT_MS }), { schema });
   await migrate(db, { migrationsFolder: MIGRATIONS });
   return db;
 }

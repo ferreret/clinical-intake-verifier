@@ -4,7 +4,8 @@
  * screen needs around it:
  * - `codes`: the catalog name of every code proposed or offered as a candidate;
  * - `records`: the LIS records the document is linked to or offered as candidates, as shown;
- * - `siblings`: the batch's documents in order, for moving between them;
+ * - `siblings`: the batch's documents in order, for moving between them, with the pages of
+ *   those ready, so that the screen can fetch the next one's ahead;
  * - `decision`: the technician's decision, once approved or rejected.
  */
 import { NextResponse } from "next/server";
@@ -12,7 +13,7 @@ import { NextResponse } from "next/server";
 import { getDecision } from "@/lib/batches/decide";
 import { catalogOf } from "@/lib/batches/pipeline";
 import { getSession, noSession } from "@/lib/batches/session";
-import { getBatch, getDocument, getProposal } from "@/lib/batches/store";
+import { getBatch, getDocument, getProposal, summarise } from "@/lib/batches/store";
 import { codeNames } from "@/lib/mapping/browse";
 import { fuse } from "@/lib/fusion/fuse";
 import { recordsOf } from "@/lib/lis/records";
@@ -46,7 +47,15 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const records = recordsOf(proposal.fused, lis);
 
   const batch = await getBatch(session.db, doc.batchId);
-  const siblings = (batch?.documents ?? []).map((d) => ({ id: d.id, position: d.position, fileName: d.fileName, state: d.state }));
+  const docs = batch?.documents ?? [];
+  const summaries = await summarise(session.db, docs.map((d) => d.id));
+  const siblings = docs.map((d) => ({
+    id: d.id,
+    position: d.position,
+    fileName: d.fileName,
+    state: d.state,
+    pages: summaries.get(d.id)?.pages ?? null,
+  }));
   return NextResponse.json({ document: doc, batch: batch?.batch ?? null, proposal, codes, records, siblings, decision });
 }
 
