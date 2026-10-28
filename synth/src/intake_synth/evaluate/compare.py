@@ -32,8 +32,11 @@ def _phone(value: str) -> str:
 
 
 def _person_name(value: str) -> str:
-    # "SURNAMES, NAME" and "Name Surnames" are the same person.
-    return " ".join(sorted(_casefold(value.replace(",", " ")).split()))
+    # "SURNAMES, NAME" and "Name Surnames" are the same person, and so is "SURNAMES NAME":
+    # one order turned round, which is a rotation of its words. The key is the rotation that
+    # sorts first. The words are not sorted: "Ana López García" is not "Ana García López".
+    words = _casefold(value.replace(",", " ")).split()
+    return min((" ".join(words[i:] + words[:i]) for i in range(len(words))), default="")
 
 
 _KEYS = {

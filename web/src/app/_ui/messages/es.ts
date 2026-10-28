@@ -187,7 +187,7 @@ export const es: Messages = {
       digits: "por sus dígitos",
       alnum_upper: "por sus letras y dígitos",
       phone: "como teléfonos",
-      person_name: "como nombres, en cualquier orden",
+      person_name: "como nombres, con el nombre o los apellidos delante",
     },
     compared: (mode, a, b, same) => `${mode}: «${a}» y «${b}», ${same ? "iguales" : "distintos"}.`,
     alias: "Coincide con otro nombre con el que está registrada la mutua.",

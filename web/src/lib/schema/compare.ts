@@ -29,13 +29,14 @@ const KEYS: Record<CompareMode, (value: string) => string> = {
     if (d.length === 11 && d.startsWith("34")) return d.slice(2);
     return d;
   },
-  // "SURNAMES, NAME" and "Name Surnames" are the same person.
-  person_name: (v) =>
-    casefold(v.replace(/,/g, " "))
-      .split(" ")
-      .filter(Boolean)
-      .sort()
-      .join(" "),
+  // "SURNAMES, NAME" and "Name Surnames" are the same person, and so is "SURNAMES NAME":
+  // one order turned round, which is a rotation of its words. The key is the rotation that
+  // sorts first. The words are not sorted: "Ana López García" is not "Ana García López".
+  person_name: (v) => {
+    const words = casefold(v.replace(/,/g, " ")).split(" ").filter(Boolean);
+    const rotations = words.map((_, i) => [...words.slice(i), ...words.slice(0, i)].join(" "));
+    return rotations.reduce((min, r) => (r < min ? r : min), rotations[0] ?? "");
+  },
 };
 
 export const COMPARE_MODES: readonly CompareMode[] = Object.freeze(

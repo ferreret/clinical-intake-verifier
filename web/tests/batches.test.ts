@@ -269,7 +269,7 @@ describe("the decision log", () => {
 
     const name = explainField(items.find((i) => i.key === "f:Paciente") as Extract<(typeof items)[number], { kind: "field" }>, work, en);
     expect(step(name, "records")).toEqual(["María García López holds “María García López”."]);
-    expect(step(name, "compare")[0]).toMatch(/^as names, in any order: .*the same\.$/);
+    expect(step(name, "compare")[0]).toMatch(/^as names, given name or surnames first: .*the same\.$/);
     expect(step(name, "rule")).toEqual(["The document and the lab's records agree: green."]);
 
     const glucosa = explainLine(items.find((i) => i.key === "t:0") as Extract<(typeof items)[number], { kind: "test" }>, work, en);

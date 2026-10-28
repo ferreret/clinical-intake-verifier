@@ -46,6 +46,9 @@
     { "mode": "person_name", "a": "María García López", "b": "María García Pérez", "match": false },
     { "mode": "person_name", "a": "María García", "b": "María García López", "match": false, "note": "a missing surname is a different key" },
     { "mode": "person_name", "a": "María del Carmen Ruiz", "b": "RUIZ, MARÍA DEL CARMEN", "match": true },
-    { "mode": "person_name", "a": ", ", "b": ",", "match": true, "note": "values with no words only match when identical after trimming" }
+    { "mode": "person_name", "a": ", ", "b": ",", "match": true, "note": "values with no words only match when identical after trimming" },
+    { "mode": "person_name", "a": "Ana López García", "b": "Ana García López", "match": false, "note": "swapped surnames are another person" },
+    { "mode": "person_name", "a": "LÓPEZ GARCÍA, ANA", "b": "Ana García López", "match": false, "note": "swapped surnames, surnames first" },
+    { "mode": "person_name", "a": "García Ana López", "b": "Ana García López", "match": false, "note": "the given name between the surnames is not an order forms use" }
   ]
 }

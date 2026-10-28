@@ -135,7 +135,7 @@ export const en = {
       digits: "by their digits",
       alnum_upper: "by their letters and digits",
       phone: "as phone numbers",
-      person_name: "as names, in any order",
+      person_name: "as names, given name or surnames first",
     } as Record<string, string>,
     compared: (mode: string, a: string, b: string, same: boolean) => `${mode}: “${a}” and “${b}”, ${same ? "the same" : "different"}.`,
     alias: "It agrees with another name the insurer is registered under.",
