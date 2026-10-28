@@ -1653,7 +1653,19 @@ demo's data comes from a release archive. The details are in [deploy.md](deploy.
 
 - **Form language.** The extractor does not report it, so the mapping model is told
   "Spanish" for every form. F4's measurement gave the model the right language, so the cost
-  on Catalan forms is not measured.
+  on Catalan forms is not measured. **Measured on 2026-10-28, and closed with no change:**
+  `map-simulate --language es` tells the model what the product does. On the 1,000 requests
+  of seed 42, local Qwen on red lines only, a perfect technician:
+
+  | Forms | Lines | Told their own language | Told "Spanish" |
+  |---|---|---|---|
+  | Catalan, 326 requests | 2,700 | work 36 lines (1.33%), model right 86 of 103 | work 37 lines (1.37%), model right 85 of 102 |
+  | Spanish, 674 requests | 5,629 | work 42 lines (0.75%) | the same |
+
+  One line of 2,700 more for the technician, and no wrong green either way: the model chooses
+  among catalog entries, which are in Spanish whatever the form's language, so the hint
+  barely matters. Detecting the language would not pay for itself. The caveat of F4 holds:
+  synthetic Catalan is cleaner than real forms, so this is worth measuring again on real ones.
 - **Replies the demo needs.** A sandbox starts with an empty memory, so which lines are red,
   and the mapping model's prompts, depend on the order of the visitor's approvals; a reply
   recorded for one order may not match another. F6 has to record the replies for the

@@ -6,7 +6,7 @@
  *                           [--seed 1] [--out ../data/mapping/<mapping-id>]
  *                           [--search lexical|embedding|hybrid --min-score 0.55 --min-lead 0.05]
  *                           [--model gemini|local --policy red|all]
- *                           [--fusion ../data/fusion/<fusion-id>]
+ *                           [--fusion ../data/fusion/<fusion-id>] [--language es]
  *
  * With --model, a language model chooses among the candidates of the lines the memory did
  * not settle: under policy "all" every such line (its answer replaces the search's, and none
@@ -16,7 +16,9 @@
  * Lines are read from the goldens, as a perfect extractor would read them, so the run
  * measures mapping alone. With --fusion, they are read from the predictions that fusion was
  * made of, and the insurer is the one the fusion linked: extraction, fusion and mapping end to
- * end. Each read line is set against the golden's (src/lib/mapping/align.ts); a line the
+ * end. With --language, the model is told that language for every form, as the product does
+ * (the extractor does not report it); without it, each form's own, from its golden. Each read
+ * line is set against the golden's (src/lib/mapping/align.ts); a line the
  * extractor invented is removed by the technician, and one it did not read is listed as
  * unread. Documents the extractor failed on are left out and counted. The technician approves green lines without acting, confirms an
  * orange proposal that is right and corrects one that is wrong, and chooses the codes of a
@@ -87,6 +89,7 @@ async function main(): Promise<number> {
       "min-score": { type: "string" },
       "min-lead": { type: "string" },
       fusion: { type: "string" },
+      language: { type: "string" },
     },
   });
   if (!values.dataset) {
@@ -108,7 +111,8 @@ async function main(): Promise<number> {
     minScore: values["min-score"] ? Number(values["min-score"]) : LEXICAL_SETTINGS.minScore,
     minLead: values["min-lead"] ? Number(values["min-lead"]) : LEXICAL_SETTINGS.minLead,
   };
-  const modelTag = provider ? `-${provider.name}-${policy}` : "";
+  const told = values.language ?? null;
+  const modelTag = provider ? `-${provider.name}-${policy}${told ? `-told-${told}` : ""}` : "";
   const fusionDir = values.fusion ? path.resolve(values.fusion) : null;
   const fusion = fusionDir
     ? (JSON.parse(await fs.readFile(path.join(fusionDir, "fusion.json"), "utf8")) as {
@@ -181,7 +185,7 @@ async function main(): Promise<number> {
     const approvals: { text: string; codes: string[]; kind: ApprovalKind; corrected: string[] | null }[] = [];
     const { proposals, model: sent, consultation } = await proposeDocument(
       reads.map((t) => t.text),
-      { scope, insurer, language: g.context.language ?? "es" },
+      { scope, insurer, language: told ?? g.context.language ?? "es" },
       memory,
       index,
       settings,
@@ -278,6 +282,7 @@ async function main(): Promise<number> {
           provider: provider.name,
           name: provider.model,
           policy,
+          told_language: told,
           prompt_version: MAPPING_PROMPT_VERSION,
           calls: modelStats.calls,
           cached_calls: modelStats.cached,
