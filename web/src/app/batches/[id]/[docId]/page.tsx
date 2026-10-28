@@ -31,6 +31,21 @@ import { Viewer } from "./viewer";
 /** Whether the document is this technician's to verify; otherwise why not, as the server said. */
 type Lock = { status: "mine" } | { status: "locked"; holder: string } | { status: "closed"; message: string };
 
+/** A Mac, where Option also types symbols and, in a text field, moves by words. */
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+
+/**
+ * Which of Alt+1 and Alt+2 a key is, or 0. AltGr (reported with Ctrl) and Option on a Mac type
+ * characters too, "|" and "@" on a Spanish layout, so the key's position (its code) counts only
+ * outside a text field, and AltGr never.
+ */
+function digit(e: KeyboardEvent, typing: boolean): 0 | 1 | 2 {
+  if (e.ctrlKey) return 0;
+  if (e.key === "1" || e.key === "2") return e.key === "1" ? 1 : 2;
+  if (!typing && (e.code === "Digit1" || e.code === "Digit2")) return e.code === "Digit1" ? 1 : 2;
+  return 0;
+}
+
 export default function VerifyPage() {
   const { id: batchId, docId } = useParams<{ id: string; docId: string }>();
   const router = useRouter();
@@ -349,7 +364,9 @@ export default function VerifyPage() {
   // value in a conflict, Alt+→/← next and previous document, ? the list of shortcuts.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement;
+      // A key the element in focus already acted on (the code picker's arrows) is not the page's.
+      if (e.defaultPrevented) return;
+      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
       if (e.key === "?" && !typing) {
         setHelp((h) => !h);
         return;
@@ -397,18 +414,20 @@ export default function VerifyPage() {
         e.preventDefault();
         const to = e.key === "ArrowDown" ? Math.min(items.length - 1, at + 1) : Math.max(0, at - 1);
         focusItem(items[to].key);
-      } else if ((e.key === "1" || e.key === "2" || e.code === "Digit1" || e.code === "Digit2") && !readOnly) {
+      } else if (digit(e, typing) && !readOnly) {
         const item = items[at];
         if (item.kind !== "field" || item.fused.reason !== "conflict") return;
         e.preventDefault();
-        const source = e.code === "Digit1" || e.key === "1" ? item.fused.ai : item.fused.lis;
+        const source = digit(e, typing) === 1 ? item.fused.ai : item.fused.lis;
         if (source) setField(item.key, source.value);
-      } else if (e.key === "ArrowRight" && next) {
+      } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        // On a Mac, Option+←/→ in a text field moves by words: it stays the field's.
+        if (typing && IS_MAC) return;
+        // Elsewhere Alt+←/→ is also the browser's Back and Forward, which would leave the
+        // document without releasing it: never theirs here, even with no document that way.
         e.preventDefault();
-        void leave(`/batches/${batchId}/${next.id}`);
-      } else if (e.key === "ArrowLeft" && prev) {
-        e.preventDefault();
-        void leave(`/batches/${batchId}/${prev.id}`);
+        const to = e.key === "ArrowRight" ? next : prev;
+        if (to) void leave(`/batches/${batchId}/${to.id}`);
       }
     }
     window.addEventListener("keydown", onKey);

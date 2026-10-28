@@ -157,7 +157,9 @@ session shell and the state badges.
     Ctrl+Enter approve, Alt+Z the
     lens, Esc to leave an input. All of them, grouped, in a window opened from the footer's
     "Keyboard shortcuts" button or with ? (`shortcuts.tsx`). While the reject panel, a dialog
-    or the record search is open, only the lens, the log and Esc respond.
+    or the record search is open, only the lens, the log and Esc respond. In a text field on
+    a Mac, Option+←/→ moves by words as usual; AltGr and Option never take a conflict's value
+    while typing, since they type "@" and "|".
   - **Footer:** what is left to resolve or confirm, the confirmations made, Reject, "Leave
     for later" and Approve.
 
