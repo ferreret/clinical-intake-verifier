@@ -198,14 +198,32 @@ export default function VerifyPage() {
     });
   }, []);
 
-  function setField(key: string, value: string) {
-    setValues((v) => ({ ...v, [key]: value }));
-    setTouched((t) => new Set(t).add(key));
-  }
+  // An edit undoes a confirmation: going back to the proposed value must be confirmed again,
+  // or the approval would record as checked a value the technician only typed back.
+  const unconfirm = useCallback(
+    (key: string) =>
+      setConfirmed((c) => {
+        if (!c.has(key)) return c;
+        const next = new Set(c);
+        next.delete(key);
+        return next;
+      }),
+    [],
+  );
+
+  const setField = useCallback(
+    (key: string, value: string) => {
+      setValues((v) => ({ ...v, [key]: value }));
+      setTouched((t) => new Set(t).add(key));
+      unconfirm(key);
+    },
+    [unconfirm],
+  );
 
   function chooseCodes(key: string, codes: string[] | null) {
     setChosen((c) => ({ ...c, [key]: codes }));
     setTouched((t) => new Set(t).add(key));
+    unconfirm(key);
   }
 
   function addLine() {
@@ -474,7 +492,7 @@ export default function VerifyPage() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [items, focused, readOnly, next, prev, batchId, leave, focusItem, toggleLens, checks, confirmed, toggleConfirm, canApprove, approve, goPending, rejecting, help, logOpen, searching]);
+  }, [items, focused, readOnly, next, prev, batchId, leave, focusItem, toggleLens, checks, confirmed, toggleConfirm, canApprove, approve, goPending, rejecting, help, logOpen, searching, setField]);
 
   if (error) return <p className="text-sm text-rose-700">{t.server(error)}</p>;
   if (!view) {
