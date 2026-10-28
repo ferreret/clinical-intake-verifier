@@ -1689,10 +1689,13 @@ F6 then records the replies for the bundled set, deploys on Dokploy and writes t
   approval without format checks, a broken mapping reply cached, an age losing its unit, Alt
   shortcuts while typing, a lock kept when leaving another way, model names in error
   messages, gaps in `.gitignore`, and no limits on what one visitor can take from the demo.
-  The low ones are left for later: the verification header and the shortcuts dialog at phone
-  width, the record search's height, untranslated server errors, relinking with no pending
-  state, a confirmation outliving an edit, the evaluation baseline hiding failed documents,
-  and size limits on the small JSON routes.
+  The low ones are left for later: the record search's height, untranslated server errors,
+  relinking with no pending state, a confirmation outliving an edit, the evaluation baseline
+  hiding failed documents, and size limits on the small JSON routes.
+- **A desktop application** (decided by the product owner on 2026-10-28): verifying a request
+  needs a large screen, with the document and the form side by side, so it is not made for
+  phones. The audit's findings at phone width (the verification header, the shortcuts
+  dialog) are dropped, and no later work is to aim at phone sizes.
 
 ### F6 block 4 done on 2026-10-28: CI
 
