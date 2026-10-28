@@ -370,6 +370,9 @@ export default function VerifyPage() {
         setLogOpen((o) => !o);
         return;
       }
+      // Behind the reject panel, a dialog or the record search, the page's own shortcuts do
+      // nothing: above all, Ctrl+Enter must not approve a document being rejected.
+      if (rejecting || help || logOpen || searching) return;
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
         if (canApprove) void approve();
@@ -410,7 +413,7 @@ export default function VerifyPage() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [items, focused, readOnly, next, prev, batchId, leave, focusItem, toggleLens, checks, confirmed, toggleConfirm, canApprove, approve, goPending]);
+  }, [items, focused, readOnly, next, prev, batchId, leave, focusItem, toggleLens, checks, confirmed, toggleConfirm, canApprove, approve, goPending, rejecting, help, logOpen, searching]);
 
   if (error) return <p className="text-sm text-rose-700">{error}</p>;
   if (!view) {
