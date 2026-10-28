@@ -35,7 +35,7 @@ The image sets replay mode and where its data is; a deployment only adds what it
 | `PUBLIC_URL` | The address's origin, without the path: the share image's address is made from it, and Next.js adds the path |
 | `MAX_SANDBOXES` | Optional, 500 by default: sandboxes kept at most; a new visitor beyond it takes the place of the one unused for longest. About half a megabyte each |
 | `SANDBOX_TTL_HOURS` | Optional, 24 by default: hours a sandbox lives after its last use |
-| `REPLAY_SPEED` | Optional, 10 by default: how much faster than recorded a reply comes |
+| `REPLAY_SPEED` | Optional, 20 by default: how much faster than recorded a reply comes |
 
 Set by the image, to leave alone: `APP_MODE=replay`, `APP_DATA_DIR=/app/state`,
 `DEMO_DOCUMENTS`, `REPLAY_GEMINI_RUN`, `REPLAY_LOCAL_RUN`, `LIS_TEMPLATE`, `REPLAY_MAPPING`,

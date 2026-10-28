@@ -40,7 +40,7 @@ how many stay.
 
 | | replay (default; the public demo) | live (the development machine) |
 |---|---|---|
-| Reading | The recorded prediction for the PDF's hash, from an extractor run (`REPLAY_GEMINI_RUN`, `REPLAY_LOCAL_RUN`). Served after the latency measured when it was recorded, divided by `REPLAY_SPEED` (10 by default: about 1 s for Gemini, 8 s for local Qwen). The screens say the replay is faster and show the measured latency. | `extract()`: Gemini, or the local model with OCR boxes. |
+| Reading | The recorded prediction for the PDF's hash, from an extractor run (`REPLAY_GEMINI_RUN`, `REPLAY_LOCAL_RUN`). Served after the latency measured when it was recorded, divided by `REPLAY_SPEED` (20 by default: about half a second for Gemini, 4 s for local Qwen). The screens say the replay is faster and show the measured latency. | `extract()`: Gemini, or the local model with OCR boxes. |
 | Mapping model | Recorded replies, per line (`REPLAY_MAPPING`, `npm run record-mapping`): the model was asked about every line of each demo document, so whichever lines are red find their answer. A line not recorded stays red, and the decision log says why. | `MAPPING_MODEL_PROVIDER`, cached by request (`MAPPING_MODEL_CACHE`). |
 | Documents | The bundled synthetic set (`DEMO_DOCUMENTS`) that has a recording for the provider. | The bundled set, and uploaded PDFs; one batch may mix them. |
 | Workspaces | A sandbox per visitor, deleted `SANDBOX_TTL_HOURS` after its last use, or when the visitor chooses "Start from scratch" on the entry page (`DELETE /api/session`). | One workspace, `live`. |

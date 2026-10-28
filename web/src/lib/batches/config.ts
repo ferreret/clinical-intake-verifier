@@ -59,12 +59,12 @@ export function replayRun(provider: Provider): string {
 }
 
 /**
- * How much faster than recorded a replayed reply comes: 1 is the measured latency. Ten times
- * by default, so a demo batch does not take minutes, even read by the local model (product
- * owner, 2026-10-27, doubled on 2026-10-28); the measured latency is still what each
- * document shows.
+ * How much faster than recorded a replayed reply comes: 1 is the measured latency. Twenty
+ * times by default, so a demo batch does not take minutes, even read by the local model
+ * (product owner, 2026-10-27; doubled twice on 2026-10-28); the measured latency is still
+ * what each document shows.
  */
-export const DEFAULT_REPLAY_SPEED = 10;
+export const DEFAULT_REPLAY_SPEED = 20;
 
 export function replaySpeed(): number {
   const n = Number(process.env.REPLAY_SPEED ?? DEFAULT_REPLAY_SPEED);
