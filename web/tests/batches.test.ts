@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { createClient } from "@libsql/client";
 import { eq } from "drizzle-orm";
 import { PDFDocument } from "pdf-lib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -158,6 +159,19 @@ describe("workspaces", () => {
     await createBatch(await openWorkspace(one), { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
     expect(await listBatches(await openWorkspace(one))).toHaveLength(1);
     expect(await listBatches(await openWorkspace(two))).toHaveLength(0);
+  });
+
+  it("lets the server write while another process reads the workspace", async () => {
+    const id = await createSandbox();
+    const db = await openWorkspace(id);
+    const other = createClient({ url: `file:${path.join(root, "data", "workspaces", `${id}.sqlite`)}` });
+    const reading = await other.transaction("read");
+    await reading.execute("select count(*) from batches");
+    const started = Date.now();
+    await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    expect(Date.now() - started).toBeLessThan(1000);
+    await reading.rollback();
+    other.close();
   });
 
   it("keeps at most MAX_SANDBOXES, a new one taking the place of the one unused for longest", async () => {

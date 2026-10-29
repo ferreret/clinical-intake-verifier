@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { createClient } from "@libsql/client";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -115,6 +116,54 @@ describe("mock LIS", () => {
     expect(phones).toEqual([
       ["P00000", "600000002"],
       ["P00001", "600000003"],
+    ]);
+  });
+
+  it("keeps what is written after another process's lock made a write fail", async () => {
+    // The driver leaves the failed write in progress on its connection, and what was written
+    // on that connection afterwards was never saved: a document marked failed stayed reading.
+    const url = `file:${path.join(dir, "lis.sqlite")}`;
+    db.$client.close();
+    db = await openLis(url, { busyTimeoutMs: 50 });
+    const other = createClient({ url });
+    const lock = await other.transaction("write");
+    await expect(db.update(patients).set({ phone: "600000001" }).where(eq(patients.id, "P00000"))).rejects.toMatchObject({
+      cause: { code: "SQLITE_BUSY" },
+    });
+    await lock.rollback();
+    await db.update(patients).set({ phone: "600000002" }).where(eq(patients.id, "P00001"));
+    await db.transaction(async (tx) => {
+      await tx.update(patients).set({ phone: "600000003" }).where(eq(patients.id, "P00000"));
+    });
+    const saved = await other.execute("select id, phone from patients order by id");
+    other.close();
+    expect(saved.rows.map((r) => [r.id, r.phone])).toEqual([
+      ["P00000", "600000003"],
+      ["P00001", "600000002"],
+    ]);
+  });
+
+  it("keeps what is written after a commit failed on another process's read", async () => {
+    const url = `file:${path.join(dir, "lis.sqlite")}`;
+    db.$client.close();
+    db = await openLis(url, { busyTimeoutMs: 50 });
+    const other = createClient({ url });
+    let reading: Awaited<ReturnType<typeof other.transaction>> | undefined;
+    await expect(
+      db.transaction(async (tx) => {
+        await tx.update(patients).set({ phone: "600000001" }).where(eq(patients.id, "P00000"));
+        // Someone reads the file before the commit, which then cannot take the file for itself.
+        reading = await other.transaction("read");
+        await reading.execute("select count(*) from patients");
+      }),
+    ).rejects.toThrow(/SQLITE_BUSY/);
+    await reading!.rollback();
+    await db.update(patients).set({ phone: "600000002" }).where(eq(patients.id, "P00001"));
+    const saved = await other.execute("select id, phone from patients order by id");
+    other.close();
+    expect(saved.rows.map((r) => [r.id, r.phone])).toEqual([
+      ["P00000", "600111222"],
+      ["P00001", "600000002"],
     ]);
   });
 

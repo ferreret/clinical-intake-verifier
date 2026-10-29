@@ -11,6 +11,8 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { sql } from "drizzle-orm";
+
 import { openLis, type LisDb } from "@/lib/lis/db";
 
 import { dataDir, maxSandboxes, sandboxIdleMinutes, sandboxTtlHours, templateDb } from "./config";
@@ -56,7 +58,12 @@ export function openWorkspace(id: string): Promise<LisDb> {
       await fs.copyFile(templateDb(), file, fs.constants.COPYFILE_EXCL).catch((err: NodeJS.ErrnoException) => {
         if (err.code !== "EEXIST") throw err;
       });
-      return openLis(`file:${file}`);
+      const lis = await openLis(`file:${file}`);
+      // Readers and the writer no longer wait for each other, also across processes: someone
+      // reading the file no longer holds up the server's writes. The template stays as it is,
+      // so that copying it never leaves behind what a -wal file still holds.
+      await lis.run(sql`PRAGMA journal_mode = WAL`);
+      return lis;
     })();
     db.catch(() => opened.delete(id));
     opened.set(id, db);
