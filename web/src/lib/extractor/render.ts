@@ -45,7 +45,9 @@ export async function renderPages(pdf: Uint8Array, dpi = DEFAULT_DPI): Promise<U
         canvasContext: context as unknown as CanvasRenderingContext2D,
         viewport,
       }).promise;
-      images.push(new Uint8Array(canvas.toBuffer("image/png")));
+      // Encoded off the main thread: toBuffer's encoding, synchronous, was most of the CPU a
+      // page took, with every other request of the server waiting meanwhile.
+      images.push(new Uint8Array(await canvas.encode("png")));
       page.cleanup();
     }
     return images;

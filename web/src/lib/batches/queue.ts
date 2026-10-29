@@ -9,7 +9,7 @@
 import type { LisDb } from "@/lib/lis/db";
 
 import { appMode, concurrency, type Provider } from "./config";
-import { documentPages } from "./pages";
+import { documentPages, RENDERED_AHEAD } from "./pages";
 import { proposeFor, readDocument } from "./pipeline";
 import { PROVIDERS } from "./schema";
 import { readBundled, readUpload } from "./sources";
@@ -97,8 +97,10 @@ export class BatchQueue {
       const { prediction, recorded } = await readDocument(pdf, doc, doc.provider);
       const { fused, tests, trace } = await proposeFor(db, prediction);
       await completeDocument(db, doc.id, { prediction, fused, tests, recorded, trace });
-      // Ready for the viewer before anyone opens it; a failure here is the viewer's to show.
-      void documentPages(`${workspace}:${doc.id}`, async () => pdf).catch(() => undefined);
+      // The first documents of a batch, ready for the viewer before anyone opens them; a
+      // failure here is the viewer's to show. Rendering every one read wasted most of the CPU
+      // while batches were read: the cache keeps 60, and few are opened before they are gone.
+      if (doc.position <= RENDERED_AHEAD) void documentPages(`${workspace}:${doc.id}`, async () => pdf).catch(() => undefined);
     } catch (err) {
       await this.fail(workspace, db, doc.id, err instanceof Error ? err.message : String(err));
     }
