@@ -365,6 +365,7 @@ export const es: Messages = {
     readOnly: (message) => `${message}. Se muestra en solo lectura.`,
     lockedBy: (holder) => `${holder} está verificando este documento`,
     closed: (message) => server(message),
+    notReserved: (message) => `No se ha podido reservar el documento para ti (${message}); se vuelve a intentar`,
     takeOver: (name) => `Tomar el relevo como ${name}`,
     records: "Los registros del laboratorio",
     fieldsTitle: (n) => `Campos · ${n}`,

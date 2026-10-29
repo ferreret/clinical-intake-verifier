@@ -295,6 +295,7 @@ export const en = {
     readOnly: (message: string) => `${message}. Shown read-only.`,
     lockedBy: (holder: string) => `${holder} is verifying this document`,
     closed: (message: string) => message,
+    notReserved: (message: string) => `The document could not be reserved for you (${message}); trying again`,
     takeOver: (name: string) => `Take it over as ${name}`,
     records: "The lab's records",
     fieldsTitle: (n: number) => `Fields · ${n}`,

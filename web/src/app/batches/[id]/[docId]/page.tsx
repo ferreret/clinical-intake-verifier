@@ -18,8 +18,10 @@ import { TESTS } from "@/lib/schema/fields";
 
 import { ApiError, api, providerOf, type ChosenLinks, type Decision, type ProposalView, type RecordKind, type RejectReason } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
+import { LoadError, passing } from "../../../_ui/load-error";
+import { usePolling } from "../../../_ui/polling";
 import { ArrowLeft, ArrowRight, Check as CheckIcon, FileText, Keyboard, List as ListIcon, Lock as LockIcon } from "../../../_ui/icons";
-import { useSession } from "../../../_ui/session";
+import { BackLink, useSession } from "../../../_ui/session";
 import { StateBadge } from "../../../_ui/states";
 import { Fields, Links } from "./fields";
 import { explainField, explainLine, type Work } from "./explain";
@@ -32,7 +34,12 @@ import { Tests, type AddedLine, type Chosen } from "./tests";
 import { Viewer } from "./viewer";
 
 /** Whether the document is this technician's to verify; otherwise why not, as the server said. */
-type Lock = { status: "mine" } | { status: "locked"; holder: string } | { status: "closed"; message: string };
+type Lock =
+  | { status: "mine" }
+  | { status: "locked"; holder: string }
+  | { status: "closed"; message: string }
+  // The server could not be asked (no reply, a failure that passes): tried again, not a refusal.
+  | { status: "unsure"; message: string; takeOver: boolean };
 
 /** A Mac, where Option also types symbols and, in a text field, moves by words. */
 const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -57,7 +64,9 @@ export default function VerifyPage() {
   const m = t.verify;
   const [view, setView] = useState<ProposalView | null>(null);
   const [lock, setLock] = useState<Lock | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<Error | null>(null);
+  // Bumped to load the document again: after a failed load, or a reply lost on the way.
+  const [attempt, setAttempt] = useState(0);
   const [values, setValues] = useState<Record<string, string>>({});
   const [chosen, setChosen] = useState<Chosen>({});
   const [added, setAdded] = useState<AddedLine[]>([]);
@@ -102,7 +111,7 @@ export default function VerifyPage() {
   const pendingFocus = useRef<string | null>(null);
 
   const open = useCallback(
-    (takeOver = false) => api.open(docId, takeOver).then(() => ({ status: "mine" }) as Lock, lockedBy),
+    (takeOver = false) => api.open(docId, takeOver).then(() => ({ status: "mine" }) as Lock, (e) => lockedBy(e, takeOver)),
     [docId],
   );
 
@@ -112,7 +121,10 @@ export default function VerifyPage() {
   const holding = lock?.status === "mine" && !view?.decision;
   useEffect(() => {
     if (!holding) return;
-    const timer = window.setInterval(() => void open().then(setLock), LOCK_RENEW_MINUTES * 60 * 1000);
+    // A renewal that could not reach the server keeps the lock as it is: it lasts LOCK_MINUTES,
+    // and the next renewal comes well before.
+    const renew = () => void open().then((l) => l.status !== "unsure" && setLock(l));
+    const timer = window.setInterval(renew, LOCK_RENEW_MINUTES * 60 * 1000);
     return () => window.clearInterval(timer);
   }, [holding, open]);
 
@@ -158,14 +170,20 @@ export default function VerifyPage() {
         setWhy(null);
         setLogOpen(false);
         setFocused(items[0]?.key ?? null);
+        setLoadError(null);
+        // Locked only once there is something to verify: a page that shows only an error held
+        // the document from everyone else. A decided document is not locked again.
+        if (!v.decision) open().then((l) => current && setLock(l));
       },
-      (e: Error) => current && setError(e.message),
+      (e: Error) => current && setLoadError(e),
     );
-    open().then((l) => current && setLock(l));
     return () => {
       current = false;
     };
-  }, [docId, open]);
+  }, [docId, open, attempt]);
+  // While a failure passes, the document is loaded again, and the lock asked for again.
+  usePolling(() => setAttempt((a) => a + 1), !view && passing(loadError));
+  usePolling(() => void open(lock?.status === "unsure" && lock.takeOver).then(setLock), lock?.status === "unsure");
 
   const items = useMemo(() => (view ? itemsOf(view) : []), [view]);
   const lights = useMemo(
@@ -323,6 +341,27 @@ export default function VerifyPage() {
     [router, batchId],
   );
 
+  /**
+   * After an approval or a rejection that failed without the server's reason, or because the
+   * document is no longer the technician's: the reply may have been lost after the decision
+   * was recorded, or someone may have taken the document over. The page asks, and shows the
+   * decision if there is one, or who has the document now, keeping the work on screen.
+   */
+  const lostOrTaken = useCallback(
+    async (err: ApiError) => {
+      if (!passing(err) && err.status !== 409) return;
+      const now = await api.proposal(docId).catch(() => null);
+      if (now?.decision) {
+        setView((v) => (v ? { ...v, decision: now.decision, document: now.document } : now));
+        setProblems(null);
+        setLock(null);
+      } else if (err.status === 409) {
+        setLock(await open());
+      }
+    },
+    [docId, open],
+  );
+
   const approve = useCallback(async () => {
     if (!view) return;
     setBusy("approving");
@@ -340,8 +379,9 @@ export default function VerifyPage() {
       const err = e as ApiError;
       setProblems(Array.isArray(err.body?.problems) ? (err.body.problems as string[]) : [err.message]);
       setBusy(null);
+      await lostOrTaken(err);
     }
-  }, [view, docId, items, values, chosen, added, confirmed, chosenLinks, goOn]);
+  }, [view, docId, items, values, chosen, added, confirmed, chosenLinks, goOn, lostOrTaken]);
 
   /**
    * Links the document to a record the technician found (id), to none (null), or back to what
@@ -384,6 +424,7 @@ export default function VerifyPage() {
     } catch (e) {
       setProblems([(e as Error).message]);
       setBusy(null);
+      await lostOrTaken(e as ApiError);
     }
   }
 
@@ -512,7 +553,14 @@ export default function VerifyPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [items, focused, readOnly, next, prev, batchId, leave, focusItem, toggleLens, checks, confirmed, toggleConfirm, canApprove, approve, goPending, rejecting, help, logOpen, searching, setField]);
 
-  if (error) return <p className="text-sm text-rose-700">{t.server(error)}</p>;
+  if (loadError && !view) {
+    return (
+      <div className="space-y-4">
+        <BackLink href={`/batches/${batchId}`}>{t.common.batches}</BackLink>
+        <LoadError error={loadError} onRetry={() => setAttempt((a) => a + 1)} />
+      </div>
+    );
+  }
   if (!view) {
     return (
       <div className="grid h-[calc(100vh-6rem)] gap-4 lg:grid-cols-2">
@@ -592,8 +640,19 @@ export default function VerifyPage() {
             <div className="mt-2 flex flex-wrap items-center gap-3 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-900 ring-1 ring-amber-300">
               <LockIcon className="size-4 shrink-0" />
               <span className="min-w-0 flex-1 font-medium">
-                {m.readOnly(lock.status === "locked" ? m.lockedBy(technicians.find((p) => p.id === lock.holder)?.name ?? lock.holder) : m.closed(lock.message))}
+                {lock.status === "unsure"
+                  ? m.notReserved(t.server(lock.message))
+                  : m.readOnly(lock.status === "locked" ? m.lockedBy(technicians.find((p) => p.id === lock.holder)?.name ?? lock.holder) : m.closed(lock.message))}
               </span>
+              {lock.status === "unsure" && (
+                <button
+                  type="button"
+                  onClick={() => open(lock.takeOver).then(setLock)}
+                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-amber-900 ring-1 ring-amber-400 transition hover:bg-amber-100"
+                >
+                  {t.common.tryAgain}
+                </button>
+              )}
               {lock.status === "locked" && (
                 <button
                   type="button"
@@ -820,11 +879,11 @@ export default function VerifyPage() {
 }
 
 /** Why a document could not be opened for verification: another technician has it, or it is done. */
-function lockedBy(e: unknown): Lock {
+function lockedBy(e: unknown, takeOver: boolean): Lock {
   const err = e as ApiError;
-  return err.status === 409 && typeof err.body.lockedBy === "string"
-    ? { status: "locked", holder: err.body.lockedBy }
-    : { status: "closed", message: err.message };
+  if (err.status === 409 && typeof err.body.lockedBy === "string") return { status: "locked", holder: err.body.lockedBy };
+  if (passing(err)) return { status: "unsure", message: err.message, takeOver };
+  return { status: "closed", message: err.message };
 }
 
 /** One of the arrows that move between the items still to resolve or confirm. */
