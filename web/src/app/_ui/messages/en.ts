@@ -26,6 +26,8 @@ export const en = {
     liveLong: "Live · models called now",
     remove: "Remove",
     documents: (n: number) => plural(n, "document"),
+    retrying: "trying again by itself",
+    tryAgain: "Try again",
   },
 
   states: {

@@ -13,6 +13,7 @@ import { useI18n } from "../../_ui/i18n";
 import { Avatar } from "../../_ui/avatar";
 import { DeleteBatchDialog } from "../../_ui/delete-batch";
 import { ArrowRight, Clock, Cloud, Cpu, FileText, Retry, Trash, Upload } from "../../_ui/icons";
+import { LoadError, passing } from "../../_ui/load-error";
 import { usePolling } from "../../_ui/polling";
 import { BackLink, PageHeader, useSession } from "../../_ui/session";
 import { BAR_ORDER, LightCounts, StateBadge, StatesBar, StatesLegend } from "../../_ui/states";
@@ -22,16 +23,26 @@ export default function BatchPage() {
   const { technicians, replaySpeed } = useSession();
   const [detail, setDetail] = useState<BatchDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The last refresh's failure, cleared by the next one that works.
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
   const { t } = useI18n();
   const m = t.batch;
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
 
-  const load = () => api.batch(id).then(setDetail, (e: Error) => setError(e.message));
+  const load = () =>
+    api.batch(id).then(
+      (d) => {
+        setDetail(d);
+        setLoadError(null);
+      },
+      (e: Error) => setLoadError(e),
+    );
   useEffect(() => void load(), [id]); // eslint-disable-line react-hooks/exhaustive-deps
   const moving = detail?.documents.some((d) => ACTIVE_STATES.includes(d.state)) ?? false;
-  usePolling(load, moving);
+  // While a failure passes (no reply, a server starting again), the page keeps trying.
+  usePolling(load, moving || passing(loadError));
 
   async function retry(documentId: string) {
     setRetrying(documentId);
@@ -45,7 +56,14 @@ export default function BatchPage() {
     }
   }
 
-  if (error && !detail) return <p className="text-sm text-rose-700">{t.server(error)}</p>;
+  if (loadError && !detail) {
+    return (
+      <div className="space-y-4">
+        <BackLink href="/batches">{t.common.batches}</BackLink>
+        <LoadError error={loadError} onRetry={() => void load()} />
+      </div>
+    );
+  }
   if (!detail) {
     return (
       <div className="space-y-4">
@@ -123,6 +141,11 @@ export default function BatchPage() {
       </section>
 
       {error && <p className="mb-4 text-sm text-rose-700">{t.server(error)}</p>}
+      {loadError && (
+        <div className="mb-4">
+          <LoadError error={loadError} />
+        </div>
+      )}
 
       <section className="card overflow-hidden">
         <div className="overflow-x-auto">

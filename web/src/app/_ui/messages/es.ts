@@ -104,6 +104,8 @@ export const es: Messages = {
     liveLong: "En vivo · se llama a los modelos ahora",
     remove: "Quitar",
     documents: (n) => plural(n, "documento"),
+    retrying: "se vuelve a intentar sola",
+    tryAgain: "Reintentar",
   },
 
   states: {

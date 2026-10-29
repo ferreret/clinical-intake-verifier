@@ -11,21 +11,30 @@ import { ACTIVE_STATES, api, type BatchSummary, type DocumentState } from "../_u
 import { DeleteBatchDialog } from "../_ui/delete-batch";
 import { useI18n } from "../_ui/i18n";
 import { ArrowRight, Cloud, Cpu, Plus, Trash } from "../_ui/icons";
+import { LoadError, passing } from "../_ui/load-error";
 import { usePolling } from "../_ui/polling";
 import { PageHeader } from "../_ui/session";
 import { BAR_ORDER, StatesBar, StatesLegend } from "../_ui/states";
 
 export default function BatchesPage() {
   const [batches, setBatches] = useState<BatchSummary[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Error | null>(null);
   const { t } = useI18n();
   // The batch to delete, or "all".
   const [deleting, setDeleting] = useState<BatchSummary | "all" | null>(null);
   const moving = batches?.some((b) => ACTIVE_STATES.some((s) => b.states[s] > 0)) ?? false;
 
-  const load = () => api.batches().then((r) => setBatches(r.batches), (e: Error) => setError(e.message));
+  const load = () =>
+    api.batches().then(
+      (r) => {
+        setBatches(r.batches);
+        setError(null);
+      },
+      (e: Error) => setError(e),
+    );
   useEffect(() => void load(), []);
-  usePolling(load, moving);
+  // While a failure passes (no reply, a server starting again), the page keeps trying.
+  usePolling(load, moving || passing(error));
 
   const total = (s: DocumentState) => batches?.reduce((a, b) => a + b.states[s], 0) ?? 0;
   const allStates = Object.fromEntries(BAR_ORDER.map((s) => [s, total(s)])) as Record<DocumentState, number>;
@@ -74,7 +83,7 @@ export default function BatchesPage() {
         </div>
       )}
 
-      {error && <p className="text-sm text-rose-700">{t.server(error)}</p>}
+      {error && <LoadError error={error} onRetry={batches === null ? () => void load() : undefined} />}
       {batches === null && !error && <div className="card h-28 animate-pulse" />}
 
       {batches?.length === 0 && (
