@@ -19,6 +19,7 @@ import { TESTS } from "@/lib/schema/fields";
 import { ApiError, api, providerOf, type ChosenLinks, type Decision, type ProposalView, type RecordKind, type RejectReason } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
 import { LoadError, passing } from "../../../_ui/load-error";
+import { notify } from "../../../_ui/notice";
 import { usePolling } from "../../../_ui/polling";
 import { ArrowLeft, ArrowRight, Check as CheckIcon, FileText, Keyboard, List as ListIcon, Lock as LockIcon } from "../../../_ui/icons";
 import { BackLink, useSession } from "../../../_ui/session";
@@ -290,8 +291,11 @@ export default function VerifyPage() {
 
   const siblings = view?.siblings ?? [];
   const at = siblings.findIndex((s) => s.id === docId);
-  const prev = at > 0 ? siblings[at - 1] : null;
-  const next = at >= 0 && at < siblings.length - 1 ? siblings[at + 1] : null;
+  // The nearest documents either side that can be opened: one queued, being read or failed has
+  // no proposal yet, and moving to it showed only an error.
+  const openable = (s: (typeof siblings)[number]) => s.state !== "queued" && s.state !== "extracting" && s.state !== "failed";
+  const prev = at > 0 ? (siblings.slice(0, at).reverse().find(openable) ?? null) : null;
+  const next = at >= 0 ? (siblings.slice(at + 1).find(openable) ?? null) : null;
 
   // The pages of the documents either side, fetched ahead into the browser's cache (they are
   // immutable), so that moving to them shows the document at once.
@@ -376,6 +380,7 @@ export default function VerifyPage() {
         confirmed: [...confirmed],
         links: chosenLinks,
       });
+      notify(m.approvedNotice(view.document.fileName));
       goOn(r.next);
     } catch (e) {
       const err = e as ApiError;
@@ -383,7 +388,7 @@ export default function VerifyPage() {
       setBusy(null);
       await lostOrTaken(err);
     }
-  }, [view, docId, items, values, chosen, added, confirmed, chosenLinks, goOn, lostOrTaken]);
+  }, [view, docId, items, values, chosen, added, confirmed, chosenLinks, goOn, lostOrTaken, m]);
 
   /**
    * Links the document to a record the technician found (id), to none (null), or back to what
@@ -422,6 +427,7 @@ export default function VerifyPage() {
     setProblems(null);
     try {
       const r = await api.reject(docId, reason, note);
+      if (view) notify(m.rejectedNotice(view.document.fileName));
       goOn(r.next);
     } catch (e) {
       setProblems([(e as Error).message]);

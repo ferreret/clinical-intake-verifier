@@ -71,6 +71,7 @@ export function DeleteBatchDialog({
               <p>{batch ? m.documents(total) : m.documentsAll(total)}</p>
               {states.approved + states.rejected > 0 && <p>{m.decided(states.approved, states.rejected)}</p>}
               {states.approved > 0 && <p className="text-xs text-slate-500">{m.memory}</p>}
+              {states.in_verification > 0 && <p className="font-medium text-amber-800">{m.inVerification(states.in_verification)}</p>}
               {reading && <p className="font-medium text-amber-800">{m.reading}</p>}
               {!batch && readingBatches > 0 && <p className="font-medium text-amber-800">{m.readingAll(readingBatches)}</p>}
               {error && <p className="text-rose-700">{t.server(error)}</p>}

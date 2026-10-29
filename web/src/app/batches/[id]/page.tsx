@@ -83,7 +83,8 @@ export default function BatchPage() {
   const read = documents.filter((d) => d.summary);
   const meanSeconds = read.length ? read.reduce((a, d) => a + d.summary!.latencyMs, 0) / read.length / 1000 : null;
   const seconds = (s: number) => `${s.toLocaleString(t.locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
-  const done = documents.length - states.queued - states.extracting;
+  // Read: those that came through; a failed one is counted apart, not as read.
+  const done = documents.length - states.queued - states.extracting - states.failed;
 
   return (
     <>
@@ -120,7 +121,7 @@ export default function BatchPage() {
               {moving ? m.reading : states.awaiting_verification > 0 ? m.ready : m.progress}
             </div>
             <div className="mt-0.5 text-xs text-slate-500">
-              {m.read(done, documents.length)}
+              {m.read(done, documents.length, states.failed)}
             </div>
           </div>
           <dl className="flex gap-8 text-right">

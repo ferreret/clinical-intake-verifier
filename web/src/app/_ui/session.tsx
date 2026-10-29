@@ -13,6 +13,7 @@ import { actAs, api, NO_SESSION_EVENT, type SessionInfo, type Technician } from 
 import { Avatar } from "./avatar";
 import { LanguageSwitch, useI18n } from "./i18n";
 import { LoadError, passing } from "./load-error";
+import { Notices } from "./notice";
 import { usePolling } from "./polling";
 import { Logo } from "./icons";
 
@@ -64,6 +65,7 @@ export function SessionShell({ children }: { children: ReactNode }) {
     <SessionContext.Provider value={{ ...session, technician: session.technician }}>
       <Header session={session} technician={session.technician} wide={wide} />
       <main className={wide ? "px-4 py-4 sm:px-6" : "mx-auto max-w-6xl px-4 py-8 sm:px-6"}>{children}</main>
+      <Notices />
     </SessionContext.Provider>
   );
 }
