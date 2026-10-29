@@ -1721,3 +1721,40 @@ F6 then records the replies for the bundled set, deploys on Dokploy and writes t
 The readings themselves are not re-made: that needs the models, a key and a GPU. What CI
 re-runs on them is the code that judges them, the extractor's boundary, the compare modes and
 the fusion engine, which is what changes from commit to commit.
+
+### 2026-10-29: the SQLITE_BUSY incident, and an audit that ran the app
+
+A visitor of a live demo read a batch of 6 documents: one failed with `SQLITE_BUSY: database
+is locked`, the batch page showed a bare "HTTP 500" and the server stopped answering for some
+seconds. The audit of 2026-10-28 had read the code and missed it, and no test read more than
+one document at once. A second audit of the whole repository followed, in five parts
+(concurrency and data, the API and its security, the product's claim, operations and
+compliance, the UI when things fail), each finding to be reproduced on a running production
+build. Its findings were fixed one commit each, from `9ab8efe` to `d4874b4`, and the demos
+redeployed with the first four parts' fixes (`779ac05`):
+
+- **The database.** The client now takes turns within the process, a transaction holding the
+  database until it ends (`9ab8efe`). The driver (libsql 0.5) leaves a write that failed with
+  SQLITE_BUSY in progress, and what was written after it on the same connection was lost
+  without an error, which is what left documents "being read" for good: the left-over
+  statement is now finished at once (`7e35601`). Sandboxes use WAL.
+- **The claim.** Links of the wrong kind or to no record, a request with no tests, a tab
+  approving as a technician other than the one it shows, an empty red field confirmed, a key
+  held down confirming everything, a request number registered twice: all refused.
+  Each approved field keeps its provenance in the decision.
+- **Availability.** Page rendering off the main thread's way, one catalog index shared by
+  every sandbox (9.6 MB a sandbox down to 1.3), a fair queue, limits per client and per
+  sandbox, and Cloudflare's address used behind it. Four visitors reading 50 documents each:
+  89 s down to 29, a bystander's worst wait 2.8 s down to 132 ms.
+- **The UI when something fails.** No SQL or paths shown, failures in words, pages that
+  recover by themselves, lost replies and takeovers handled without losing the work.
+- **The rest.** Races, sandboxes that came back after being deleted, CSRF and security
+  headers, live uploads, a healthcheck and a pinned base image, pillow 13.
+- **CI** now runs the app as its container does, under the incident's load
+  (`.github/load/check.py`): on the code of before the incident it fails (an HTTP 500, a 30 s
+  wait, 20 SQLITE_BUSY), and it passes now.
+
+Not done, as product decisions to take: a request kept linked to its patient after the
+technician changes that patient's identity; lines not mapped again when the insurer changes;
+a namesake offered another person's identity document; batches with approvals that any
+technician can delete; one-key confirmations counted as active approvals in the memory.
