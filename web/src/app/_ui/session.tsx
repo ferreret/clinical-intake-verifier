@@ -9,9 +9,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
-import { actAs, api, type SessionInfo, type Technician } from "./api";
+import { actAs, api, NO_SESSION_EVENT, type SessionInfo, type Technician } from "./api";
 import { Avatar } from "./avatar";
 import { LanguageSwitch, useI18n } from "./i18n";
+import { LoadError, passing } from "./load-error";
+import { usePolling } from "./polling";
 import { Logo } from "./icons";
 
 const SessionContext = createContext<(SessionInfo & { technician: Technician }) | null>(null);
@@ -25,21 +27,36 @@ export function useSession() {
 export function SessionShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [session, setSession] = useState<SessionInfo | null>(null);
+  const [failed, setFailed] = useState<Error | null>(null);
   // Pages are kept to a reading width, except the verification screen, which needs the room.
   const wide = /^\/batches\/[^/]+\/[^/]+/.test(usePathname() ?? "");
 
+  const load = () =>
+    api.session().then(
+      (s) => {
+        actAs(s.technician?.id ?? null);
+        setFailed(null);
+        if (!s.technician) router.replace("/");
+        else setSession(s);
+      },
+      (e: Error) => setFailed(e),
+    );
+  useEffect(() => void load(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Until the session is known, a failure that passes is tried again.
+  usePolling(load, !session && passing(failed));
+  // A call that finds no session (the sandbox expired, another tab started over) goes back
+  // to the technician picker, which says how to go on.
   useEffect(() => {
-    api.session().then((s) => {
-      actAs(s.technician?.id ?? null);
-      if (!s.technician) router.replace("/");
-      else setSession(s);
-    });
+    const back = () => router.replace("/");
+    window.addEventListener(NO_SESSION_EVENT, back);
+    return () => window.removeEventListener(NO_SESSION_EVENT, back);
   }, [router]);
 
   if (!session?.technician) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Logo className="size-10 animate-pulse" />
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4">
+        <Logo className={`size-10 ${failed ? "" : "animate-pulse"}`} />
+        {failed && <LoadError error={failed} onRetry={() => void load()} />}
       </div>
     );
   }

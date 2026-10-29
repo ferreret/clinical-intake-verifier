@@ -91,6 +91,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Sent on window when a call finds no session: the sandbox expired, or another tab started over. */
+export const NO_SESSION_EVENT = "civ:no-session";
+
 /** The technician this page shows, sent with every call but the session's own (technicians.ts). */
 let actingAs: string | null = null;
 
@@ -114,6 +117,7 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
     throw new ApiError(0, NO_ANSWER);
   }
   const body = (await res.json().catch(() => ({}))) as T & { error?: string };
+  if (res.status === 401 && url !== "/api/session" && typeof window !== "undefined") window.dispatchEvent(new Event(NO_SESSION_EVENT));
   if (!res.ok) {
     const fallback = res.status >= 502 && res.status <= 504 ? NO_ANSWER : res.status >= 500 ? FAILED : `HTTP ${res.status}`;
     throw new ApiError(res.status, hideModels(body.error ?? fallback), body as Record<string, unknown>);
