@@ -96,8 +96,11 @@ export function checkOf(item: Item, view: ProposalView, value: string | undefine
     // A value out of its field's form (a date that does not exist, a sex other than H/M/U) has
     // to be changed: it cannot be confirmed as it is.
     const valid = inForm(item.spec, v);
-    const confirmable = valid && needsCheck(item.fused.state) && v === (item.fused.value ?? "").trim();
-    return { pending: (item.spec.required && !v) || !valid || (confirmable && !confirmed), confirmable };
+    const asProposed = needsCheck(item.fused.state) && v === (item.fused.value ?? "").trim();
+    // An empty value is nothing to confirm: a red field with none (its sources disagree) is
+    // settled by choosing one of them or typing one.
+    const confirmable = valid && asProposed && v !== "";
+    return { pending: (item.spec.required && !v) || !valid || (asProposed && v === "") || (confirmable && !confirmed), confirmable };
   }
   if (codes === null) return { pending: false, confirmable: false };
   const m = view.proposal.tests[item.index].mapping;

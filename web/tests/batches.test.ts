@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fuse } from "@/lib/fusion/fuse";
 import { chosenLink } from "@/lib/fusion/link";
 import { readSnapshot } from "@/lib/lis/snapshot";
-import { approveDocument, getDecision, rejectDocument, type ApprovalInput } from "@/lib/batches/decide";
+import { approveDocument, checkApproval, getDecision, rejectDocument, type ApprovalInput } from "@/lib/batches/decide";
 import { BatchQueue } from "@/lib/batches/queue";
 import { deleteAllBatches, deleteBatch } from "@/lib/batches/remove";
 import { batchDocuments } from "@/lib/batches/schema";
@@ -38,7 +38,7 @@ import { FIELD_NAMES, FIELDS } from "@/lib/schema/fields";
 
 import { en } from "@/app/_ui/messages/en";
 import { explainField, explainLine } from "@/app/batches/[id]/[docId]/explain";
-import { itemsOf } from "@/app/batches/[id]/[docId]/model";
+import { checkOf, itemsOf } from "@/app/batches/[id]/[docId]/model";
 import type { Prediction } from "@/lib/schema/prediction";
 
 let root: string;
@@ -430,6 +430,33 @@ describe("decisions", () => {
     });
     const oneAdded = { ...noLines, added: [{ text: "Glucosa", codes: [asFound.lines.find((l) => l?.length)![0]] }] };
     expect(await approveDocument(db, doc.id, "T01", oneAdded)).toMatchObject({ ok: true });
+  });
+
+  it("does not take a red field with no value as confirmed: one of its values must be chosen or typed", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [doc] = (await getBatch(db, batch.id))!.documents;
+    const stored = (await getProposal(db, doc.id))!;
+    // The form's phone and the record's disagree: red, and no value proposed.
+    const conflict = {
+      ...stored,
+      fused: { ...stored.fused, fields: stored.fused.fields.map((f) => (f.name === "Telefono" ? { ...f, state: "red" as const, value: null } : f)) },
+    };
+    const input = resolved(conflict);
+    expect(input.confirmed).toContain("f:Telefono");
+    const catalog = new Set(["BQ0001"]);
+    expect(checkApproval(conflict, input, catalog).problems).toEqual(["Telefono is red with no value: choose or type one"]);
+    expect(checkApproval(conflict, { ...input, fields: { ...input.fields, Telefono: "600111222" } }, catalog).problems).toEqual([]);
+
+    // The screen does not offer to confirm it either, and keeps it in the way of approving.
+    const field = itemsOf({ proposal: conflict } as Parameters<typeof itemsOf>[0]).find((i) => i.key === "f:Telefono")!;
+    const view = { proposal: conflict } as Parameters<typeof checkOf>[1];
+    expect(checkOf(field, view, "", undefined, true)).toEqual({ pending: true, confirmable: false });
+    expect(checkOf(field, view, "600111222", undefined, false)).toEqual({ pending: false, confirmable: false });
   });
 
   it("goes on to the next document to decide on: one free or the technician's own first, else one another has open", async () => {

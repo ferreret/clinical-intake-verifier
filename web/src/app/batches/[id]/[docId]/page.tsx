@@ -465,14 +465,17 @@ export default function VerifyPage() {
       // Behind the reject panel, a dialog or the record search, the page's own shortcuts do
       // nothing: above all, Ctrl+Enter must not approve a document being rejected.
       if (rejecting || help || logOpen || searching) return;
+      // Approving and confirming take a key press each: a key held down does not repeat them,
+      // or holding Alt+Enter confirmed every red and orange item in a second.
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
-        if (canApprove) void approve();
+        if (canApprove && !e.repeat) void approve();
         return;
       }
       if (e.altKey && e.key === "Enter" && !readOnly) {
         // Confirm the item in focus as proposed, then on to the next one still in the way.
         e.preventDefault();
+        if (e.repeat) return;
         const here = items.find((i) => i.key === focused);
         if (here && checks[here.key]?.confirmable && !confirmed.has(here.key)) toggleConfirm(here.key);
         goPending(1);

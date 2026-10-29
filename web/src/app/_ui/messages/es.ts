@@ -19,6 +19,7 @@ const SERVER: [RegExp, (...m: string[]) => string][] = [
   [/^(\w+) is required$/, (name) => `${fieldLabel(name)}: es obligatorio`],
   [/^(\w+) is not in its form: (.*)$/, (name, value) => `${fieldLabel(name)}: «${value}» no tiene la forma del campo`],
   [/^(\w+) is (red|orange): change or confirm it$/, (name, s) => `${fieldLabel(name)} está en ${s === "red" ? "rojo" : "naranja"}: cámbialo o confírmalo`],
+  [/^(\w+) is (red|orange) with no value: choose or type one$/, (name, s) => `${fieldLabel(name)} está en ${s === "red" ? "rojo" : "naranja"} y sin valor: elige uno o escríbelo`],
   [/^another tab works as (.+) now: reload the page$/, (name) => `otra pestaña trabaja ahora como ${name}: recarga la página`],
   [/^a request needs at least one test: keep or add one$/, () => "una petición necesita al menos una prueba: conserva o añade una"],
   [/^the chosen (patient|physician|insurer) (.+) is not a record of its kind$/, (kind, id) => `${CHOSEN[kind]}, ${id}, no es un registro de ese tipo`],

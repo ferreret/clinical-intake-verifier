@@ -72,7 +72,10 @@ export function checkApproval(
     const changed = value !== proposed;
     if (spec.required && !value) problems.push(`${spec.name} is required`);
     if (value && !inForm(spec, value)) problems.push(`${spec.name} is not in its form: ${value}`);
-    if (needs(f.state) && !changed && !confirmed.has(`f:${spec.name}`)) problems.push(`${spec.name} is ${f.state}: change or confirm it`);
+    // An empty value is nothing to confirm: a red field with none (its sources disagree) is
+    // settled by choosing one of them or typing one.
+    if (needs(f.state) && !changed && !value && !spec.required) problems.push(`${spec.name} is ${f.state} with no value: choose or type one`);
+    else if (needs(f.state) && !changed && !confirmed.has(`f:${spec.name}`)) problems.push(`${spec.name} is ${f.state}: change or confirm it`);
     const action: FieldAction = changed ? "changed" : needs(f.state) ? "confirmed" : "kept";
     return { name: spec.name, value, proposed, state: f.state, action };
   });
