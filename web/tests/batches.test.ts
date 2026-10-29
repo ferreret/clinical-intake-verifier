@@ -17,6 +17,8 @@ import { batchDocuments } from "@/lib/batches/schema";
 import { addressFrom } from "@/lib/batches/session";
 import { describeBundled, listBundled } from "@/lib/batches/sources";
 import {
+  claimNext,
+  countReading,
   createBatch,
   getBatch,
   getDocument,
@@ -28,6 +30,7 @@ import {
   requeueInterrupted,
   retryDocument,
   summarise,
+  TooManyReading,
 } from "@/lib/batches/store";
 import {
   createSandbox,
@@ -320,6 +323,37 @@ describe("the queue", () => {
     await db.update(batchDocuments).set({ state: "extracting" }).where(eq(batchDocuments.batchId, batch.id));
     expect(await requeueInterrupted(db)).toBe(1);
     expect((await getBatch(db, batch.id))!.documents[0].state).toBe("queued");
+  });
+});
+
+describe("races", () => {
+  it("counts the documents being read in the batch's own transaction", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const doc = await newDoc("doc-a.pdf");
+    const make = () => createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [doc, doc, doc], maxReading: 7 });
+    const made = await Promise.allSettled([make(), make(), make(), make()]);
+    expect(made.filter((m) => m.status === "fulfilled")).toHaveLength(2);
+    expect(made.filter((m) => m.status === "rejected" && m.reason instanceof TooManyReading)).toHaveLength(2);
+    expect(await countReading(db)).toBe(6);
+  });
+
+  it("does not claim a document whose batch was deleted after it was found", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    // The batch is deleted between the claim finding its document and marking it: the delete
+    // takes its turn on the database before the claim's update does.
+    let deleted: Promise<unknown> | null = null;
+    const racing = new Proxy(db, {
+      get: (target, prop, receiver) => {
+        if (prop === "update" && !deleted) deleted = deleteBatch(db, batch.id);
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    expect(await claimNext(racing, ["gemini"])).toBeNull();
+    expect(await deleted).toEqual({ ok: true });
+    expect(await getBatch(db, batch.id)).toBeNull();
   });
 });
 

@@ -16,8 +16,8 @@ import { queue } from "@/lib/batches/queue";
 import { deleteAllBatches } from "@/lib/batches/remove";
 import { PROVIDERS } from "@/lib/batches/schema";
 import { getSession, noSession } from "@/lib/batches/session";
-import { listBundled, readBundled, saveUpload } from "@/lib/batches/sources";
-import { countReading, createBatch, listBatches, releaseExpiredLocks, type NewDocument } from "@/lib/batches/store";
+import { deleteUpload, listBundled, readBundled, saveUpload } from "@/lib/batches/sources";
+import { countReading, createBatch, listBatches, releaseExpiredLocks, TooManyReading, type NewDocument } from "@/lib/batches/store";
 import { looksLikePdf, sha256Hex } from "@/lib/extractor/pdf";
 
 import { LANG_COOKIE } from "../../_ui/lang";
@@ -105,12 +105,22 @@ export async function POST(req: Request): Promise<NextResponse> {
   const count = (await listBatches(session.db)).length;
   // An unnamed batch is numbered, in the visitor's language.
   const word = (await cookies()).get(LANG_COOKIE)?.value === "es" ? "Lote" : "Batch";
-  const batch = await createBatch(session.db, {
-    name: typeof name === "string" && name.trim() ? name.trim().slice(0, 100) : `${word} ${count + 1}`,
-    provider: provider as Provider,
-    createdBy: session.technician.id,
-    documents,
-  });
+  let batch;
+  try {
+    batch = await createBatch(session.db, {
+      name: typeof name === "string" && name.trim() ? name.trim().slice(0, 100) : `${word} ${count + 1}`,
+      provider: provider as Provider,
+      createdBy: session.technician.id,
+      documents,
+      // Counted again with the batch's insert: the count above only spares the reading of
+      // files when the workspace is already full; several batches at once all passed it.
+      maxReading: MAX_READING,
+    });
+  } catch (err) {
+    if (!(err instanceof TooManyReading)) throw err;
+    for (const d of documents) if (d.origin === "upload") await deleteUpload(d.location).catch(() => undefined);
+    return NextResponse.json({ error: err.message }, { status: 429 });
+  }
   queue().kick(session.workspace);
   return NextResponse.json({ batch }, { status: 201 });
 }

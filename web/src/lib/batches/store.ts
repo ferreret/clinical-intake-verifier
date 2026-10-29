@@ -30,14 +30,25 @@ export interface BatchSummary extends Batch {
 
 const now = () => new Date().toISOString();
 
+/** The workspace would have more than `maxReading` documents queued or being read. */
+export class TooManyReading extends Error {}
+
+/**
+ * A new batch, its documents queued. With `maxReading`, refused (TooManyReading) when the
+ * workspace would then have more documents queued or being read: counted in the same
+ * transaction, so that batches created at once cannot all pass the count.
+ */
 export async function createBatch(
   db: LisDb,
-  input: { name: string; provider: Provider; createdBy: string; documents: NewDocument[] },
+  input: { name: string; provider: Provider; createdBy: string; documents: NewDocument[]; maxReading?: number },
 ): Promise<Batch> {
   if (input.documents.length === 0) throw new Error("a batch needs at least one document");
   const at = now();
   const batch: Batch = { id: randomUUID(), name: input.name, provider: input.provider, createdBy: input.createdBy, createdAt: at };
   await db.transaction(async (tx) => {
+    if (input.maxReading !== undefined && (await countReading(tx)) + input.documents.length > input.maxReading) {
+      throw new TooManyReading(`at most ${input.maxReading} documents queued or being read at once: wait for some to be read`);
+    }
     await tx.insert(batches).values(batch);
     await tx.insert(batchDocuments).values(
       input.documents.map((d, i) => ({
@@ -141,7 +152,14 @@ export async function claimNext(db: LisDb, providers: Provider[]): Promise<(Batc
     .limit(1);
   if (!next) return null;
   const update = { state: "extracting" as const, attempts: next.doc.attempts + 1, error: null, updatedAt: now() };
-  await db.update(batchDocuments).set(update).where(eq(batchDocuments.id, next.doc.id));
+  // Only while it is still queued: its batch may have been deleted since it was found, or
+  // another server on the same files (a deployment's overlap) may have claimed it.
+  const claimed = await db
+    .update(batchDocuments)
+    .set(update)
+    .where(and(eq(batchDocuments.id, next.doc.id), eq(batchDocuments.state, "queued")))
+    .returning({ id: batchDocuments.id });
+  if (claimed.length === 0) return claimNext(db, providers);
   return { ...next.doc, ...update, provider: next.provider };
 }
 
@@ -151,7 +169,7 @@ export async function hasQueued(db: LisDb): Promise<boolean> {
 }
 
 /** Documents queued or being read in the workspace. */
-export async function countReading(db: LisDb): Promise<number> {
+export async function countReading(db: Pick<LisDb, "select">): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)` })
     .from(batchDocuments)
