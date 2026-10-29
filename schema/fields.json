@@ -86,7 +86,7 @@
       "printed": {
         "values": {
           "H": ["Hombre", "Varón", "Masculino", "Home", "Masculí", "H", "V"],
-          "M": ["Mujer", "Femenino", "Dona", "Femení", "M", "D"],
+          "M": ["Mujer", "Femenino", "Dona", "Femení", "M", "F", "D"],
           "U": ["Desconocido", "Otro", "Desconegut", "Altre", "U"]
         }
       }

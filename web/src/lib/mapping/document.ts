@@ -5,7 +5,7 @@
  */
 import type { Catalog } from "./catalog";
 import type { MappingMemory } from "./memory";
-import { consult, type Consultation, type ModelLine, type Provider } from "./model";
+import { consult, lineOptions, type Consultation, type ModelLine, type Provider } from "./model";
 import { propose, type Proposal, type SearchSettings } from "./propose";
 import type { Searcher } from "./search";
 
@@ -63,7 +63,11 @@ export async function proposeDocument(
     ? model.replay(asked)
     : await consult({ insurer: ctx.insurer, language: ctx.language, formLines: lines, lines: asked }, model.catalog, model.provider, model.cacheDir);
   for (const { p, i } of needs) {
-    const codes = consultation.choices.get(`L${i + 1}`) ?? null;
+    // Only among the line's candidates, whatever the answer came from: consult() holds the
+    // live model to them, and a recorded answer is held to them here too.
+    const allowed = new Set(lineOptions(asked.find((l) => l.id === `L${i + 1}`)!, model.catalog).map((o) => o.code));
+    const chosen = (consultation.choices.get(`L${i + 1}`) ?? []).filter((c) => allowed.has(c));
+    const codes = chosen.length > 0 ? chosen : null;
     sent.set(i, codes);
     const seen = { ...p.seen, model: { answer: codes } };
     if (codes) {

@@ -192,6 +192,26 @@ describe("model layer", () => {
     expect(out.proposals[0]).toMatchObject({ state: "red", codes: null });
   });
 
+  it("holds a recorded answer to the line's candidates, as the live model is", async () => {
+    const provider = fakeProvider({});
+    const replay = (asked: { id: string }[]) => ({
+      // A code the line was never offered, as a recording made with another catalog could hold.
+      choices: new Map(asked.map((l) => [l.id, ["ZZ9999"]])),
+      usage: { inputTokens: null, outputTokens: null },
+      latencyMs: 0,
+      cached: true,
+    });
+    const out = await proposeDocument(["Zzz qwerty"], ctx, new InMemoryMemory(), INDEX, undefined, {
+      provider,
+      policy: "red",
+      catalog: CATALOG,
+      cacheDir: null,
+      replay,
+    });
+    expect(out.proposals[0]).toMatchObject({ state: "red", codes: null });
+    expect(out.model.get(0)).toBeNull();
+  });
+
   it("offers a profile's components and lists only candidate codes in the schema", () => {
     const prompt = buildPrompt(
       {

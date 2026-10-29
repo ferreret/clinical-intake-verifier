@@ -32,6 +32,8 @@ describe("match keys", () => {
     const date = printedKeys("FechaNacimiento", "01/05/1971");
     expect(date).toEqual(expect.arrayContaining(["01051971", "19710501", "151971", "010571", "01maig1971", "1mayo1971"]));
     expect(printedKeys("Sexo", "H")).toEqual(expect.arrayContaining(["h", "hombre", "home", "masculi", "v"]));
+    // As the prompt says: F is female.
+    expect(printedKeys("Sexo", "M")).toEqual(expect.arrayContaining(["m", "mujer", "f", "dona"]));
     expect(printedKeys("Paciente", "Pía Manjón")).toEqual(["piamanjon"]);
     expect(printedKeys("tests", "Γ-GT")).toEqual(["γgt"]);
   });
