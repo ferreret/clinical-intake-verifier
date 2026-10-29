@@ -570,6 +570,14 @@ SERVER.push(
   [/^say why in a note$/, () => "explica el motivo en una nota"],
   [/^(.+) is verifying this document$/, (who) => `${who} está verificando este documento`],
   [/^pick a technician first \(POST \/api\/session\)$/, () => "elige primero un técnico"],
+  // When the server could not be reached, or failed (_ui/api.ts).
+  [/^the server does not answer: try again in a few seconds$/, () => "el servidor no responde: vuelve a intentarlo en unos segundos"],
+  [/^the server failed: try again in a few seconds$/, () => "el servidor ha fallado: vuelve a intentarlo en unos segundos"],
+  [/^send at most (\d+) bytes(, with their length)?$/, (n) => `la petición es demasiado grande: como mucho ${Math.round(Number(n) / 1024)} KB`],
+  [/^file exceeds (\d+) bytes$/, (n) => `el fichero es demasiado grande: como mucho ${Math.round(Number(n) / 1048576)} MB`],
+  [/^invalid PDF: .*$/, () => "el fichero no es un PDF válido"],
+  [/^no such batch$/, () => "el lote no existe"],
+  [/^a document is being read; delete the batch once it is read$/, () => "se está leyendo un documento: borra el lote cuando termine"],
   // Why a document could not be read (lib/batches/queue.ts).
   [/^the database was busy: retry the document$/, () => "la base de datos estaba ocupada: reintenta el documento"],
   [/^the database could not save it: retry the document$/, () => "la base de datos no pudo guardarlo: reintenta el documento"],

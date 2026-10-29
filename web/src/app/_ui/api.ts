@@ -98,12 +98,26 @@ export function actAs(technician: string | null): void {
   actingAs = technician;
 }
 
+/** No reply at all: the network, or a server starting again. */
+export const NO_ANSWER = "the server does not answer: try again in a few seconds";
+/** A reply that is not the app's own: a failure it did not catch, or the proxy in front of it. */
+const FAILED = "the server failed: try again in a few seconds";
+
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (actingAs && url !== "/api/session") headers.set(ACTING_HEADER, actingAs);
-  const res = await fetch(withBase(url), { cache: "no-store", ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(withBase(url), { cache: "no-store", ...init, headers });
+  } catch (err) {
+    if ((err as Error).name === "AbortError") throw err;
+    throw new ApiError(0, NO_ANSWER);
+  }
   const body = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new ApiError(res.status, hideModels(body.error ?? `HTTP ${res.status}`), body as Record<string, unknown>);
+  if (!res.ok) {
+    const fallback = res.status >= 502 && res.status <= 504 ? NO_ANSWER : res.status >= 500 ? FAILED : `HTTP ${res.status}`;
+    throw new ApiError(res.status, hideModels(body.error ?? fallback), body as Record<string, unknown>);
+  }
   return body;
 }
 

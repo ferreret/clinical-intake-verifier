@@ -73,7 +73,7 @@ export function DeleteBatchDialog({
               {states.approved > 0 && <p className="text-xs text-slate-500">{m.memory}</p>}
               {reading && <p className="font-medium text-amber-800">{m.reading}</p>}
               {!batch && readingBatches > 0 && <p className="font-medium text-amber-800">{m.readingAll(readingBatches)}</p>}
-              {error && <p className="text-rose-700">{error}</p>}
+              {error && <p className="text-rose-700">{t.server(error)}</p>}
             </div>
           </div>
         </div>
