@@ -22,6 +22,24 @@ const FAIL_ATTEMPTS = 3;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+/**
+ * What a failed document says on its batch's page, and what the server log says about it. A
+ * database error's message carries its SQL and its parameters, the patient's data among them,
+ * and a file error's the file's path: the page says what happened in words a technician can
+ * act on, and the log keeps the cause without the parameters.
+ */
+export function failure(err: unknown): { shown: string; logged: string } {
+  const cause = err instanceof Error && err.cause instanceof Error ? err.cause : err;
+  const code = String((cause as { code?: unknown } | null)?.code ?? "");
+  const message = cause instanceof Error ? cause.message : String(cause);
+  if (code.startsWith("SQLITE_BUSY") || code.startsWith("SQLITE_LOCKED")) {
+    return { shown: "the database was busy: retry the document", logged: message };
+  }
+  if (code.startsWith("SQLITE_")) return { shown: "the database could not save it: retry the document", logged: message };
+  if ((cause as NodeJS.ErrnoException | null)?.syscall) return { shown: "the document's file could not be read", logged: message };
+  return { shown: message, logged: message };
+}
+
 export class BatchQueue {
   private readonly running: Record<Provider, number> = { gemini: 0, local: 0 };
   /** Workspaces that may have queued documents. */
@@ -115,7 +133,9 @@ export class BatchQueue {
       // while batches were read: the cache keeps 60, and few are opened before they are gone.
       if (doc.position <= RENDERED_AHEAD) void documentPages(`${workspace}:${doc.id}`, async () => pdf).catch(() => undefined);
     } catch (err) {
-      await this.fail(workspace, db, doc.id, err instanceof Error ? err.message : String(err));
+      const { shown, logged } = failure(err);
+      console.error(`queue: document ${doc.id} of ${workspace} failed: ${logged}`);
+      await this.fail(workspace, db, doc.id, shown);
     }
   }
 

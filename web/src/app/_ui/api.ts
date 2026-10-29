@@ -32,6 +32,15 @@ export function hideModels(text: string): string {
     .replace(/\bLM Studio\b/gi, "local model server");
 }
 
+/**
+ * A failed document's error as the batch page shows it. Documents that failed before the queue
+ * kept its errors short (lib/batches/queue.ts, `failure`) may hold a database error with its
+ * SQL and its parameters, the patient's data among them: not shown.
+ */
+export function documentError(text: string): string {
+  return /^Failed query:/.test(text) ? "the database could not save it: retry the document" : hideModels(text);
+}
+
 export interface SessionInfo {
   mode: "replay" | "live";
   /** Replay mode: how many times faster than measured the recorded replies come. */

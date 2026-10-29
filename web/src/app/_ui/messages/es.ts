@@ -570,6 +570,10 @@ SERVER.push(
   [/^say why in a note$/, () => "explica el motivo en una nota"],
   [/^(.+) is verifying this document$/, (who) => `${who} está verificando este documento`],
   [/^pick a technician first \(POST \/api\/session\)$/, () => "elige primero un técnico"],
+  // Why a document could not be read (lib/batches/queue.ts).
+  [/^the database was busy: retry the document$/, () => "la base de datos estaba ocupada: reintenta el documento"],
+  [/^the database could not save it: retry the document$/, () => "la base de datos no pudo guardarlo: reintenta el documento"],
+  [/^the document's file could not be read$/, () => "no se pudo leer el fichero del documento"],
   [/^every sandbox is in use: try again later$/, () => "la demo está llena: vuelve a intentarlo dentro de un rato"],
   [/^too many new sandboxes from this address: try again later$/, () => "demasiadas sesiones nuevas desde esta dirección: vuelve a intentarlo dentro de un rato"],
   [/^at most (\d+) documents queued or being read at once: wait for some to be read$/, (n) => `como mucho ${n} documentos en cola o leyéndose a la vez: espera a que se lean algunos`],

@@ -11,7 +11,7 @@ import { fuse } from "@/lib/fusion/fuse";
 import { chosenLink } from "@/lib/fusion/link";
 import { readSnapshot } from "@/lib/lis/snapshot";
 import { approveDocument, checkApproval, getDecision, rejectDocument, type ApprovalInput } from "@/lib/batches/decide";
-import { BatchQueue } from "@/lib/batches/queue";
+import { BatchQueue, failure } from "@/lib/batches/queue";
 import { deleteAllBatches, deleteBatch } from "@/lib/batches/remove";
 import { batchDocuments } from "@/lib/batches/schema";
 import { describeBundled, listBundled } from "@/lib/batches/sources";
@@ -45,6 +45,7 @@ import { DbMemory } from "@/lib/mapping/memory";
 import { textKey } from "@/lib/mapping/propose";
 import { FIELD_NAMES, FIELDS } from "@/lib/schema/fields";
 
+import { documentError } from "@/app/_ui/api";
 import { en } from "@/app/_ui/messages/en";
 import { explainField, explainLine } from "@/app/batches/[id]/[docId]/explain";
 import { checkOf, itemsOf } from "@/app/batches/[id]/[docId]/model";
@@ -307,6 +308,20 @@ describe("the queue", () => {
     await db.update(batchDocuments).set({ state: "extracting" }).where(eq(batchDocuments.batchId, batch.id));
     expect(await requeueInterrupted(db)).toBe(1);
     expect((await getBatch(db, batch.id))!.documents[0].state).toBe("queued");
+  });
+});
+
+describe("a failed document's error", () => {
+  it("shows no SQL, parameters or paths, and keeps the cause for the log", () => {
+    const busy = Object.assign(new Error("SQLITE_BUSY: database is locked"), { code: "SQLITE_BUSY" });
+    const query = new Error('Failed query: select "doc_id" from "patients" params: 12345678Z', { cause: busy });
+    expect(failure(query)).toEqual({ shown: "the database was busy: retry the document", logged: "SQLITE_BUSY: database is locked" });
+    const full = new Error("Failed query: insert …", { cause: Object.assign(new Error("SQLITE_FULL: database or disk is full"), { code: "SQLITE_FULL" }) });
+    expect(failure(full).shown).toBe("the database could not save it: retry the document");
+    const missing = Object.assign(new Error("ENOENT: no such file or directory, open '/data/docs/a.pdf'"), { code: "ENOENT", syscall: "open" });
+    expect(failure(missing)).toEqual({ shown: "the document's file could not be read", logged: missing.message });
+    expect(failure(new Error("no reply within 120 s")).shown).toBe("no reply within 120 s");
+    expect(documentError('Failed query: select "doc_id" from "patients" params: 12345678Z')).toBe("the database could not save it: retry the document");
   });
 });
 
