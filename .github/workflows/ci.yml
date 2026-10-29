@@ -1,5 +1,7 @@
-# Every push to main and every pull request: the web app's checks, the Python package's, and
-# the evaluation of the recorded readings against the floor in .github/evaluation/floor.json.
+# Every push to main and every pull request: the web app's checks, the Python package's, the
+# evaluation of the recorded readings against the floor in .github/evaluation/floor.json, and
+# the app run as its container runs it, under a demo's load (.github/load/check.py).
+# The actions are pinned by commit; Dependabot proposes their updates.
 # No key is needed: the readings were recorded once, with the models; what CI re-runs on them
 # is the code that judges them.
 name: CI
@@ -29,8 +31,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -48,8 +50,8 @@ jobs:
       run:
         working-directory: synth
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           enable-cache: true
           cache-dependency-glob: synth/uv.lock
@@ -64,13 +66,13 @@ jobs:
     env:
       DATA: ${{ github.workspace }}/data
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           enable-cache: true
           cache-dependency-glob: synth/uv.lock
@@ -112,10 +114,57 @@ jobs:
 
       - name: Keep the reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: evaluation-reports
           path: |
             data/ci/**/report.md
             data/ci/**/report.json
           if-no-files-found: ignore
+
+  load:
+    name: Load · the app as the container runs it, two batches of 50 at once
+    runs-on: ubuntu-latest
+    env:
+      DATA: ${{ github.workspace }}/data
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build
+        run: |
+          npm --prefix web ci
+          npm --prefix web run build
+
+      - name: Fetch the demo's data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$DEMO_DATA" --repo "$GITHUB_REPOSITORY" --dir "$DATA"
+          tar -xzf "$DATA/$DEMO_DATA.tar.gz" -C "$DATA"
+
+      # The standalone server with the demo's data where the Dockerfile puts it, in replay mode.
+      - name: Start the app
+        run: |
+          cp -r web/.next/static web/.next/standalone/web/.next/static
+          cp -r web/public web/.next/standalone/web/public
+          cd web/.next/standalone/web
+          APP_DATA_DIR="$DATA/state" PORT=3000 HOSTNAME=127.0.0.1 \
+            DEMO_DOCUMENTS="$DATA/demo/documents" REPLAY_GEMINI_RUN="$DATA/demo/runs/gemini" \
+            REPLAY_LOCAL_RUN="$DATA/demo/runs/local" LIS_TEMPLATE="$DATA/demo/lis.sqlite" \
+            REPLAY_MAPPING="$DATA/demo/mapping.json" MAPPING_MODEL_CACHE="$DATA/state/model-cache" \
+            nohup node server.js > "$DATA/server.log" 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://127.0.0.1:3000/api/session && exit 0; sleep 1; done
+          cat "$DATA/server.log"; exit 1
+
+      # Fails as the app did in the SQLITE_BUSY incident of 2026-10-29: run against the code of
+      # before it, a document failed, a request erred and another visitor waited 30 s.
+      - name: Put it under load
+        run: python3 .github/load/check.py http://127.0.0.1:3000 "$DATA/server.log"
+
+      - name: The server's log
+        if: failure()
+        run: tail -n 200 "$DATA/server.log"

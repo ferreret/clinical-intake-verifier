@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { monitorEventLoopDelay } from "node:perf_hooks";
 
 import { createClient } from "@libsql/client";
 import { eq } from "drizzle-orm";
@@ -277,6 +278,38 @@ describe("workspaces", () => {
 });
 
 describe("the queue", () => {
+  it("reads a batch's documents at once, none failing, and the server is not held up", async () => {
+    // Every other queue test reads a batch of one document. This one does not reproduce the
+    // SQLITE_BUSY incident of 2026-10-29 (it passes on the code of before it): the app under
+    // load does, in CI's load job (.github/load/check.py).
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: Array(40).fill(await newDoc("doc-a.pdf")) });
+    const lag = monitorEventLoopDelay({ resolution: 10 });
+    lag.enable();
+    const q = new BatchQueue();
+    q.kick(ws);
+    // Meanwhile the batch page polls, as a technician's browser does: each poll writes (expired
+    // locks are released) and reads, on its own turn of the event loop.
+    let reading = true;
+    const polls: unknown[] = [];
+    const poll = async () => {
+      while (reading) {
+        polls.push(await releaseExpiredLocks(db).then(() => getBatch(db, batchId), (err: Error) => err));
+        await new Promise((r) => setImmediate(r));
+      }
+    };
+    const batchId = (await listBatches(db))[0].id;
+    const polling = poll();
+    await q.idle();
+    reading = false;
+    await polling;
+    lag.disable();
+    expect(polls.filter((p) => p instanceof Error)).toEqual([]);
+    expect((await listBatches(db))[0].states).toMatchObject({ awaiting_verification: 40, failed: 0, extracting: 0, queued: 0 });
+    expect(lag.max / 1e6).toBeLessThan(2000);
+  }, 60_000);
+
   it("replays the recorded reply, fuses it and maps its lines into a proposal", async () => {
     expect(await listBundled("gemini")).toEqual(["doc-a.pdf"]);
     const ws = await createSandbox();
