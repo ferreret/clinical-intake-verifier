@@ -1,0 +1,13 @@
+# Proposes, as pull requests, the updates that do not come by themselves: the base image is
+# pinned by digest (Dockerfile) and the workflow's actions by commit, so that a commit always
+# builds and checks the same way. npm and uv are updated by hand, measured with the harness.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

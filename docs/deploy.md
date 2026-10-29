@@ -25,6 +25,7 @@ They share nothing: each has its own build, settings and volume.
 | `BASE_PATH` | The path the app is served under, as `/name`; not set to serve it at the root. Next.js fixes it when building, so each deployment builds its own image |
 | `DEMO_DATA_URL` | The demo's data archive, from a release of this repository (below) |
 | `DEMO_DATA_SHA256` | That archive's sha256: the build fails if the download is not that one |
+| `NODE_IMAGE` | Optional: the base image, pinned by digest in the `Dockerfile`; Dependabot proposes a new digest when the image is updated |
 
 ## Settings
 
@@ -87,6 +88,11 @@ npm run pack-demo
   - With the reverse proxy getting the certificate, HTTPS on, with Let's Encrypt.
 - If the reverse proxy does not reach the container, check the service it points to against
   those of the other apps on the same server.
+- **Update order: stop-first** (Swarm settings, update config). One container at a time on the
+  volume: the queue, the sandbox sweep and the in-process turns on each SQLite file assume a
+  single server, and with start-first the old and the new one overlap during a deployment.
+  The image's healthcheck (`/api/session` under the app's path) tells Dokploy when the new
+  one is ready.
 
 ## Checking it
 
