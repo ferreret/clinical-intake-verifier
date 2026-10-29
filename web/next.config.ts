@@ -13,9 +13,26 @@ if (basePath && !/^\/[a-z0-9-]+(\/[a-z0-9-]+)*$/.test(basePath)) {
   throw new Error(`BASE_PATH must look like /name, got "${basePath}"`);
 }
 
+/** For every page and call: the browser is told not to guess types, frame the app or leak its paths. */
+const SECURITY_HEADERS = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+];
+
 const nextConfig: NextConfig = {
   // One self-contained server for the container (Dockerfile).
   output: "standalone",
+  poweredByHeader: false,
+  async headers() {
+    return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
+      // The API's JSON (a visitor's synthetic patients, their decisions) is kept by no cache.
+      // The page images and the PDF set their own: private, kept by the browser for the viewer.
+      { source: "/api/:path((?!documents/[^/]+/(?:pages|pdf)).*)", headers: [{ key: "Cache-Control", value: "no-store" }] },
+    ];
+  },
   ...(basePath ? { basePath } : {}),
   env: { NEXT_PUBLIC_BASE_PATH: basePath },
   outputFileTracingRoot: repoRoot,

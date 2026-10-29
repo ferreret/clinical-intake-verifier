@@ -83,9 +83,16 @@ export async function clientAddress(): Promise<string> {
   return addressFrom(await headers());
 }
 
+/** The cookies' options: sent over HTTPS only when the app is served over it, as behind its proxy. */
+async function cookieOptions() {
+  const secure = (await headers()).get("x-forwarded-proto")?.split(",")[0]?.trim() === "https";
+  return { httpOnly: true, sameSite: "lax" as const, path: COOKIE_PATH, secure };
+}
+
 /** Works as `tech` from now on; a visitor without a live sandbox gets a new one. */
 export async function startSession(tech: Technician): Promise<Session> {
   const jar = await cookies();
+  const options = await cookieOptions();
   let workspace = await currentWorkspace();
   // A sandbox that cannot be opened (a damaged file) gave its visitor an error on every call,
   // with no way out but "start from scratch": it is replaced. The live workspace never is.
@@ -95,9 +102,9 @@ export async function startSession(tech: Technician): Promise<Session> {
   }
   if (!workspace) {
     workspace = await createSandbox(new Date(), await clientAddress());
-    jar.set(SANDBOX_COOKIE, workspace, { httpOnly: true, sameSite: "lax", path: COOKIE_PATH });
+    jar.set(SANDBOX_COOKIE, workspace, options);
   }
-  jar.set(TECHNICIAN_COOKIE, tech.id, { httpOnly: true, sameSite: "lax", path: COOKIE_PATH });
+  jar.set(TECHNICIAN_COOKIE, tech.id, options);
   return { workspace, technician: tech, db: await openWorkspace(workspace) };
 }
 

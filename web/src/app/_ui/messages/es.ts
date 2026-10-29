@@ -580,6 +580,7 @@ SERVER.push(
   [/^file exceeds (\d+) bytes$/, (n) => `el fichero es demasiado grande: como mucho ${Math.round(Number(n) / 1048576)} MB`],
   [/^invalid PDF: .*$/, () => "el fichero no es un PDF válido"],
   [/^no such batch$/, () => "el lote no existe"],
+  [/^refused: the request did not come from this site's own pages$/, () => "rechazado: la petición no viene de las páginas de este sitio"],
   [/^at most (\d+) documents in this workspace: delete a batch first$/, (n) => `como mucho ${n} documentos en tu espacio: borra antes algún lote`],
   [/^a document is being read; delete the batch once it is read$/, () => "se está leyendo un documento: borra el lote cuando termine"],
   // Why a document could not be read (lib/batches/queue.ts).
