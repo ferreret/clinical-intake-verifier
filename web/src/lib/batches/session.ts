@@ -52,13 +52,23 @@ export async function getSession(): Promise<Session | null> {
 }
 
 /**
- * The client's address, for the limit on new sandboxes: the last one the proxy in front of the
- * app added (anything before it the client could have written itself), or "direct".
+ * The client's address, for the limit on new sandboxes (pure, for tests):
+ * - CLIENT_ADDRESS_HEADER's value, when a deployment names the header its proxy puts it in;
+ * - else Cloudflare's CF-Connecting-IP: behind Cloudflare, X-Forwarded-For ends with one of
+ *   Cloudflare's own addresses, the same for every visitor, who would all share one limit;
+ * - else the last address the proxy added to X-Forwarded-For (anything before it the client
+ *   could have written itself), then X-Real-IP, then "direct".
+ * A client that writes a CF-Connecting-IP of its own, where no Cloudflare is in front, only
+ * escapes the limit: MAX_SANDBOXES still holds, and no visitor is ever counted as another.
  */
+export function addressFrom(h: Headers, header = process.env.CLIENT_ADDRESS_HEADER?.trim()): string {
+  const first = (name: string) => h.get(name)?.split(",")[0]?.trim();
+  if (header) return first(header) || "direct";
+  return first("cf-connecting-ip") || h.get("x-forwarded-for")?.split(",").at(-1)?.trim() || h.get("x-real-ip")?.trim() || "direct";
+}
+
 export async function clientAddress(): Promise<string> {
-  const h = await headers();
-  const forwarded = h.get("x-forwarded-for")?.split(",").at(-1)?.trim();
-  return forwarded || h.get("x-real-ip")?.trim() || "direct";
+  return addressFrom(await headers());
 }
 
 /** Works as `tech` from now on; a visitor without a live sandbox gets a new one. */

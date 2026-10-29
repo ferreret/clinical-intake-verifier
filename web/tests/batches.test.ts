@@ -14,6 +14,7 @@ import { approveDocument, checkApproval, getDecision, rejectDocument, type Appro
 import { BatchQueue, failure } from "@/lib/batches/queue";
 import { deleteAllBatches, deleteBatch } from "@/lib/batches/remove";
 import { batchDocuments } from "@/lib/batches/schema";
+import { addressFrom } from "@/lib/batches/session";
 import { describeBundled, listBundled } from "@/lib/batches/sources";
 import {
   createBatch,
@@ -211,6 +212,17 @@ describe("workspaces", () => {
     } finally {
       delete process.env.NEW_SANDBOXES_PER_HOUR;
     }
+  });
+
+  it("tells clients apart by the address the proxy in front of the app saw", () => {
+    const from = (h: Record<string, string>, header?: string) => addressFrom(new Headers(h), header);
+    // Behind Cloudflare, X-Forwarded-For ends with Cloudflare's address: every visitor's.
+    expect(from({ "cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "203.0.113.7, 172.70.1.1" })).toBe("203.0.113.7");
+    // Before the proxy's own entry, the client could have written anything.
+    expect(from({ "x-forwarded-for": "10.9.9.9, 198.51.100.20" })).toBe("198.51.100.20");
+    expect(from({ "x-real-ip": "198.51.100.21" })).toBe("198.51.100.21");
+    expect(from({})).toBe("direct");
+    expect(from({ "x-client": "192.0.2.5", "cf-connecting-ip": "203.0.113.7" }, "x-client")).toBe("192.0.2.5");
   });
 
   it("keeps at most MAX_SANDBOXES, a new one taking the place of the one unused for longest", async () => {
