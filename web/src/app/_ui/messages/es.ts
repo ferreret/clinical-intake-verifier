@@ -482,6 +482,7 @@ export const es: Messages = {
     ai_only_doubtful: "Solo en el documento, y la lectura parece dudosa",
     conflict: "El documento y los registros discrepan: elige",
     candidate_agrees: "Coincide con un registro aún no confirmado como de este paciente",
+    chosen_record: "Del registro que elegiste, que difiere del documento",
     candidate_only: "Solo en un registro aún no confirmado como de este paciente",
     default: "El valor por defecto del sistema",
     missing_required: "Falta, y es obligatorio",

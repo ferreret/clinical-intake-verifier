@@ -191,8 +191,11 @@ session shell and the state badges.
   word of a name, accents and case aside, or an identifying number (identity document,
   birth date, phone, registration number, insurer code). Choosing one links the document to
   it, marked "chosen by you", and the document is fused again against it
-  (`POST /api/documents/:id/fusion`): the fields the technician has not changed take the new
-  proposal, and field confirmations start over. "No record" says the person or insurer is
+  (`POST /api/documents/:id/fusion`). The chosen record prevails (decision of 2026-10-29):
+  its fields take its values, even those the technician changed before, green, and where
+  the document reads otherwise the reading stays in view beside them; the technician may
+  then change any field, and what they approve is valid, the decision recording what the
+  record said. Field confirmations start over. "No record" says the person or insurer is
   new. "Back to what was found" undoes it. Nothing is stored until approval, which checks
   the fields against the chosen records and records the choice. The search is not modal:
   it opens by its button, never over the document, which can be scrolled and zoomed while

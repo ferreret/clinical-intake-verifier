@@ -7,6 +7,9 @@
  *   only the LIS                 green
  *   only the AI                  orange (red when a warning casts doubt on it)
  *   AI and LIS disagree          red: no value is proposed, the technician decides
+ *     ... with a record the      green: the record's value. The technician searched the
+ *     technician chose           records and chose it, so it prevails over what was read
+ *                                (decision of 2026-10-29); they can still change the field
  *   nothing, required            red
  *   nothing, optional            grey
  *
@@ -86,8 +89,10 @@ function field(
   const ai = predicted ? { value: predicted.value, page: predicted.page, bbox: predicted.bbox, warnings } : null;
 
   let lisSide: FusedField["lis"] = null;
+  let chosen = false;
   if (spec.lis) {
     const l = links[spec.lis.source.split(".")[0] as RecordKind];
+    chosen = l.chosen === true && l.status === "linked";
     if (l.recordId && (l.status === "linked" || l.status === "candidate")) {
       const value = lisValue(spec.lis.source, l.recordId, lis);
       if (value !== null) lisSide = { value, recordId: l.recordId, confirmed: l.status === "linked" };
@@ -108,7 +113,9 @@ function field(
   if (ai && lisSide) {
     const { source, compare } = spec.lis!;
     const forms = [lisSide.value, ...lisAliases(source, lisSide.recordId, lis)];
-    if (!forms.some((v) => valuesMatch(ai.value, v, compare))) return out("red", "conflict", null, null);
+    if (!forms.some((v) => valuesMatch(ai.value, v, compare))) {
+      return chosen ? out("green", "chosen_record", lisSide.value, "lis") : out("red", "conflict", null, null);
+    }
     return lisSide.confirmed
       ? out("green", "agree", lisSide.value, "lis")
       : out("orange", "candidate_agrees", lisSide.value, "lis");

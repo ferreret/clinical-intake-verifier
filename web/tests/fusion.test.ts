@@ -182,7 +182,14 @@ describe("fusion", () => {
     expect(fuse(prediction(unknown), LIS).links.patient.status).not.toBe("linked");
     const chosen = fuse(prediction(unknown), LIS, { patient: "P2" });
     expect(chosen.links.patient).toMatchObject({ status: "linked", recordId: "P2", chosen: true });
-    expect(states(chosen)).toMatchObject({ Paciente: "green:agree", FechaNacimiento: "green:agree", DocumentoIdentidad: "red:conflict" });
+    // Where the document differs, the chosen record prevails (decision of 2026-10-29): the
+    // technician searched the records and chose it. They can still change the field.
+    expect(states(chosen)).toMatchObject({ Paciente: "green:agree", FechaNacimiento: "green:agree", DocumentoIdentidad: "green:chosen_record" });
+    const doc = chosen.fields.find((f) => f.name === "DocumentoIdentidad")!;
+    expect(doc).toMatchObject({ value: doc.lis!.value, source: "lis", ai: { value: "99999999R" } });
+    expect(doc.lis).toMatchObject({ recordId: "P2", confirmed: true });
+    // A record the engine found itself does not: the same disagreement there is red, no value.
+    expect(states(fuse(prediction({ ...MARIA, Telefono: "699 000 111" }), LIS)).Telefono).toBe("red:conflict");
     // "No record": the patient's fields stand on the document alone.
     const none = fuse(prediction(MARIA), LIS, { patient: null });
     expect(none.links.patient).toMatchObject({ status: "none", chosen: true });

@@ -410,6 +410,7 @@ export const en = {
     ai_only: "Only on the document: the records cannot confirm it",
     ai_only_doubtful: "Only on the document, and the reading looks doubtful",
     conflict: "The document and the records disagree: choose",
+    chosen_record: "From the record you chose, which differs from the document",
     candidate_agrees: "Agrees with a record not yet confirmed as this patient's",
     candidate_only: "Only in a record not yet confirmed as this patient's",
     default: "The system's default",

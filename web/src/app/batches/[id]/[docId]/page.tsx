@@ -14,7 +14,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { LOCK_RENEW_MINUTES } from "@/lib/batches/locks";
-import { TESTS } from "@/lib/schema/fields";
+import { fieldSpec, TESTS } from "@/lib/schema/fields";
 
 import { ApiError, api, providerOf, type ChosenLinks, type Decision, type ProposalView, type RecordKind, type RejectReason } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
@@ -394,6 +394,8 @@ export default function VerifyPage() {
    * Links the document to a record the technician found (id), to none (null), or back to what
    * the engine found (undefined), and fuses it again: fields the technician has not changed
    * take the new proposal, and field confirmations start over, the comparison having changed.
+   * A record chosen from the search prevails (decision of 2026-10-29): its fields take its
+   * values, even those changed before, and the technician may change them again after.
    */
   async function relink(kind: RecordKind, id: string | null | undefined) {
     if (!view || busy) return;
@@ -404,14 +406,16 @@ export default function VerifyPage() {
     try {
       const { fused, records } = await api.fusion(docId, next);
       const before = new Map(view.proposal.fused.fields.map((f) => [f.name, (f.value ?? "").trim()]));
+      const prevails = (name: string) => typeof id === "string" && (fieldSpec(name).lis?.source.startsWith(`${kind}.`) ?? false);
       setValues((vals) =>
         Object.fromEntries(
           Object.entries(vals).map(([key, v]) => {
             const f = fused.fields.find((x) => `f:${x.name}` === key);
-            return [key, f && v.trim() === before.get(f.name) ? (f.value ?? "") : v];
+            return [key, f && (prevails(f.name) || v.trim() === before.get(f.name)) ? (f.value ?? "") : v];
           }),
         ),
       );
+      setTouched((t) => new Set([...t].filter((key) => !(key.startsWith("f:") && prevails(key.slice(2))))));
       setConfirmed((c) => new Set([...c].filter((k) => !k.startsWith("f:"))));
       setChosenLinks(next);
       setView({ ...view, proposal: { ...view.proposal, fused }, records: { ...view.records, ...records } });
