@@ -47,17 +47,53 @@ function openedDbs(): Map<string, Promise<LisDb>> {
   return (g[KEY] ??= new Map());
 }
 
-/** The workspace's database, created from the template the first time. */
+const DELETED = Symbol.for("clinical-intake-verifier.deleted-workspaces");
+type WithDeleted = typeof globalThis & { [DELETED]?: Set<string> };
+
+/**
+ * Sandboxes deleted since the server started, never opened again: a request that found the
+ * file just before it was removed would otherwise open it once more, and the driver create it
+ * again, empty. Their ids are random and never reused, so the set only grows by the sandboxes
+ * deleted, a few dozen bytes each.
+ */
+function deletedIds(): Set<string> {
+  const g = globalThis as WithDeleted;
+  return (g[DELETED] ??= new Set());
+}
+
+/** The workspace's file is gone: the sandbox was deleted (its visitor started over, or the sweep). */
+export class WorkspaceGone extends Error {}
+
+/**
+ * A copy of the template at `file`, unless there is one already. Copied beside it and then
+ * renamed, so that a copy cut short (a full disk, a crash) never leaves a broken workspace.
+ */
+async function copyTemplate(file: string): Promise<void> {
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  if (await fs.stat(file).catch(() => null)) return;
+  const partial = `${file}.partial-${randomUUID()}`;
+  try {
+    await fs.copyFile(templateDb(), partial);
+    await fs.rename(partial, file);
+  } finally {
+    await fs.rm(partial, { force: true });
+  }
+}
+
+/**
+ * The workspace's database. The live workspace is created from the template the first time; a
+ * sandbox only by createSandbox, and one deleted meanwhile is not created again (WorkspaceGone):
+ * requests still in flight when its visitor started over brought it back, empty, with no
+ * cookie pointing to it, counted against MAX_SANDBOXES for a day.
+ */
 export function openWorkspace(id: string): Promise<LisDb> {
   const opened = openedDbs();
   let db = opened.get(id);
   if (!db) {
     db = (async () => {
       const file = fileOf(id);
-      await fs.mkdir(path.dirname(file), { recursive: true });
-      await fs.copyFile(templateDb(), file, fs.constants.COPYFILE_EXCL).catch((err: NodeJS.ErrnoException) => {
-        if (err.code !== "EEXIST") throw err;
-      });
+      if (id === LIVE_WORKSPACE) await copyTemplate(file);
+      else if (deletedIds().has(id) || !(await fs.stat(file).catch(() => null))) throw new WorkspaceGone(`workspace ${id} is gone`);
       const lis = await openLis(`file:${file}`);
       // Readers and the writer no longer wait for each other, also across processes: someone
       // reading the file no longer holds up the server's writes. The template stays as it is,
@@ -119,6 +155,7 @@ async function makeSandbox(now: Date, client: string | undefined, byClient: Map<
   if (excess.some((s) => s.used > idleSince)) throw new SandboxesFull("every sandbox is in use: try again later");
   for (const old of excess) await deleteSandbox(old.id);
   const id = randomUUID();
+  await copyTemplate(fileOf(id));
   await openWorkspace(id);
   if (client !== undefined) byClient.set(client, [...(byClient.get(client) ?? []), now.getTime()]);
   return id;
@@ -141,6 +178,7 @@ export async function listWorkspaces(): Promise<string[]> {
 /** Deletes a sandbox and everything in it: the visitor starting from scratch, or the sweep. */
 export async function deleteSandbox(id: string): Promise<void> {
   if (id === LIVE_WORKSPACE) throw new Error("the live workspace is not a sandbox");
+  deletedIds().add(id);
   const opened = openedDbs();
   const db = opened.get(id);
   opened.delete(id);

@@ -14,7 +14,7 @@ import { proposeFor, readDocument } from "./pipeline";
 import { PROVIDERS } from "./schema";
 import { readBundled, readUpload } from "./sources";
 import { claimNext, completeDocument, failDocument, hasQueued, requeueInterrupted, type BatchDocument } from "./store";
-import { listWorkspaces, LIVE_WORKSPACE, openWorkspace, sweepSandboxes, workspaceExists } from "./workspace";
+import { listWorkspaces, LIVE_WORKSPACE, openWorkspace, sweepSandboxes, workspaceExists, WorkspaceGone } from "./workspace";
 
 const SWEEP_EVERY_MS = 60 * 60 * 1000;
 /** Attempts at marking a document failed, a second apart, then a second more each time. */
@@ -106,7 +106,14 @@ export class BatchQueue {
       this.pending.delete(workspace);
       return false;
     }
-    const db = await openWorkspace(workspace);
+    const db = await openWorkspace(workspace).catch((err) => {
+      if (err instanceof WorkspaceGone) return null;
+      throw err;
+    });
+    if (!db) {
+      this.pending.delete(workspace);
+      return false;
+    }
     const doc = await claimNext(db, PROVIDERS.filter((p) => this.running[p] < concurrency(p)));
     if (doc) {
       this.running[doc.provider] += 1;
@@ -122,7 +129,9 @@ export class BatchQueue {
   }
 
   private async process(workspace: string, doc: BatchDocument & { provider: Provider }): Promise<void> {
-    const db = await openWorkspace(workspace);
+    // A sandbox deleted since the document was claimed has nothing left to read it for.
+    const db = await openWorkspace(workspace).catch(() => null);
+    if (!db) return;
     try {
       const pdf = new Uint8Array(doc.origin === "bundled" ? await readBundled(doc.location) : await readUpload(doc.location));
       const { prediction, recorded } = await readDocument(pdf, doc, doc.provider);
@@ -162,8 +171,11 @@ export class BatchQueue {
 
   /** On start: what the last run left extracting is queued again, and every workspace looked at. */
   async resume(): Promise<void> {
-    const workspaces = await listWorkspaces();
-    if (appMode() === "live" && !workspaces.includes(LIVE_WORKSPACE)) workspaces.push(LIVE_WORKSPACE);
+    // Each mode its own: in replay mode the live workspace, if the data directory holds one, is
+    // not read for visitors.
+    const live = appMode() === "live";
+    const workspaces = (await listWorkspaces()).filter((w) => (w === LIVE_WORKSPACE) === live);
+    if (live && !workspaces.includes(LIVE_WORKSPACE)) workspaces.push(LIVE_WORKSPACE);
     for (const workspace of workspaces) {
       // A workspace that cannot be opened (a damaged file) must not keep the server down.
       try {

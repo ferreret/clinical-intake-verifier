@@ -12,7 +12,7 @@ import type { LisDb } from "@/lib/lis/db";
 
 import { appMode } from "./config";
 import { ACTING_HEADER, technician, type Technician } from "./technicians";
-import { createSandbox, deleteSandbox, LIVE_WORKSPACE, openWorkspace, touchWorkspace, workspaceExists } from "./workspace";
+import { createSandbox, deleteSandbox, LIVE_WORKSPACE, openWorkspace, touchWorkspace, workspaceExists, WorkspaceGone } from "./workspace";
 
 const SANDBOX_COOKIE = "civ_sandbox";
 const TECHNICIAN_COOKIE = "civ_technician";
@@ -26,7 +26,17 @@ export interface Session {
 async function currentWorkspace(): Promise<string | null> {
   if (appMode() === "live") return LIVE_WORKSPACE;
   const id = (await cookies()).get(SANDBOX_COOKIE)?.value;
-  return id && (await workspaceExists(id)) ? id : null;
+  // Only a sandbox: in replay mode the live workspace, if a developer's data directory holds
+  // one, may hold real documents.
+  return id && id !== LIVE_WORKSPACE && (await workspaceExists(id)) ? id : null;
+}
+
+/** The workspace's database, or null when it is gone or cannot be opened (a damaged file). */
+async function openOrNull(workspace: string): Promise<LisDb | null> {
+  return openWorkspace(workspace).catch((err) => {
+    if (!(err instanceof WorkspaceGone)) console.error(`session: workspace ${workspace} cannot be opened:`, err);
+    return null;
+  });
 }
 
 /** The technician picked, if any, whether or not their workspace still exists. */
@@ -47,8 +57,10 @@ async function actingAsAnother(tech: Technician | null): Promise<boolean> {
 export async function getSession(): Promise<Session | null> {
   const [workspace, tech] = await Promise.all([currentWorkspace(), currentTechnician()]);
   if (!workspace || !tech || (await actingAsAnother(tech))) return null;
+  const db = await openOrNull(workspace);
+  if (!db) return null;
   await touchWorkspace(workspace);
-  return { workspace, technician: tech, db: await openWorkspace(workspace) };
+  return { workspace, technician: tech, db };
 }
 
 /**
@@ -75,6 +87,12 @@ export async function clientAddress(): Promise<string> {
 export async function startSession(tech: Technician): Promise<Session> {
   const jar = await cookies();
   let workspace = await currentWorkspace();
+  // A sandbox that cannot be opened (a damaged file) gave its visitor an error on every call,
+  // with no way out but "start from scratch": it is replaced. The live workspace never is.
+  if (workspace && workspace !== LIVE_WORKSPACE && !(await openOrNull(workspace))) {
+    await deleteSandbox(workspace).catch(() => undefined);
+    workspace = null;
+  }
   if (!workspace) {
     workspace = await createSandbox(new Date(), await clientAddress());
     jar.set(SANDBOX_COOKIE, workspace, { httpOnly: true, sameSite: "lax", path: COOKIE_PATH });

@@ -40,6 +40,8 @@ import {
   SandboxesFull,
   sweepSandboxes,
   TooManySandboxes,
+  deleteSandbox,
+  WorkspaceGone,
 } from "@/lib/batches/workspace";
 import { sha256Hex } from "@/lib/extractor/pdf";
 import { loadLis, openLis } from "@/lib/lis/db";
@@ -187,6 +189,14 @@ describe("workspaces", () => {
     expect(Date.now() - started).toBeLessThan(1000);
     await reading.rollback();
     other.close();
+  });
+
+  it("does not bring a deleted sandbox back when it is opened again", async () => {
+    const id = await createSandbox();
+    await openWorkspace(id);
+    await deleteSandbox(id);
+    await expect(openWorkspace(id)).rejects.toBeInstanceOf(WorkspaceGone);
+    expect(await listWorkspaces()).not.toContain(id);
   });
 
   it("makes sandboxes one at a time, so that many at once cannot pass MAX_SANDBOXES", async () => {
