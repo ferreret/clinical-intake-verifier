@@ -26,7 +26,7 @@ import { requests } from "@/lib/lis/schema";
 import { readSnapshot } from "@/lib/lis/snapshot";
 import { DbMemory } from "@/lib/mapping/memory";
 import { textKey } from "@/lib/mapping/propose";
-import { FIELDS, inForm } from "@/lib/schema/fields";
+import { FIELDS, inForm, TESTS } from "@/lib/schema/fields";
 
 import { catalogOf, memoryScope } from "./pipeline";
 import { batchDocuments, decisions, type ApprovalRecord, type FieldAction, type LineAction } from "./schema";
@@ -97,6 +97,7 @@ export function checkApproval(
     if (unknown(a.codes).length > 0) problems.push(`added test ${i + 1}: not in the catalog: ${unknown(a.codes).join(", ")}`);
     tests.push({ text: clean(a.text), page: null, proposed: null, state: null, codes: [...new Set(a.codes)], action: "added" });
   }
+  if (TESTS.required && tests.every((t) => t.action === "dropped")) problems.push("a request needs at least one test: keep or add one");
 
   const linked = (k: "patient" | "physician" | "insurer") => {
     const l = proposal.fused.links[k];

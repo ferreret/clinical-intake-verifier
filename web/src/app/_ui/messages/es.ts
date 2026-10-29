@@ -19,6 +19,7 @@ const SERVER: [RegExp, (...m: string[]) => string][] = [
   [/^(\w+) is required$/, (name) => `${fieldLabel(name)}: es obligatorio`],
   [/^(\w+) is not in its form: (.*)$/, (name, value) => `${fieldLabel(name)}: «${value}» no tiene la forma del campo`],
   [/^(\w+) is (red|orange): change or confirm it$/, (name, s) => `${fieldLabel(name)} está en ${s === "red" ? "rojo" : "naranja"}: cámbialo o confírmalo`],
+  [/^a request needs at least one test: keep or add one$/, () => "una petición necesita al menos una prueba: conserva o añade una"],
   [/^the chosen (patient|physician|insurer) (.+) is not a record of its kind$/, (kind, id) => `${CHOSEN[kind]}, ${id}, no es un registro de ese tipo`],
   // Record links (lib/fusion/link.ts).
   [/^identity document and name or birth date agree$/, () => "coinciden el documento de identidad y el nombre o la fecha de nacimiento"],
@@ -368,6 +369,7 @@ export const es: Messages = {
     nextPending: "Siguiente elemento por resolver o confirmar (Alt+N)",
     prevPending: "Elemento anterior por resolver o confirmar (Alt+Mayús+N)",
     nothingLeft: "Listo para aprobar",
+    noTests: "No queda ninguna prueba: conserva o añade al menos una",
     changes: (n) => plural(n, "cambio"),
     confirmedCount: (n) => `${n} ${n === 1 ? "confirmado" : "confirmados"}`,
     lens: (on) => `Lupa ${on ? "activada" : "desactivada"}`,

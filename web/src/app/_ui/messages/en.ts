@@ -301,6 +301,7 @@ export const en = {
     nextPending: "Next item to resolve or confirm (Alt+N)",
     prevPending: "Previous item to resolve or confirm (Alt+Shift+N)",
     nothingLeft: "Ready to approve",
+    noTests: "No test is left: keep or add at least one",
     changes: (n: number) => plural(n, "change"),
     confirmedCount: (n: number) => `${n} confirmed`,
     lens: (on: boolean) => `Lens ${on ? "on" : "off"}`,

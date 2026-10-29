@@ -14,6 +14,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { LOCK_RENEW_MINUTES } from "@/lib/batches/locks";
+import { TESTS } from "@/lib/schema/fields";
 
 import { ApiError, api, providerOf, type ChosenLinks, type Decision, type ProposalView, type RecordKind, type RejectReason } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
@@ -281,6 +282,8 @@ export default function VerifyPage() {
   }, [ahead]);
 
   const unresolved = items.filter((i) => checks[i.key]?.pending).length + added.filter((a) => a.codes.length === 0).length;
+  // Every line dropped and none added: not a request, when fields.json makes the tests required.
+  const noTests = TESTS.required && added.length === 0 && !items.some((i) => i.kind === "test" && chosen[i.key] !== null);
 
   /**
    * Moves to the next (or previous) item still in the way of approving, after the one in focus
@@ -308,7 +311,7 @@ export default function VerifyPage() {
     if (!item || !work) return [];
     return item.kind === "field" ? explainField(item, work, t) : explainLine(item, work, t);
   };
-  const canApprove = !readOnly && !busy && view !== null && !view.decision && unresolved === 0;
+  const canApprove = !readOnly && !busy && view !== null && !view.decision && unresolved === 0 && !noTests;
 
   /** After a decision: the batch's next document to verify, or the batch. */
   const goOn = useCallback(
@@ -680,6 +683,8 @@ export default function VerifyPage() {
                     ↓
                   </PendingArrow>
                 </span>
+              ) : noTests ? (
+                <span className="font-medium text-red-700">{m.noTests}</span>
               ) : (
                 <span className="font-medium text-emerald-700">{m.nothingLeft}</span>
               )}

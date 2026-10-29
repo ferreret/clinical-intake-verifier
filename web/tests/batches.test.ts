@@ -413,6 +413,25 @@ describe("decisions", () => {
     expect(chosenLink("patient", "A1", await readSnapshot(db)).status).toBe("none");
   });
 
+  it("refuses a request with no tests left, as fields.json makes them required", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [doc] = (await getBatch(db, batch.id))!.documents;
+    await openDocument(db, doc.id, "T01");
+    const asFound = resolved((await getProposal(db, doc.id))!);
+    const noLines = { ...asFound, lines: asFound.lines.map(() => null), added: [] };
+    expect(await approveDocument(db, doc.id, "T01", noLines)).toMatchObject({
+      ok: false,
+      problems: expect.arrayContaining(["a request needs at least one test: keep or add one"]),
+    });
+    const oneAdded = { ...noLines, added: [{ text: "Glucosa", codes: [asFound.lines.find((l) => l?.length)![0]] }] };
+    expect(await approveDocument(db, doc.id, "T01", oneAdded)).toMatchObject({ ok: true });
+  });
+
   it("goes on to the next document to decide on: one free or the technician's own first, else one another has open", async () => {
     const ws = await createSandbox();
     const db = await openWorkspace(ws);
