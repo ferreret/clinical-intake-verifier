@@ -29,6 +29,8 @@ export class BatchQueue {
   private pumping: Promise<void> | null = null;
   private again = false;
   private readonly settled = new Set<Promise<void>>();
+  /** The workspace whose document was started last: the next round begins after it. */
+  private last: string | null = null;
 
   /** Look for queued documents in this workspace. */
   kick(workspace: string): void {
@@ -53,32 +55,42 @@ export class BatchQueue {
   private async pump(): Promise<void> {
     do {
       this.again = false;
-      for (const workspace of [...this.pending]) {
-        try {
-          await this.claim(workspace);
-        } catch (err) {
-          // One workspace that cannot be read must not hold up the others; it is looked at
-          // again the next time something is queued in it.
-          console.error(`queue: workspace ${workspace} skipped:`, err);
-          this.pending.delete(workspace);
+      // In rounds of one document per workspace, each beginning after the workspace served
+      // last. Each workspace in turn used to take every free slot, so with the local model's
+      // single one a visitor's batch of 100 kept every other visitor waiting for all of it.
+      let started = true;
+      while (started && PROVIDERS.some((p) => this.running[p] < concurrency(p))) {
+        started = false;
+        const order = [...this.pending];
+        const from = order.indexOf(this.last ?? "") + 1;
+        for (const workspace of [...order.slice(from), ...order.slice(0, from)]) {
+          try {
+            if (await this.claim(workspace)) {
+              started = true;
+              this.last = workspace;
+            }
+          } catch (err) {
+            // One workspace that cannot be read must not hold up the others; it is looked at
+            // again the next time something is queued in it.
+            console.error(`queue: workspace ${workspace} skipped:`, err);
+            this.pending.delete(workspace);
+          }
         }
       }
     } while (this.again);
   }
 
-  /** Starts as many of the workspace's queued documents as the providers have room for. */
-  private async claim(workspace: string): Promise<void> {
+  /** Starts one of the workspace's queued documents, if a provider has room for it; whether it did. */
+  private async claim(workspace: string): Promise<boolean> {
     // A sandbox deleted meanwhile (its visitor started over, or the sweep) is not opened,
     // which would create it again.
     if (workspace !== LIVE_WORKSPACE && !(await workspaceExists(workspace))) {
       this.pending.delete(workspace);
-      return;
+      return false;
     }
     const db = await openWorkspace(workspace);
-    for (;;) {
-      const free = PROVIDERS.filter((p) => this.running[p] < concurrency(p));
-      const doc = await claimNext(db, free);
-      if (!doc) break;
+    const doc = await claimNext(db, PROVIDERS.filter((p) => this.running[p] < concurrency(p)));
+    if (doc) {
       this.running[doc.provider] += 1;
       const run = this.process(workspace, doc).finally(() => {
         this.running[doc.provider] -= 1;
@@ -88,6 +100,7 @@ export class BatchQueue {
       this.settled.add(run);
     }
     if (!(await hasQueued(db))) this.pending.delete(workspace);
+    return doc !== null;
   }
 
   private async process(workspace: string, doc: BatchDocument & { provider: Provider }): Promise<void> {
