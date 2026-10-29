@@ -12,11 +12,14 @@ const fieldLabel = (name: string) => (isFieldName(name) ? fieldSpec(name).label_
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+const CHOSEN: Record<string, string> = { patient: "El paciente elegido", physician: "El médico elegido", insurer: "La mutua elegida" };
+
 const SERVER: [RegExp, (...m: string[]) => string][] = [
   // Why a document cannot be approved yet (lib/batches/decide.ts).
   [/^(\w+) is required$/, (name) => `${fieldLabel(name)}: es obligatorio`],
   [/^(\w+) is not in its form: (.*)$/, (name, value) => `${fieldLabel(name)}: «${value}» no tiene la forma del campo`],
   [/^(\w+) is (red|orange): change or confirm it$/, (name, s) => `${fieldLabel(name)} está en ${s === "red" ? "rojo" : "naranja"}: cámbialo o confírmalo`],
+  [/^the chosen (patient|physician|insurer) (.+) is not a record of its kind$/, (kind, id) => `${CHOSEN[kind]}, ${id}, no es un registro de ese tipo`],
   // Record links (lib/fusion/link.ts).
   [/^identity document and name or birth date agree$/, () => "coinciden el documento de identidad y el nombre o la fecha de nacimiento"],
   [

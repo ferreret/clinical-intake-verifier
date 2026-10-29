@@ -8,6 +8,7 @@ import { PDFDocument } from "pdf-lib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { fuse } from "@/lib/fusion/fuse";
+import { chosenLink } from "@/lib/fusion/link";
 import { readSnapshot } from "@/lib/lis/snapshot";
 import { approveDocument, getDecision, rejectDocument, type ApprovalInput } from "@/lib/batches/decide";
 import { BatchQueue } from "@/lib/batches/queue";
@@ -388,6 +389,28 @@ describe("decisions", () => {
     expect(decision.approved).toMatchObject({ chosen: { patient: null }, links: { patient: null, insurer: "A1" } });
     const [request] = await db.select().from(requests).where(eq(requests.decisionId, decision.id));
     expect(request.patientId).toBeNull();
+  });
+
+  it("refuses a link to a record of another kind, or to no record at all", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [doc] = (await getBatch(db, batch.id))!.documents;
+    await openDocument(db, doc.id, "T01");
+    const asFound = resolved((await getProposal(db, doc.id))!);
+    expect(await approveDocument(db, doc.id, "T01", { ...asFound, links: { patient: "A1" } })).toEqual({
+      ok: false,
+      reason: "invalid",
+      problems: ["the chosen patient A1 is not a record of its kind"],
+    });
+    expect(await approveDocument(db, doc.id, "T01", { ...asFound, links: { insurer: "A9" } })).toMatchObject({
+      problems: ["the chosen insurer A9 is not a record of its kind"],
+    });
+    expect(await getDecision(db, doc.id)).toBeNull();
+    expect(chosenLink("patient", "A1", await readSnapshot(db)).status).toBe("none");
   });
 
   it("goes on to the next document to decide on: one free or the technician's own first, else one another has open", async () => {

@@ -43,12 +43,29 @@ function link(
   };
 }
 
+/** Where each kind of record is in the LIS. */
+const RECORDS = { patient: "patients", physician: "physicians", insurer: "insurers" } as const;
+
+function isRecord(record: RecordKind, id: string, lis: LisSnapshot): boolean {
+  return lis[RECORDS[record]].some((r) => r.id === id);
+}
+
+/**
+ * The chosen links whose id is not a record of their own kind, as "patient M0001": a patient
+ * linked to a physician, say, or to no record at all. Empty when the links can be used.
+ */
+export function unknownChosen(links: ChosenLinks, lis: LisSnapshot): string[] {
+  return (Object.entries(links) as [RecordKind, string | null][])
+    .filter(([record, id]) => id !== null && !isRecord(record, id, lis))
+    .map(([record, id]) => `${record} ${id}`);
+}
+
 /**
  * A link the technician set: the record they found by searching, which is then as good as a
  * strong match, or none when they say the document's person or insurer is not in the LIS.
  */
 export function chosenLink(record: RecordKind, id: string | null, lis: LisSnapshot): RecordLink {
-  const known = id !== null && [...lis.patients, ...lis.physicians, ...lis.insurers].some((r) => r.id === id);
+  const known = id !== null && isRecord(record, id, lis);
   const out = known
     ? link(record, "linked", "chosen by the technician", [{ id: id! }])
     : link(record, "none", "the technician says there is no record: a new one");

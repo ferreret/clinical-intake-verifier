@@ -19,6 +19,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { fuse } from "@/lib/fusion/fuse";
+import { unknownChosen } from "@/lib/fusion/link";
 import type { ChosenLinks, TrafficLight } from "@/lib/fusion/types";
 import type { LisDb } from "@/lib/lis/db";
 import { requests } from "@/lib/lis/schema";
@@ -162,8 +163,10 @@ export async function approveDocument(db: LisDb, id: string, technician: string,
   if (!stored) return { ok: false, reason: "missing" };
   // With links the technician chose, the fields are checked against those records.
   const chosen = input.links ?? {};
-  const proposal =
-    Object.keys(chosen).length > 0 ? { ...stored, fused: fuse(stored.prediction, await readSnapshot(db), chosen) } : stored;
+  const lis = Object.keys(chosen).length > 0 ? await readSnapshot(db) : null;
+  const unknown = lis ? unknownChosen(chosen, lis) : [];
+  if (unknown.length > 0) return { ok: false, reason: "invalid", problems: unknown.map((u) => `the chosen ${u} is not a record of its kind`) };
+  const proposal = lis ? { ...stored, fused: fuse(stored.prediction, lis, chosen) } : stored;
   const { catalog } = await catalogOf(db);
   const { problems, record } = checkApproval(proposal, input, new Set(catalog.tests.map((t) => t.code)));
   if (problems.length > 0) return { ok: false, reason: "invalid", problems };
