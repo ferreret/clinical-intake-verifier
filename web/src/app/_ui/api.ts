@@ -7,7 +7,7 @@ import { withBase } from "@/lib/base-path";
 import type { Decision, RejectReason } from "@/lib/batches/decide";
 import type { BundledInfo } from "@/lib/batches/sources";
 import type { Batch, BatchDocument, BatchSummary, DocumentSummary, StoredProposal } from "@/lib/batches/store";
-import type { Technician } from "@/lib/batches/technicians";
+import { ACTING_HEADER, type Technician } from "@/lib/batches/technicians";
 import type { ChosenLinks, FusedDocument, RecordKind } from "@/lib/fusion/types";
 import type { RecordView } from "@/lib/lis/records";
 import type { Candidate } from "@/lib/mapping/search";
@@ -82,8 +82,17 @@ export class ApiError extends Error {
   }
 }
 
+/** The technician this page shows, sent with every call but the session's own (technicians.ts). */
+let actingAs: string | null = null;
+
+export function actAs(technician: string | null): void {
+  actingAs = technician;
+}
+
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(withBase(url), { cache: "no-store", ...init });
+  const headers = new Headers(init?.headers);
+  if (actingAs && url !== "/api/session") headers.set(ACTING_HEADER, actingAs);
+  const res = await fetch(withBase(url), { cache: "no-store", ...init, headers });
   const body = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) throw new ApiError(res.status, hideModels(body.error ?? `HTTP ${res.status}`), body as Record<string, unknown>);
   return body;
@@ -126,7 +135,8 @@ export const api = {
   release: (documentId: string) => call<{ released: boolean }>(`/api/documents/${documentId}/release`, { method: "POST" }),
   /** The same on the way out, when the page may be gone before an ordinary request finishes. */
   releaseOnExit: (documentId: string) => {
-    void fetch(withBase(`/api/documents/${documentId}/release`), { method: "POST", keepalive: true }).catch(() => undefined);
+    const headers = actingAs ? { [ACTING_HEADER]: actingAs } : undefined;
+    void fetch(withBase(`/api/documents/${documentId}/release`), { method: "POST", keepalive: true, headers }).catch(() => undefined);
   },
   catalog: (q: string, signal?: AbortSignal) =>
     call<{ results: Candidate[]; names: Record<string, string> }>(`/api/catalog?q=${encodeURIComponent(q)}`, { signal }),

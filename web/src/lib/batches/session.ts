@@ -4,14 +4,14 @@
  * The technician is picked, not authenticated (technicians.ts). In replay mode the sandbox
  * cookie names the visitor's workspace; live mode has a single one.
  */
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { COOKIE_PATH } from "@/lib/base-path";
 import type { LisDb } from "@/lib/lis/db";
 
 import { appMode } from "./config";
-import { technician, type Technician } from "./technicians";
+import { ACTING_HEADER, technician, type Technician } from "./technicians";
 import { createSandbox, deleteSandbox, LIVE_WORKSPACE, openWorkspace, touchWorkspace, workspaceExists } from "./workspace";
 
 const SANDBOX_COOKIE = "civ_sandbox";
@@ -34,10 +34,19 @@ export async function currentTechnician(): Promise<Technician | null> {
   return technician((await cookies()).get(TECHNICIAN_COOKIE)?.value);
 }
 
-/** The session, or null when no technician was picked or the sandbox has expired. */
+/** The page acts as a technician who is no longer the one picked: another tab picked someone else. */
+async function actingAsAnother(tech: Technician | null): Promise<boolean> {
+  const acting = (await headers()).get(ACTING_HEADER);
+  return acting !== null && acting !== tech?.id;
+}
+
+/**
+ * The session, or null when no technician was picked, the sandbox has expired, or the page
+ * shows another technician than the one picked.
+ */
 export async function getSession(): Promise<Session | null> {
   const [workspace, tech] = await Promise.all([currentWorkspace(), currentTechnician()]);
-  if (!workspace || !tech) return null;
+  if (!workspace || !tech || (await actingAsAnother(tech))) return null;
   await touchWorkspace(workspace);
   return { workspace, technician: tech, db: await openWorkspace(workspace) };
 }
@@ -66,6 +75,10 @@ export async function endSession(): Promise<void> {
   jar.delete({ name: TECHNICIAN_COOKIE, path: COOKIE_PATH });
 }
 
-export function noSession(): NextResponse {
+export async function noSession(): Promise<NextResponse> {
+  const tech = await currentTechnician();
+  if (tech && (await actingAsAnother(tech))) {
+    return NextResponse.json({ error: `another tab works as ${tech.name} now: reload the page` }, { status: 409 });
+  }
   return NextResponse.json({ error: "pick a technician first (POST /api/session)" }, { status: 401 });
 }

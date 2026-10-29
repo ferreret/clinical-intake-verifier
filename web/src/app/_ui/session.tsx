@@ -9,7 +9,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
-import { api, type SessionInfo, type Technician } from "./api";
+import { actAs, api, type SessionInfo, type Technician } from "./api";
 import { Avatar } from "./avatar";
 import { LanguageSwitch, useI18n } from "./i18n";
 import { Logo } from "./icons";
@@ -30,6 +30,7 @@ export function SessionShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     api.session().then((s) => {
+      actAs(s.technician?.id ?? null);
       if (!s.technician) router.replace("/");
       else setSession(s);
     });

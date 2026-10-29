@@ -13,6 +13,13 @@ export const TECHNICIANS: readonly Technician[] = [
   { id: "T03", name: "Elena Ruiz Navarro" },
 ];
 
+/**
+ * The header a page sends with the technician it shows. The technician cookie is shared by
+ * every tab, so one tab picking another technician would otherwise make the others act as them
+ * while still showing the first: their approvals recorded under the wrong name.
+ */
+export const ACTING_HEADER = "x-technician";
+
 export function technician(id: string | null | undefined): Technician | null {
   return TECHNICIANS.find((t) => t.id === id) ?? null;
 }
