@@ -159,11 +159,15 @@ export const api = {
     call<{ decision: Decision; next: string | null }>(`/api/documents/${documentId}/approve`, postJson(approval)),
   reject: (documentId: string, reason: RejectReason, note: string) =>
     call<{ decision: Decision; next: string | null }>(`/api/documents/${documentId}/reject`, postJson({ reason, note })),
-  release: (documentId: string) => call<{ released: boolean }>(`/api/documents/${documentId}/release`, { method: "POST" }),
+  /** Releases the lock the page got at `since` (its lockedAt), and no later one. */
+  release: (documentId: string, since: string) =>
+    call<{ released: boolean }>(`/api/documents/${documentId}/release`, postJson({ since })),
   /** The same on the way out, when the page may be gone before an ordinary request finishes. */
-  releaseOnExit: (documentId: string) => {
-    const headers = actingAs ? { [ACTING_HEADER]: actingAs } : undefined;
-    void fetch(withBase(`/api/documents/${documentId}/release`), { method: "POST", keepalive: true, headers }).catch(() => undefined);
+  releaseOnExit: (documentId: string, since: string) => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (actingAs) headers[ACTING_HEADER] = actingAs;
+    const body = JSON.stringify({ since });
+    void fetch(withBase(`/api/documents/${documentId}/release`), { method: "POST", keepalive: true, headers, body }).catch(() => undefined);
   },
   catalog: (q: string, signal?: AbortSignal) =>
     call<{ results: Candidate[]; names: Record<string, string> }>(`/api/catalog?q=${encodeURIComponent(q)}`, { signal }),

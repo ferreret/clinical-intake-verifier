@@ -35,7 +35,8 @@ import { Viewer } from "./viewer";
 
 /** Whether the document is this technician's to verify; otherwise why not, as the server said. */
 type Lock =
-  | { status: "mine" }
+  // `since`: the lock's time, as the server gave it; releasing names it.
+  | { status: "mine"; since: string }
   | { status: "locked"; holder: string }
   | { status: "closed"; message: string }
   // The server could not be asked (no reply, a failure that passes): tried again, not a refusal.
@@ -111,7 +112,8 @@ export default function VerifyPage() {
   const pendingFocus = useRef<string | null>(null);
 
   const open = useCallback(
-    (takeOver = false) => api.open(docId, takeOver).then(() => ({ status: "mine" }) as Lock, (e) => lockedBy(e, takeOver)),
+    (takeOver = false) =>
+      api.open(docId, takeOver).then((r) => ({ status: "mine", since: r.document.lockedAt ?? "" }) as Lock, (e) => lockedBy(e, takeOver)),
     [docId],
   );
 
@@ -433,7 +435,7 @@ export default function VerifyPage() {
   const leave = useCallback(
     async (to: string) => {
       if (unsaved && !window.confirm(m.confirmLeave)) return;
-      if (lock?.status === "mine") await api.release(docId).catch(() => undefined);
+      if (lock?.status === "mine") await api.release(docId, lock.since).catch(() => undefined);
       router.push(to);
     },
     [unsaved, lock, docId, router, m],
@@ -443,8 +445,8 @@ export default function VerifyPage() {
   // closing the tab. The document is released all the same (releasing twice does nothing), and
   // work is not lost without the question: the browser's own on closing or reloading, ours on a
   // link. The Back button cannot be asked about; it still releases.
-  const exit = useRef({ unsaved, mine: false, ask: m.confirmLeave });
-  const mine = lock?.status === "mine";
+  const exit = useRef<{ unsaved: boolean; mine: string | null; ask: string }>({ unsaved, mine: null, ask: m.confirmLeave });
+  const mine = lock?.status === "mine" ? lock.since : null;
   useEffect(() => {
     exit.current = { unsaved, mine, ask: m.confirmLeave };
   }, [unsaved, mine, m]);
@@ -453,7 +455,7 @@ export default function VerifyPage() {
       if (exit.current.unsaved) e.preventDefault();
     }
     function pageHide() {
-      if (exit.current.mine) api.releaseOnExit(docId);
+      if (exit.current.mine !== null) api.releaseOnExit(docId, exit.current.mine);
     }
     function linkClick(e: MouseEvent) {
       if (!exit.current.unsaved || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -472,7 +474,7 @@ export default function VerifyPage() {
       window.removeEventListener("pagehide", pageHide);
       document.removeEventListener("click", linkClick, true);
       // Unmounted: the page was left by a link or Back.
-      if (exit.current.mine) api.releaseOnExit(docId);
+      if (exit.current.mine !== null) api.releaseOnExit(docId, exit.current.mine);
     };
   }, [docId]);
 

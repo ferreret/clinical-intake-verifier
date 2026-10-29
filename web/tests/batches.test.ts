@@ -367,6 +367,28 @@ describe("races", () => {
   });
 });
 
+describe("releasing a lock", () => {
+  it("releases only the lock the page got, not one taken after it", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [doc] = (await getBatch(db, batch.id))!.documents;
+    const first = await openDocument(db, doc.id, "T01");
+    if (!first.ok) throw new Error("not opened");
+    await new Promise((r) => setTimeout(r, 5));
+    // The technician came back at once: the new page's open got there before the old one's release.
+    const again = await openDocument(db, doc.id, "T01");
+    if (!again.ok) throw new Error("not opened again");
+    expect(await releaseDocument(db, doc.id, "T01", first.document.lockedAt!)).toBe(false);
+    expect((await getDocument(db, doc.id))!).toMatchObject({ state: "in_verification", lockedBy: "T01" });
+    expect(await releaseDocument(db, doc.id, "T01", again.document.lockedAt!)).toBe(true);
+    expect((await getDocument(db, doc.id))!.state).toBe("awaiting_verification");
+  });
+});
+
 describe("a failed document's error", () => {
   it("shows no SQL, parameters or paths, and keeps the cause for the log", () => {
     const busy = Object.assign(new Error("SQLITE_BUSY: database is locked"), { code: "SQLITE_BUSY" });

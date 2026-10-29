@@ -271,11 +271,18 @@ export async function openDocument(db: LisDb, id: string, technician: string, ta
 }
 
 /** The technician leaves it unfinished: it waits for verification again. Only its holder can. */
-export async function releaseDocument(db: LisDb, id: string, technician: string): Promise<boolean> {
+/**
+ * The technician leaves the document unfinished. With `since`, the lock's time as the page got
+ * it on opening or renewing it, only that lock is released: leaving a document and coming back
+ * at once sends a release and an open together, and a release arriving second unlocked the
+ * document the new page showed as the technician's.
+ */
+export async function releaseDocument(db: LisDb, id: string, technician: string, since?: string): Promise<boolean> {
+  const mine = and(eq(batchDocuments.id, id), eq(batchDocuments.state, "in_verification"), eq(batchDocuments.lockedBy, technician));
   const done = await db
     .update(batchDocuments)
     .set({ state: "awaiting_verification", lockedBy: null, lockedAt: null, updatedAt: now() })
-    .where(and(eq(batchDocuments.id, id), eq(batchDocuments.state, "in_verification"), eq(batchDocuments.lockedBy, technician)))
+    .where(since === undefined ? mine : and(mine, eq(batchDocuments.lockedAt, since)))
     .returning({ id: batchDocuments.id });
   return done.length > 0;
 }
