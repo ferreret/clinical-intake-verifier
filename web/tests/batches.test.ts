@@ -542,6 +542,27 @@ describe("decisions", () => {
     expect(request.patientId).toBeNull();
   });
 
+  it("records each field's provenance in the decision, as it was when approved", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [doc] = (await getBatch(db, batch.id))!.documents;
+    await openDocument(db, doc.id, "T01");
+    const stored = (await getProposal(db, doc.id))!;
+    expect(await approveDocument(db, doc.id, "T01", resolved(stored))).toMatchObject({ ok: true });
+    const fused = stored.fused.fields.find((f) => f.name === "DocumentoIdentidad")!;
+    const approved = (await getDecision(db, doc.id))!.approved!.fields.find((f) => f.name === "DocumentoIdentidad")!;
+    expect(approved).toMatchObject({
+      source: fused.source,
+      ai: fused.ai?.value ?? null,
+      lis: fused.lis ? { value: fused.lis.value, recordId: fused.lis.recordId } : null,
+    });
+    expect(approved.lis?.recordId).toBe("P1");
+  });
+
   it("refuses a link to a record of another kind, or to no record at all", async () => {
     const ws = await createSandbox();
     const db = await openWorkspace(ws);

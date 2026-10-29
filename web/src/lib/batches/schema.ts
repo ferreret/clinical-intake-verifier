@@ -10,7 +10,7 @@
  */
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-import type { ChosenLinks, FusedDocument, TrafficLight } from "@/lib/fusion/types";
+import type { ChosenLinks, FusedDocument, TrafficLight, ValueSource } from "@/lib/fusion/types";
 import type { Proposal } from "@/lib/mapping/propose";
 import type { BBox, BoxSource, Prediction } from "@/lib/schema/prediction";
 
@@ -118,7 +118,22 @@ export interface ApprovalRecord {
   links: { patient: string | null; physician: string | null; insurer: string | null };
   /** The links the technician set by searching the records, if any. */
   chosen: ChosenLinks;
-  fields: { name: string; value: string | null; proposed: string | null; state: TrafficLight; action: FieldAction }[];
+  fields: {
+    name: string;
+    value: string | null;
+    proposed: string | null;
+    state: TrafficLight;
+    action: FieldAction;
+    /**
+     * The field's provenance when it was approved: where the proposed value came from, what the
+     * model read and what the LIS record said, and which record. Kept here, so that the audit
+     * trail does not depend on the proposal, which goes with its batch. Absent in decisions
+     * recorded before 2026-10-29.
+     */
+    source?: ValueSource | null;
+    ai?: string | null;
+    lis?: { value: string; recordId: string } | null;
+  }[];
   tests: {
     text: string;
     page: number | null;

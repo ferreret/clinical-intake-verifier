@@ -3,7 +3,9 @@
  * field, a proposed value with its traffic light and its provenance.
  *
  * Every state here is a signal to the technician, never a decision: nothing is accepted
- * until a person approves it (CLAUDE.md). `history` is where those actions will be recorded.
+ * until a person approves it (CLAUDE.md). What the technician did, and each field's provenance
+ * as it was then, is recorded in the decision (batches/schema.ts, ApprovalRecord); `history`
+ * is kept empty, for the proposals already stored.
  */
 import type { BBox } from "@/lib/schema/prediction";
 

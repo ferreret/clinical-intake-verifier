@@ -77,7 +77,8 @@ export function checkApproval(
     if (needs(f.state) && !changed && !value && !spec.required) problems.push(`${spec.name} is ${f.state} with no value: choose or type one`);
     else if (needs(f.state) && !changed && !confirmed.has(`f:${spec.name}`)) problems.push(`${spec.name} is ${f.state}: change or confirm it`);
     const action: FieldAction = changed ? "changed" : needs(f.state) ? "confirmed" : "kept";
-    return { name: spec.name, value, proposed, state: f.state, action };
+    const lis = f.lis ? { value: f.lis.value, recordId: f.lis.recordId } : null;
+    return { name: spec.name, value, proposed, state: f.state, action, source: f.source, ai: f.ai?.value ?? null, lis };
   });
 
   if (input.lines.length !== proposal.tests.length) problems.push(`expected ${proposal.tests.length} read lines, got ${input.lines.length}`);
