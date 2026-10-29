@@ -51,12 +51,22 @@ export async function getSession(): Promise<Session | null> {
   return { workspace, technician: tech, db: await openWorkspace(workspace) };
 }
 
+/**
+ * The client's address, for the limit on new sandboxes: the last one the proxy in front of the
+ * app added (anything before it the client could have written itself), or "direct".
+ */
+export async function clientAddress(): Promise<string> {
+  const h = await headers();
+  const forwarded = h.get("x-forwarded-for")?.split(",").at(-1)?.trim();
+  return forwarded || h.get("x-real-ip")?.trim() || "direct";
+}
+
 /** Works as `tech` from now on; a visitor without a live sandbox gets a new one. */
 export async function startSession(tech: Technician): Promise<Session> {
   const jar = await cookies();
   let workspace = await currentWorkspace();
   if (!workspace) {
-    workspace = await createSandbox();
+    workspace = await createSandbox(new Date(), await clientAddress());
     jar.set(SANDBOX_COOKIE, workspace, { httpOnly: true, sameSite: "lax", path: COOKIE_PATH });
   }
   jar.set(TECHNICIAN_COOKIE, tech.id, { httpOnly: true, sameSite: "lax", path: COOKIE_PATH });

@@ -14,7 +14,7 @@ import { jsonBody, tooLarge } from "@/lib/http";
 import { appMode, replaySpeed } from "@/lib/batches/config";
 import { endSession, getSession, startSession } from "@/lib/batches/session";
 import { technician, TECHNICIANS } from "@/lib/batches/technicians";
-import { SandboxesFull } from "@/lib/batches/workspace";
+import { SandboxesFull, TooManySandboxes } from "@/lib/batches/workspace";
 
 export const runtime = "nodejs";
 
@@ -36,6 +36,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ ...modeInfo(), technicians: TECHNICIANS, technician: session.technician });
   } catch (err) {
     if (err instanceof SandboxesFull) return NextResponse.json({ error: err.message }, { status: 503 });
+    if (err instanceof TooManySandboxes) return NextResponse.json({ error: err.message }, { status: 429 });
     throw err;
   }
 }

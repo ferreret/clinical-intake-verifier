@@ -34,6 +34,7 @@ The image sets replay mode and where its data is; a deployment only adds what it
 |---|---|
 | `PUBLIC_URL` | The address's origin, without the path: the share image's address is made from it, and Next.js adds the path |
 | `MAX_SANDBOXES` | Optional, 500 by default: sandboxes kept at most; a new visitor beyond it takes the place of the one unused for longest. About half a megabyte each |
+| `NEW_SANDBOXES_PER_HOUR` | Optional, 20 by default: new sandboxes one client address may make in an hour, so that a script cannot fill the demo; the address is the last one the proxy adds to `X-Forwarded-For` |
 | `SANDBOX_IDLE_MINUTES` | Optional, 30 by default: how long a sandbox must have been unused to make room for a new visitor; when none has, the new visitor is told the demo is full |
 | `LOCK_MINUTES` | Optional, 30 by default (at least 15): how long a document stays locked to a technician whose page stopped renewing the lock |
 | `SANDBOX_TTL_HOURS` | Optional, 24 by default: hours a sandbox lives after its last use |

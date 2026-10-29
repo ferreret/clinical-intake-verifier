@@ -114,6 +114,12 @@ export function lockMinutes(): number {
   return n >= 3 * LOCK_RENEW_MINUTES ? n : 30;
 }
 
+/** New sandboxes one client address may make in an hour: a script cannot fill the demo. */
+export function newSandboxesPerHour(): number {
+  const n = Number.parseInt(process.env.NEW_SANDBOXES_PER_HOUR ?? "", 10);
+  return n > 0 ? n : 20;
+}
+
 export function sandboxIdleMinutes(): number {
   const n = Number(process.env.SANDBOX_IDLE_MINUTES ?? "30");
   return n >= 0 ? n : 30;

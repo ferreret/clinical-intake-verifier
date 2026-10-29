@@ -28,7 +28,15 @@ import {
   retryDocument,
   summarise,
 } from "@/lib/batches/store";
-import { createSandbox, isWorkspaceId, listWorkspaces, openWorkspace, SandboxesFull, sweepSandboxes } from "@/lib/batches/workspace";
+import {
+  createSandbox,
+  isWorkspaceId,
+  listWorkspaces,
+  openWorkspace,
+  SandboxesFull,
+  sweepSandboxes,
+  TooManySandboxes,
+} from "@/lib/batches/workspace";
 import { sha256Hex } from "@/lib/extractor/pdf";
 import { loadLis, openLis } from "@/lib/lis/db";
 import { requests } from "@/lib/lis/schema";
@@ -174,6 +182,34 @@ describe("workspaces", () => {
     expect(Date.now() - started).toBeLessThan(1000);
     await reading.rollback();
     other.close();
+  });
+
+  it("makes sandboxes one at a time, so that many at once cannot pass MAX_SANDBOXES", async () => {
+    const before = await listWorkspaces();
+    process.env.MAX_SANDBOXES = String(before.length + 3);
+    try {
+      const made = await Promise.allSettled(Array.from({ length: 8 }, () => createSandbox()));
+      expect(made.filter((m) => m.status === "fulfilled")).toHaveLength(3);
+      expect(made.filter((m) => m.status === "rejected" && m.reason instanceof SandboxesFull)).toHaveLength(5);
+      expect(await listWorkspaces()).toHaveLength(before.length + 3);
+    } finally {
+      delete process.env.MAX_SANDBOXES;
+    }
+  });
+
+  it("makes at most NEW_SANDBOXES_PER_HOUR sandboxes an hour for one client address", async () => {
+    process.env.NEW_SANDBOXES_PER_HOUR = "2";
+    try {
+      const now = new Date();
+      await createSandbox(now, "203.0.113.7");
+      await createSandbox(now, "203.0.113.7");
+      await expect(createSandbox(now, "203.0.113.7")).rejects.toBeInstanceOf(TooManySandboxes);
+      // Another address is not held up, and an hour later the first may make more.
+      await createSandbox(now, "198.51.100.20");
+      await createSandbox(new Date(now.getTime() + 3601 * 1000), "203.0.113.7");
+    } finally {
+      delete process.env.NEW_SANDBOXES_PER_HOUR;
+    }
   });
 
   it("keeps at most MAX_SANDBOXES, a new one taking the place of the one unused for longest", async () => {

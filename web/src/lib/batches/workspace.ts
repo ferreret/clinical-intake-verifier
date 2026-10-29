@@ -15,7 +15,7 @@ import { sql } from "drizzle-orm";
 
 import { openLis, type LisDb } from "@/lib/lis/db";
 
-import { dataDir, maxSandboxes, sandboxIdleMinutes, sandboxTtlHours, templateDb } from "./config";
+import { dataDir, maxSandboxes, newSandboxesPerHour, sandboxIdleMinutes, sandboxTtlHours, templateDb } from "./config";
 
 export const LIVE_WORKSPACE = "live";
 const SANDBOX_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -78,11 +78,36 @@ export async function workspaceExists(id: string): Promise<boolean> {
 /** There is no room for another sandbox: every one was used in the last minutes. */
 export class SandboxesFull extends Error {}
 
+/** The client made NEW_SANDBOXES_PER_HOUR sandboxes in the last hour. */
+export class TooManySandboxes extends Error {}
+
+const MAKING = Symbol.for("clinical-intake-verifier.making-sandboxes");
+type WithMaking = typeof globalThis & { [MAKING]?: { last: Promise<unknown>; byClient: Map<string, number[]> } };
+
 /**
  * A new sandbox, ready to use; beyond MAX_SANDBOXES, the ones unused for longest make room,
- * if they have been idle for SANDBOX_IDLE_MINUTES. Throws SandboxesFull when too few have.
+ * if they have been idle for SANDBOX_IDLE_MINUTES. Throws SandboxesFull when too few have, and
+ * TooManySandboxes when `client` (its address) made too many in the last hour.
+ *
+ * One at a time: made together, each counted the others' room as free and the cap was passed.
  */
-export async function createSandbox(now: Date = new Date()): Promise<string> {
+export function createSandbox(now: Date = new Date(), client?: string): Promise<string> {
+  const making = ((globalThis as WithMaking)[MAKING] ??= { last: Promise.resolve(), byClient: new Map() });
+  const made = making.last.catch(() => undefined).then(() => makeSandbox(now, client, making.byClient));
+  making.last = made;
+  return made;
+}
+
+async function makeSandbox(now: Date, client: string | undefined, byClient: Map<string, number[]>): Promise<string> {
+  const hourAgo = now.getTime() - 3600 * 1000;
+  for (const [c, times] of byClient) {
+    const recent = times.filter((t) => t > hourAgo);
+    if (recent.length > 0) byClient.set(c, recent);
+    else byClient.delete(c);
+  }
+  if (client !== undefined && (byClient.get(client)?.length ?? 0) >= newSandboxesPerHour()) {
+    throw new TooManySandboxes("too many new sandboxes from this address: try again later");
+  }
   const sandboxes = await Promise.all(
     (await listWorkspaces())
       .filter((w) => w !== LIVE_WORKSPACE)
@@ -95,6 +120,7 @@ export async function createSandbox(now: Date = new Date()): Promise<string> {
   for (const old of excess) await deleteSandbox(old.id);
   const id = randomUUID();
   await openWorkspace(id);
+  if (client !== undefined) byClient.set(client, [...(byClient.get(client) ?? []), now.getTime()]);
   return id;
 }
 
