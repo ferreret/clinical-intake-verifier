@@ -12,6 +12,7 @@ import { fuse } from "@/lib/fusion/fuse";
 import { chosenLink } from "@/lib/fusion/link";
 import { readSnapshot } from "@/lib/lis/snapshot";
 import { approveDocument, checkApproval, getDecision, rejectDocument, type ApprovalInput } from "@/lib/batches/decide";
+import { withChosenLinks } from "@/lib/batches/pipeline";
 import { BatchQueue, failure } from "@/lib/batches/queue";
 import { deleteAllBatches, deleteBatch } from "@/lib/batches/remove";
 import { batchDocuments } from "@/lib/batches/schema";
@@ -128,7 +129,10 @@ beforeAll(async () => {
       },
     ],
     physicians: [],
-    insurers: [{ id: "A1", name: "Garbí Salut Mútua", aliases: ["Garbí Salut"] }],
+    insurers: [
+      { id: "A1", name: "Garbí Salut Mútua", aliases: ["Garbí Salut"] },
+      { id: "A2", name: "Serralada Assegurances", aliases: [] },
+    ],
   });
   await loadCatalog(db, {
     catalog_version: 2,
@@ -594,6 +598,37 @@ describe("decisions", () => {
       lis: fused.lis ? { value: fused.lis.value, recordId: fused.lis.recordId } : null,
     });
     expect(approved.lis?.recordId).toBe("P1");
+  });
+
+  it("maps the lines again with the memory of an insurer the technician chose", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    // Glucosa is green for A1, approved there twice; A2 has never seen it.
+    const memory = new DbMemory(db);
+    for (let i = 0; i < 2; i++) await memory.approve("A1", textKey("Glucosa"), ["BQ0001"], "active");
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [doc] = (await getBatch(db, batch.id))!.documents;
+    await openDocument(db, doc.id, "T01");
+    const stored = (await getProposal(db, doc.id))!;
+    expect(stored.tests[0].mapping).toMatchObject({ state: "green", source: "memory" });
+
+    const chosen = await withChosenLinks(db, stored, await readSnapshot(db), { insurer: "A2" });
+    expect(chosen.fused.links.insurer).toMatchObject({ recordId: "A2", chosen: true });
+    expect(chosen.tests[0].mapping).toMatchObject({ state: "orange", source: "memory_elsewhere" });
+    expect(chosen.trace?.mapping.scope).toBe("A2");
+
+    // Approving checks the same: the line, green only for A1, has to be confirmed for A2.
+    const asFound = resolved(stored);
+    const unconfirmed = { ...asFound, confirmed: asFound.confirmed.filter((c) => c !== "t:0"), links: { insurer: "A2" } };
+    expect(await approveDocument(db, doc.id, "T01", unconfirmed)).toMatchObject({
+      ok: false,
+      problems: expect.arrayContaining([expect.stringMatching(/^line 1 \(Glucosa\) is orange/)]),
+    });
+    expect(await approveDocument(db, doc.id, "T01", { ...unconfirmed, confirmed: asFound.confirmed })).toMatchObject({ ok: true });
+    expect(await memory.lookup("A2", textKey("Glucosa"))).toEqual([{ codes: ["BQ0001"], active: 1, passive: 0, corrections: 0 }]);
   });
 
   it("refuses a link to a record of another kind, or to no record at all", async () => {

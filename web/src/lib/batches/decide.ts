@@ -18,7 +18,6 @@ import { randomUUID } from "node:crypto";
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
-import { fuse } from "@/lib/fusion/fuse";
 import { unknownChosen } from "@/lib/fusion/link";
 import type { ChosenLinks, TrafficLight } from "@/lib/fusion/types";
 import type { LisDb } from "@/lib/lis/db";
@@ -28,7 +27,7 @@ import { DbMemory } from "@/lib/mapping/memory";
 import { textKey } from "@/lib/mapping/propose";
 import { FIELDS, fieldSpec, inForm, TESTS } from "@/lib/schema/fields";
 
-import { catalogOf, memoryScope } from "./pipeline";
+import { catalogOf, memoryScope, withChosenLinks } from "./pipeline";
 import { batchDocuments, decisions, type ApprovalRecord, type FieldAction, type LineAction } from "./schema";
 import { getDocument, getProposal, type BatchDocument, type StoredProposal } from "./store";
 
@@ -192,7 +191,8 @@ export async function approveDocument(db: LisDb, id: string, technician: string,
   const lis = Object.keys(chosen).length > 0 ? await readSnapshot(db) : null;
   const unknown = lis ? unknownChosen(chosen, lis) : [];
   if (unknown.length > 0) return { ok: false, reason: "invalid", problems: unknown.map((u) => `the chosen ${u} is not a record of its kind`) };
-  const proposal = lis ? { ...stored, fused: fuse(stored.prediction, lis, chosen) } : stored;
+  // The lines too: with another insurer chosen, mapped again with its memory, as the screen did.
+  const proposal = lis ? { ...stored, ...(await withChosenLinks(db, stored, lis, chosen)) } : stored;
   const { catalog } = await catalogOf(db);
   const { problems, record } = checkApproval(proposal, input, new Set(catalog.tests.map((t) => t.code)));
   if (problems.length > 0) return { ok: false, reason: "invalid", problems };

@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { DEFAULT_MODEL, extract } from "@/lib/extractor";
 import { resolveLocalModel } from "@/lib/extractor/local";
 import { fuse } from "@/lib/fusion/fuse";
-import type { FusedDocument } from "@/lib/fusion/types";
+import type { ChosenLinks, FusedDocument, LisSnapshot } from "@/lib/fusion/types";
 import type { LisDb } from "@/lib/lis/db";
 import { readSnapshot } from "@/lib/lis/snapshot";
 import { readCatalog, type Catalog } from "@/lib/mapping/catalog";
@@ -138,6 +138,38 @@ export async function proposeFor(
   mode: AppMode = appMode(),
 ): Promise<{ fused: FusedDocument; tests: TestProposal[]; trace: ProcessingTrace }> {
   const fused = fuse(prediction, await readSnapshot(db));
+  return { fused, ...(await mapLines(db, prediction, fused, mode)) };
+}
+
+/**
+ * A stored proposal with the links the technician chose: fused again against them, and, when
+ * the insurer changes, its lines mapped again with the chosen one's memory. What the screen
+ * shows (/fusion) and what approving checks are worked out the same way, here.
+ */
+export async function withChosenLinks(
+  db: LisDb,
+  stored: { prediction: Prediction; fused: FusedDocument; tests: TestProposal[]; trace: ProcessingTrace | null },
+  lis: LisSnapshot,
+  chosen: ChosenLinks,
+): Promise<{ fused: FusedDocument; tests: TestProposal[]; trace: ProcessingTrace | null }> {
+  const fused = fuse(stored.prediction, lis, chosen);
+  if (memoryScope(fused, stored.prediction) === memoryScope(stored.fused, stored.prediction)) {
+    return { fused, tests: stored.tests, trace: stored.trace };
+  }
+  return { fused, ...(await mapLines(db, stored.prediction, fused)) };
+}
+
+/**
+ * The codes proposed for each line, with the memory of the insurer `fused` is linked to. Also
+ * when the technician chose another insurer (decision of 2026-10-29): its memory then
+ * prevails, as its record does, and the lines are mapped again as if it had been found.
+ */
+export async function mapLines(
+  db: LisDb,
+  prediction: Prediction,
+  fused: FusedDocument,
+  mode: AppMode = appMode(),
+): Promise<{ tests: TestProposal[]; trace: ProcessingTrace }> {
   const { catalog, index } = await catalogOf(db);
   const insurer = prediction.fields.NombreMutua?.value ?? null;
   // The form's language is not read by the extractor; the model is told Spanish.
@@ -184,5 +216,5 @@ export async function proposeFor(
     ...(t.box_source ? { box_source: t.box_source } : {}),
     mapping: proposals[i],
   }));
-  return { fused, tests, trace: { mapping: { ...ctx, policy: "red", model: consulted } } };
+  return { tests, trace: { mapping: { ...ctx, policy: "red", model: consulted } } };
 }

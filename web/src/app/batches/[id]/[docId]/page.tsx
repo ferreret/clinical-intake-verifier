@@ -395,7 +395,9 @@ export default function VerifyPage() {
    * the engine found (undefined), and fuses it again: fields the technician has not changed
    * take the new proposal, and field confirmations start over, the comparison having changed.
    * A record chosen from the search prevails (decision of 2026-10-29): its fields take its
-   * values, even those changed before, and the technician may change them again after.
+   * values, even those changed before, and the technician may change them again after. An
+   * insurer chosen brings its memory too: the lines come mapped again with it, and those the
+   * technician has not touched take the new codes, their confirmations starting over.
    */
   async function relink(kind: RecordKind, id: string | null | undefined) {
     if (!view || busy) return;
@@ -404,7 +406,7 @@ export default function VerifyPage() {
     if (id === undefined) delete next[kind];
     else next[kind] = id;
     try {
-      const { fused, records } = await api.fusion(docId, next);
+      const { fused, records, tests, trace } = await api.fusion(docId, next);
       const before = new Map(view.proposal.fused.fields.map((f) => [f.name, (f.value ?? "").trim()]));
       const prevails = (name: string) => typeof id === "string" && (fieldSpec(name).lis?.source.startsWith(`${kind}.`) ?? false);
       setValues((vals) =>
@@ -416,9 +418,20 @@ export default function VerifyPage() {
         ),
       );
       setTouched((t) => new Set([...t].filter((key) => !(key.startsWith("f:") && prevails(key.slice(2))))));
-      setConfirmed((c) => new Set([...c].filter((k) => !k.startsWith("f:"))));
+      const remapped = JSON.stringify(tests) !== JSON.stringify(view.proposal.tests);
+      if (remapped) {
+        setChosen((c) =>
+          Object.fromEntries(
+            Object.entries(c).map(([key, codes]) => {
+              const line = key.startsWith("t:") ? tests[Number(key.slice(2))] : undefined;
+              return [key, line && !touched.has(key) ? (line.mapping.codes ?? []) : codes];
+            }),
+          ),
+        );
+      }
+      setConfirmed((c) => new Set([...c].filter((k) => !k.startsWith("f:") && !(remapped && k.startsWith("t:") && !touched.has(k)))));
       setChosenLinks(next);
-      setView({ ...view, proposal: { ...view.proposal, fused }, records: { ...view.records, ...records } });
+      setView({ ...view, proposal: { ...view.proposal, fused, tests, trace }, records: { ...view.records, ...records } });
     } catch (e) {
       setProblems([(e as Error).message]);
     } finally {
