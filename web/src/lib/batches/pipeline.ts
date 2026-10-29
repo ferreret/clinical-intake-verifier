@@ -3,6 +3,8 @@
  * its recorded reply in replay mode), fused against the workspace's LIS, its lines mapped to
  * the lab's codes. The result is a proposal; nothing in it is accepted until approved.
  */
+import { createHash } from "node:crypto";
+
 import { DEFAULT_MODEL, extract } from "@/lib/extractor";
 import { resolveLocalModel } from "@/lib/extractor/local";
 import { fuse } from "@/lib/fusion/fuse";
@@ -85,14 +87,35 @@ function mappingProvider(mode: AppMode): MappingProvider | null {
   }
 }
 
-const catalogs = new WeakMap<LisDb, Promise<{ catalog: Catalog; index: CatalogIndex }>>();
+type CatalogWithIndex = { catalog: Catalog; index: CatalogIndex };
 
-/** The workspace's catalog and its search index, read once. */
-export function catalogOf(db: LisDb) {
-  let c = catalogs.get(db);
+const CATALOGS = Symbol.for("clinical-intake-verifier.catalogs");
+type WithCatalogs = typeof globalThis & {
+  [CATALOGS]?: { byDb: WeakMap<LisDb, Promise<CatalogWithIndex>>; byContent: Map<string, CatalogWithIndex> };
+};
+
+/**
+ * The workspace's catalog and its search index, read once. Every sandbox starts as a copy of
+ * the same template, so workspaces whose catalogs are the same share one copy and one index:
+ * building them for each one took some 9 MB a sandbox, kept as long as the sandbox. They are
+ * told apart by content, so a sandbox made from an earlier template keeps its own catalog.
+ * On the global object, like the queue, which loads its own copy of this module.
+ */
+export function catalogOf(db: LisDb): Promise<CatalogWithIndex> {
+  const cache = ((globalThis as WithCatalogs)[CATALOGS] ??= { byDb: new WeakMap(), byContent: new Map() });
+  let c = cache.byDb.get(db);
   if (!c) {
-    c = readCatalog(db).then((catalog) => ({ catalog, index: new CatalogIndex(catalog) }));
-    catalogs.set(db, c);
+    c = readCatalog(db).then((catalog) => {
+      const key = createHash("sha256").update(JSON.stringify(catalog)).digest("hex");
+      let shared = cache.byContent.get(key);
+      if (!shared) {
+        shared = { catalog, index: new CatalogIndex(catalog) };
+        cache.byContent.set(key, shared);
+      }
+      return shared;
+    });
+    c.catch(() => cache.byDb.delete(db));
+    cache.byDb.set(db, c);
   }
   return c;
 }
