@@ -33,6 +33,9 @@ const now = () => new Date().toISOString();
 /** The workspace would have more than `maxReading` documents queued or being read. */
 export class TooManyReading extends Error {}
 
+/** The workspace would hold more than `maxDocuments` documents, whatever their state. */
+export class TooManyDocuments extends Error {}
+
 /**
  * A new batch, its documents queued. With `maxReading`, refused (TooManyReading) when the
  * workspace would then have more documents queued or being read: counted in the same
@@ -40,7 +43,7 @@ export class TooManyReading extends Error {}
  */
 export async function createBatch(
   db: LisDb,
-  input: { name: string; provider: Provider; createdBy: string; documents: NewDocument[]; maxReading?: number },
+  input: { name: string; provider: Provider; createdBy: string; documents: NewDocument[]; maxReading?: number; maxDocuments?: number },
 ): Promise<Batch> {
   if (input.documents.length === 0) throw new Error("a batch needs at least one document");
   const at = now();
@@ -48,6 +51,12 @@ export async function createBatch(
   await db.transaction(async (tx) => {
     if (input.maxReading !== undefined && (await countReading(tx)) + input.documents.length > input.maxReading) {
       throw new TooManyReading(`at most ${input.maxReading} documents queued or being read at once: wait for some to be read`);
+    }
+    if (input.maxDocuments !== undefined) {
+      const [held] = await tx.select({ n: sql<number>`count(*)` }).from(batchDocuments);
+      if (Number(held?.n ?? 0) + input.documents.length > input.maxDocuments) {
+        throw new TooManyDocuments(`at most ${input.maxDocuments} documents in this workspace: delete a batch first`);
+      }
     }
     await tx.insert(batches).values(batch);
     await tx.insert(batchDocuments).values(

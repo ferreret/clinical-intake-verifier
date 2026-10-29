@@ -30,6 +30,7 @@ import {
   requeueInterrupted,
   retryDocument,
   summarise,
+  TooManyDocuments,
   TooManyReading,
 } from "@/lib/batches/store";
 import {
@@ -346,6 +347,17 @@ describe("races", () => {
     expect(made.filter((m) => m.status === "fulfilled")).toHaveLength(2);
     expect(made.filter((m) => m.status === "rejected" && m.reason instanceof TooManyReading)).toHaveLength(2);
     expect(await countReading(db)).toBe(6);
+  });
+
+  it("caps the documents a workspace holds, read or not, when asked to", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const doc = await newDoc("doc-a.pdf");
+    const make = () => createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [doc, doc], maxDocuments: 5 });
+    await make();
+    await make();
+    await expect(make()).rejects.toBeInstanceOf(TooManyDocuments);
+    expect((await listBatches(db)).reduce((n, b) => n + b.documents, 0)).toBe(4);
   });
 
   it("does not claim a document whose batch was deleted after it was found", async () => {

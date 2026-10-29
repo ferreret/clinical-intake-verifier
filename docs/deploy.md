@@ -33,7 +33,8 @@ The image sets replay mode and where its data is; a deployment only adds what it
 | Setting | Value |
 |---|---|
 | `PUBLIC_URL` | The address's origin, without the path: the share image's address is made from it, and Next.js adds the path |
-| `MAX_SANDBOXES` | Optional, 500 by default: sandboxes kept at most; a new visitor beyond it takes the place of the one unused for longest. About half a megabyte each |
+| `MAX_SANDBOXES` | Optional, 500 by default: sandboxes kept at most; a new visitor beyond it takes the place of the one unused for longest. Half a megabyte each to start, some 30 KB more for each document read, so some 6.5 MB at most with `MAX_SANDBOX_DOCUMENTS` |
+| `MAX_SANDBOX_DOCUMENTS` | Optional, 200 by default: documents one sandbox may hold, read or not; beyond it, the visitor is asked to delete a batch first |
 | `NEW_SANDBOXES_PER_HOUR` | Optional, 20 by default: new sandboxes one client address may make in an hour, so that a script cannot fill the demo; the address is Cloudflare's `CF-Connecting-IP` when present (behind Cloudflare, `X-Forwarded-For` ends with Cloudflare's own address, the same for every visitor), else the last one the proxy adds to `X-Forwarded-For` |
 | `CLIENT_ADDRESS_HEADER` | Optional: the header the proxy in front of the app puts the client's address in, when it is neither of those |
 | `SANDBOX_IDLE_MINUTES` | Optional, 30 by default: how long a sandbox must have been unused to make room for a new visitor; when none has, the new visitor is told the demo is full |

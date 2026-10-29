@@ -114,6 +114,12 @@ export function lockMinutes(): number {
   return n >= 3 * LOCK_RENEW_MINUTES ? n : 30;
 }
 
+/** Documents one sandbox may hold, read or not: a script cannot fill the volume. */
+export function maxSandboxDocuments(): number {
+  const n = Number.parseInt(process.env.MAX_SANDBOX_DOCUMENTS ?? "", 10);
+  return n > 0 ? n : 200;
+}
+
 /** New sandboxes one client address may make in an hour: a script cannot fill the demo. */
 export function newSandboxesPerHour(): number {
   const n = Number.parseInt(process.env.NEW_SANDBOXES_PER_HOUR ?? "", 10);

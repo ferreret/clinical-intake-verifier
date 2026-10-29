@@ -11,13 +11,13 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { appMode, type Provider } from "@/lib/batches/config";
+import { appMode, maxSandboxDocuments, type Provider } from "@/lib/batches/config";
 import { queue } from "@/lib/batches/queue";
 import { deleteAllBatches } from "@/lib/batches/remove";
 import { PROVIDERS } from "@/lib/batches/schema";
 import { getSession, noSession } from "@/lib/batches/session";
 import { deleteUpload, listBundled, readBundled, saveUpload } from "@/lib/batches/sources";
-import { countReading, createBatch, listBatches, releaseExpiredLocks, TooManyReading, type NewDocument } from "@/lib/batches/store";
+import { countReading, createBatch, listBatches, releaseExpiredLocks, TooManyDocuments, TooManyReading, type NewDocument } from "@/lib/batches/store";
 import { looksLikePdf, sha256Hex } from "@/lib/extractor/pdf";
 
 import { LANG_COOKIE } from "../../_ui/lang";
@@ -115,9 +115,12 @@ export async function POST(req: Request): Promise<NextResponse> {
       // Counted again with the batch's insert: the count above only spares the reading of
       // files when the workspace is already full; several batches at once all passed it.
       maxReading: MAX_READING,
+      // A sandbox is a visitor's, kept for a day: what it holds is capped, a script looping
+      // over "create, wait" would otherwise fill the volume. The live workspace is the lab's.
+      maxDocuments: mode === "replay" ? maxSandboxDocuments() : undefined,
     });
   } catch (err) {
-    if (!(err instanceof TooManyReading)) throw err;
+    if (!(err instanceof TooManyReading || err instanceof TooManyDocuments)) throw err;
     for (const d of documents) if (d.origin === "upload") await deleteUpload(d.location).catch(() => undefined);
     return NextResponse.json({ error: err.message }, { status: 429 });
   }
