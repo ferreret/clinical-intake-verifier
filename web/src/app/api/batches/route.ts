@@ -11,6 +11,8 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { cleanName } from "@/lib/http";
+
 import { appMode, maxSandboxDocuments, type Provider } from "@/lib/batches/config";
 import { queue } from "@/lib/batches/queue";
 import { deleteAllBatches } from "@/lib/batches/remove";
@@ -18,7 +20,7 @@ import { PROVIDERS } from "@/lib/batches/schema";
 import { getSession, noSession } from "@/lib/batches/session";
 import { deleteUpload, listBundled, readBundled, saveUpload } from "@/lib/batches/sources";
 import { countReading, createBatch, listBatches, releaseExpiredLocks, TooManyDocuments, TooManyReading, type NewDocument } from "@/lib/batches/store";
-import { looksLikePdf, sha256Hex } from "@/lib/extractor/pdf";
+import { looksLikePdf, readPages, sha256Hex } from "@/lib/extractor/pdf";
 
 import { LANG_COOKIE } from "../../_ui/lang";
 
@@ -28,8 +30,10 @@ const MAX_DOCUMENTS = 50;
 const MAX_BYTES = 20 * 1024 * 1024;
 /** Documents a sandbox may have queued or being read at once, so that one visitor cannot hold up the queue. */
 const MAX_READING = 100;
+/** Uploads of one batch together: the whole request is held in memory while it is read. */
+const MAX_UPLOADS = 100 * 1024 * 1024;
 /** A request's size, checked before it is read: bundled names only in replay mode, or uploads too in live mode. */
-const MAX_BODY = { replay: 64 * 1024, live: MAX_DOCUMENTS * MAX_BYTES + 1024 * 1024 };
+const MAX_BODY = { replay: 64 * 1024, live: MAX_UPLOADS + 1024 * 1024 };
 
 export async function GET(): Promise<NextResponse> {
   const session = await getSession();
@@ -93,10 +97,16 @@ export async function POST(req: Request): Promise<NextResponse> {
   // stored with no batch, where nothing can delete them, and they may be real documents.
   const uploads: { name: string; pdf: Uint8Array }[] = [];
   for (const f of files) {
-    if (f.size > MAX_BYTES) return bad(`${f.name} exceeds ${MAX_BYTES} bytes`);
+    // The name as stored and shown: the file's own, without a path or characters that hide it.
+    const fileName = cleanName(f.name.split(/[\\/]/).at(-1) ?? "", 200) || "upload.pdf";
+    if (f.size > MAX_BYTES) return bad(`${fileName} exceeds ${MAX_BYTES} bytes`);
     const pdf = new Uint8Array(await f.arrayBuffer());
-    if (!looksLikePdf(pdf)) return bad(`${f.name} is not a PDF`);
-    uploads.push({ name: f.name || "upload.pdf", pdf });
+    if (!looksLikePdf(pdf)) return bad(`${fileName} is not a PDF`);
+    // Opened, not only its first bytes looked at: one that cannot be read would only fail later,
+    // in the queue and in the viewer.
+    const pages = await readPages(pdf).catch(() => []);
+    if (pages.length === 0) return bad(`${fileName} is not a PDF that can be read`);
+    uploads.push({ name: fileName, pdf });
   }
   for (const u of uploads) {
     documents.push({ fileName: u.name, sha256: sha256Hex(u.pdf), origin: "upload", location: await saveUpload(u.pdf) });
@@ -108,7 +118,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   let batch;
   try {
     batch = await createBatch(session.db, {
-      name: typeof name === "string" && name.trim() ? name.trim().slice(0, 100) : `${word} ${count + 1}`,
+      name: (typeof name === "string" && cleanName(name, 100)) || `${word} ${count + 1}`,
       provider: provider as Provider,
       createdBy: session.technician.id,
       documents,

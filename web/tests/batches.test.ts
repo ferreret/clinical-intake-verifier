@@ -53,6 +53,7 @@ import { textKey } from "@/lib/mapping/propose";
 import { FIELD_NAMES, FIELDS } from "@/lib/schema/fields";
 
 import { documentError } from "@/app/_ui/api";
+import { cleanName } from "@/lib/http";
 import { en } from "@/app/_ui/messages/en";
 import { explainField, explainLine } from "@/app/batches/[id]/[docId]/explain";
 import { checkOf, itemsOf } from "@/app/batches/[id]/[docId]/model";
@@ -376,6 +377,14 @@ describe("races", () => {
     expect(await claimNext(racing, ["gemini"])).toBeNull();
     expect(await deleted).toEqual({ ok: true });
     expect(await getBatch(db, batch.id)).toBeNull();
+  });
+});
+
+describe("names sent by a client", () => {
+  it("are stored without control characters or the ones that turn text around", () => {
+    expect(cleanName("\u202Efdp.exe\u0000 Lote  1\n", 100)).toBe("fdp.exe Lote 1");
+    expect(cleanName("x".repeat(300), 200)).toHaveLength(200);
+    expect(cleanName("\u200f\u2066 ", 100)).toBe("");
   });
 });
 

@@ -37,3 +37,16 @@ export async function jsonBody(req: Request, max = MAX_JSON_BYTES): Promise<{ bo
 }
 
 export const tooLarge = (max = MAX_JSON_BYTES) => NextResponse.json({ error: `send at most ${max} bytes` }, { status: 413 });
+
+/**
+ * A name sent by a client (a batch's, a file's), as it is stored and shown: without control
+ * characters (NUL among them) or the ones that turn text around (U+202E and its kind), which
+ * made a name show as another, on one line, and at most `max` characters.
+ */
+export function cleanName(text: string, max: number): string {
+  return text
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}

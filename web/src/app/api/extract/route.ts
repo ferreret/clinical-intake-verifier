@@ -19,6 +19,11 @@ const MAX_BYTES = 20 * 1024 * 1024;
 
 export async function POST(req: Request): Promise<NextResponse> {
   if (appMode() !== "live") return NextResponse.json({ error: "the extractor is called in live mode only" }, { status: 404 });
+  // Before the form is read: reading it holds the whole request in memory, however large.
+  const length = Number(req.headers.get("content-length") ?? NaN);
+  if (!(length <= MAX_BYTES + 1024 * 1024)) {
+    return NextResponse.json({ error: `send at most ${MAX_BYTES + 1024 * 1024} bytes, with their length` }, { status: 413 });
+  }
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
   if (!(file instanceof File)) {
