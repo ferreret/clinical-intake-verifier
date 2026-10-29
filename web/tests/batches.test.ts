@@ -18,6 +18,7 @@ import { describeBundled, listBundled } from "@/lib/batches/sources";
 import {
   createBatch,
   getBatch,
+  getDocument,
   getProposal,
   listBatches,
   openDocument,
@@ -459,6 +460,30 @@ describe("decisions", () => {
     expect(checkOf(field, view, "600111222", undefined, false)).toEqual({ pending: false, confirmable: false });
   });
 
+  it("refuses a request number already registered in the LIS", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const doc = await newDoc("doc-a.pdf");
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [doc, doc] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [first, second] = (await getBatch(db, batch.id))!.documents;
+    for (const d of [first, second]) await openDocument(db, d.id, "T01");
+    const input = resolved((await getProposal(db, first.id))!);
+    const number = { ...input, fields: { ...input.fields, NumeroPeticion: "R-0001" } };
+    expect(await approveDocument(db, first.id, "T01", number)).toMatchObject({ ok: true });
+    expect(await approveDocument(db, second.id, "T01", number)).toEqual({
+      ok: false,
+      reason: "invalid",
+      problems: ["NumeroPeticion R-0001 is already registered: reject the document as a duplicate"],
+    });
+    // Nothing of the refused approval stays: the document is still the technician's to decide on.
+    expect((await getDocument(db, second.id))!.state).toBe("in_verification");
+    expect(await db.select().from(requests)).toHaveLength(1);
+    expect(await approveDocument(db, second.id, "T01", { ...number, fields: { ...number.fields, NumeroPeticion: "R-0002" } })).toMatchObject({ ok: true });
+  });
+
   it("goes on to the next document to decide on: one free or the technician's own first, else one another has open", async () => {
     const ws = await createSandbox();
     const db = await openWorkspace(ws);
@@ -471,11 +496,13 @@ describe("decisions", () => {
     await openDocument(db, two.id, "T02"); // left open by another technician
 
     await openDocument(db, one.id, "T01");
-    const first = await approveDocument(db, one.id, "T01", resolved((await getProposal(db, one.id))!));
+    // Copies of one document, each approved as a request of its own number.
+    const own = (input: ApprovalInput, n: string) => ({ ...input, fields: { ...input.fields, NumeroPeticion: n } });
+    const first = await approveDocument(db, one.id, "T01", own(resolved((await getProposal(db, one.id))!), "R-1"));
     expect(first).toMatchObject({ ok: true, next: three.id });
 
     await openDocument(db, three.id, "T01");
-    const second = await approveDocument(db, three.id, "T01", resolved((await getProposal(db, three.id))!));
+    const second = await approveDocument(db, three.id, "T01", own(resolved((await getProposal(db, three.id))!), "R-3"));
     expect(second).toMatchObject({ ok: true, next: two.id });
   });
 

@@ -16,7 +16,7 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import { fuse } from "@/lib/fusion/fuse";
 import { unknownChosen } from "@/lib/fusion/link";
@@ -26,7 +26,7 @@ import { requests } from "@/lib/lis/schema";
 import { readSnapshot } from "@/lib/lis/snapshot";
 import { DbMemory } from "@/lib/mapping/memory";
 import { textKey } from "@/lib/mapping/propose";
-import { FIELDS, inForm, TESTS } from "@/lib/schema/fields";
+import { FIELDS, fieldSpec, inForm, TESTS } from "@/lib/schema/fields";
 
 import { catalogOf, memoryScope } from "./pipeline";
 import { batchDocuments, decisions, type ApprovalRecord, type FieldAction, type LineAction } from "./schema";
@@ -159,6 +159,27 @@ async function close(tx: Pick<LisDb, "update">, id: string, technician: string, 
 
 class Superseded extends Error {}
 
+/** A unique field's value (fields.json) that a request in the LIS already has. */
+class Registered extends Error {
+  constructor(readonly problems: string[]) {
+    super(problems.join("; "));
+  }
+}
+
+async function alreadyRegistered(db: Pick<LisDb, "select">, fields: ApprovalRecord["fields"]): Promise<string[]> {
+  const problems: string[] = [];
+  for (const f of fields) {
+    if (!f.value || !fieldSpec(f.name).unique) continue;
+    const [taken] = await db
+      .select({ id: requests.id })
+      .from(requests)
+      .where(sql`json_extract(${requests.fields}, ${`$.${f.name}`}) = ${f.value}`)
+      .limit(1);
+    if (taken) problems.push(`${f.name} ${f.value} is already registered: reject the document as a duplicate`);
+  }
+  return problems;
+}
+
 export async function approveDocument(db: LisDb, id: string, technician: string, input: ApprovalInput): Promise<DecideResult> {
   const found = await decidable(db, id, technician);
   if (found.error) return found.error;
@@ -181,6 +202,9 @@ export async function approveDocument(db: LisDb, id: string, technician: string,
   try {
     await db.transaction(async (tx) => {
       if (!(await close(tx, id, technician, "approved", at))) throw new Superseded();
+      // In the transaction, so that two approvals at once cannot both register the number.
+      const registered = await alreadyRegistered(tx, record.fields);
+      if (registered.length > 0) throw new Registered(registered);
       await tx.insert(decisions).values(decision);
       await tx.insert(requests).values({
         id: randomUUID(),
@@ -204,6 +228,7 @@ export async function approveDocument(db: LisDb, id: string, technician: string,
     });
   } catch (err) {
     if (err instanceof Superseded) return { ok: false, reason: "not_yours" };
+    if (err instanceof Registered) return { ok: false, reason: "invalid", problems: err.problems };
     throw err;
   }
   return { ok: true, decision, next: await nextToVerify(db, doc, technician) };
