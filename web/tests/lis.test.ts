@@ -93,4 +93,39 @@ describe("mock LIS", () => {
   it("refuses another lis_version", async () => {
     await expect(loadLis(db, { ...SAMPLE, lis_version: 2 })).rejects.toThrow(/lis_version/);
   });
+
+  it("lets a write wait for a transaction that is still open, without stopping the process", async () => {
+    // Two documents completed at once: one's transaction pauses between its statements,
+    // and the other's write arrives meanwhile, on another of the client's connections.
+    const started = Date.now();
+    let ticks = 0;
+    const timer = setInterval(() => (ticks += 1), 5);
+    const first = db.transaction(async (tx) => {
+      await tx.update(patients).set({ phone: "600000001" }).where(eq(patients.id, "P00000"));
+      await new Promise((r) => setTimeout(r, 50));
+      await tx.update(patients).set({ phone: "600000002" }).where(eq(patients.id, "P00000"));
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    const second = db.update(patients).set({ phone: "600000003" }).where(eq(patients.id, "P00001"));
+    await Promise.all([first, second]);
+    clearInterval(timer);
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(ticks).toBeGreaterThan(3);
+    const phones = (await db.select().from(patients)).map((p) => [p.id, p.phone]);
+    expect(phones).toEqual([
+      ["P00000", "600000002"],
+      ["P00001", "600000003"],
+    ]);
+  });
+
+  it("frees the database when a transaction fails", async () => {
+    await expect(
+      db.transaction(async (tx) => {
+        await tx.update(patients).set({ phone: "600000009" }).where(eq(patients.id, "P00000"));
+        throw new Error("no");
+      }),
+    ).rejects.toThrow("no");
+    const [p] = await db.select().from(patients).where(eq(patients.id, "P00000"));
+    expect(p.phone).toBe("600111222");
+  });
 });

@@ -3,7 +3,7 @@
  */
 import path from "node:path";
 
-import { createClient } from "@libsql/client";
+import { createClient, type Client, type Transaction } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 
@@ -42,15 +42,101 @@ export interface LisFile {
 export type LisDb = Awaited<ReturnType<typeof openLis>>;
 
 /**
- * How long a write waits for another connection's lock, in ms. The client keeps a pool of
- * connections and a transaction takes one of its own, so documents completed at the same time
- * would otherwise fail at once with SQLITE_BUSY.
+ * How long a write waits for another process's lock, in ms: a script run while the server is
+ * up. Within one process the client takes turns instead (`takingTurns`).
  */
 const BUSY_TIMEOUT_MS = 5000;
 
+/**
+ * The client, doing one thing at a time: a transaction holds the database until it commits,
+ * rolls back or closes, and every other call waits for it.
+ *
+ * The client keeps a pool of connections and a transaction takes one of its own, between whose
+ * statements the server goes on with other work. A write on another connection then found the
+ * transaction's lock and waited for it synchronously, with the whole process stopped, so the
+ * transaction could never finish: after the busy timeout the server came back and the write
+ * failed with SQLITE_BUSY (a document of a batch failed, a page got an HTTP 500).
+ */
+function takingTurns(client: Client): Client {
+  let last = Promise.resolve();
+  /** Waits for the database to be free and holds it; resolves to the release. */
+  const hold = (): Promise<() => void> => {
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    const turn = last.then(() => release);
+    last = last.then(() => held);
+    return turn;
+  };
+  const inTurn =
+    <A extends unknown[], R>(run: (...args: A) => Promise<R>) =>
+    async (...args: A): Promise<R> => {
+      const release = await hold();
+      try {
+        return await run(...args);
+      } finally {
+        release();
+      }
+    };
+  const transaction = async (...args: Parameters<Client["transaction"]>): Promise<Transaction> => {
+    const release = await hold();
+    let tx: Transaction;
+    try {
+      tx = await client.transaction(...args);
+    } catch (err) {
+      release();
+      throw err;
+    }
+    // Each of these gives the connection back to the pool, whether or not it succeeds.
+    const ends: Pick<Transaction, "commit" | "rollback" | "close"> = {
+      commit: async () => {
+        try {
+          await tx.commit();
+        } finally {
+          release();
+        }
+      },
+      rollback: async () => {
+        try {
+          await tx.rollback();
+        } finally {
+          release();
+        }
+      },
+      close: () => {
+        try {
+          tx.close();
+        } finally {
+          release();
+        }
+      },
+    };
+    return new Proxy(tx, {
+      get: (target, prop) => {
+        if (prop in ends) return ends[prop as keyof typeof ends];
+        const value = Reflect.get(target, prop, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+  };
+  const methods: Partial<Client> = {
+    execute: inTurn(client.execute.bind(client)) as Client["execute"],
+    batch: inTurn(client.batch.bind(client)),
+    migrate: inTurn(client.migrate.bind(client)),
+    executeMultiple: inTurn(client.executeMultiple.bind(client)),
+    transaction: transaction as Client["transaction"],
+  };
+  return new Proxy(client, {
+    get: (target, prop) => {
+      if (prop in methods) return methods[prop as keyof Client];
+      const value = Reflect.get(target, prop, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
 /** Opens the LIS at a libSQL URL (`file:…` or `:memory:`) and brings its schema up to date. */
 export async function openLis(url: string) {
-  const db = drizzle(createClient({ url, timeout: BUSY_TIMEOUT_MS }), { schema });
+  const db = drizzle(takingTurns(createClient({ url, timeout: BUSY_TIMEOUT_MS })), { schema });
   await migrate(db, { migrationsFolder: MIGRATIONS });
   return db;
 }
