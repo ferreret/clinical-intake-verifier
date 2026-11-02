@@ -1781,7 +1781,7 @@ The audit left five product decisions, taken one at a time by the product owner:
    signing in; what goes was. In live mode a batch with a decision now stays, and "delete
    all" leaves it and says so; a sandbox of the demo, a place to try things out, deletes
    everything as before (2026-10-27).
-5. **One-key confirmations teaching the memory** (measured 2026-11-02, decision pending).
+5. **One-key confirmations teaching the memory** (measured and decided 2026-11-02: kept as it is).
    Confirming an orange line counts as an active approval, as choosing its codes by hand
    does, and two active approvals make a line green for that insurer. The audit's worry: two
    confirmations given without looking would make a wrong proposal green. `map-simulate`
@@ -1802,3 +1802,10 @@ The audit left five product decisions, taken one at a time by the product owner:
    themselves, not from greens they create. A passive confirmation stops all learning;
    the other rules cost green lines that are right. With a single technician, "2 different
    technicians" would never turn anything green.
+
+   Decided by the product owner: the rule stays. The risk the audit saw does not show at a
+   realistic carelessness, and every alternative costs work saved for sure. The data are
+   synthetic: a wrong proposal for a frequent line could recur more in real requests, and
+   the simulation can measure it again then.
+
+All five decisions the audit left are settled.
