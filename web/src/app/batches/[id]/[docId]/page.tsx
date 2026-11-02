@@ -689,7 +689,7 @@ export default function VerifyPage() {
             <div className="@container space-y-4 p-4 @min-[88rem]:overflow-y-auto">
               <section>
                 <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{m.records}</h2>
-                <Links view={view} readOnly={readOnly} onSearch={(kind, anchor) => setSearching({ kind, anchor })} />
+                <Links view={view} readOnly={readOnly} onSearch={(kind, anchor) => setSearching({ kind, anchor })} onConfirm={(kind, id) => void relink(kind, id)} />
               </section>
               <section>
                 <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{m.fieldsTitle(fields.length)}</h2>

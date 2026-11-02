@@ -27,7 +27,22 @@ const RECORDS: RecordKind[] = ["patient", "physician", "insurer"];
 
 const same = (a: string | null | undefined, b: string | null | undefined) => (a ?? "").trim() === (b ?? "").trim() && !!a?.trim();
 
-export function Links({ view, readOnly, onSearch }: { view: ProposalView; readOnly: boolean; onSearch: (kind: RecordKind, anchor: HTMLElement) => void }) {
+/**
+ * The records the document was linked to, each with its search. A record offered only as a
+ * candidate proposes none of its values (decision of 2026-11-02): "It is this patient"
+ * confirms it, which counts as choosing it from the search.
+ */
+export function Links({
+  view,
+  readOnly,
+  onSearch,
+  onConfirm,
+}: {
+  view: ProposalView;
+  readOnly: boolean;
+  onSearch: (kind: RecordKind, anchor: HTMLElement) => void;
+  onConfirm: (kind: RecordKind, id: string) => void;
+}) {
   const { t } = useI18n();
   return (
     <div className="grid gap-2 @min-[40rem]:grid-cols-3">
@@ -56,6 +71,17 @@ export function Links({ view, readOnly, onSearch }: { view: ProposalView; readOn
                 <div className="truncate text-xs text-slate-500">
                   {link.candidates.length > 1 ? t.records.lookAlike(link.candidates.length) : t.server(link.reason)}
                 </div>
+              )}
+              {!readOnly && link.status === "candidate" && link.recordId && (
+                <button
+                  type="button"
+                  onClick={() => onConfirm(k, link.recordId!)}
+                  title={t.records.confirmHint}
+                  className="mt-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-brand-200 transition ring-inset hover:bg-brand-50"
+                >
+                  <CheckIcon className="size-3.5" />
+                  {t.records.confirm[k]}
+                </button>
               )}
             </div>
             {!readOnly && (

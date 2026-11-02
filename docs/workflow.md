@@ -200,7 +200,10 @@ session shell and the state badges.
   as if it had been found, and those the technician has not touched take the new codes;
   approving checks them the same way. Field confirmations start over. "No record" says the
   person or insurer is
-  new. "Back to what was found" undoes it. Nothing is stored until approval, which checks
+  new. "Back to what was found" undoes it. A record the engine offers only as a candidate
+  proposes none of its values: the fields only it has are left empty, its value beside them
+  to be taken by hand (decision of 2026-11-02), and "It is this patient" (physician,
+  insurer) on its card confirms it, which counts as choosing it from the search. Nothing is stored until approval, which checks
   the fields against the chosen records and records the choice. The search is not modal:
   it opens by its button, never over the document, which can be scrolled and zoomed while
   searching, since what is searched for is read off it; a click elsewhere, or Esc, closes it.

@@ -453,6 +453,8 @@ export const es: Messages = {
     },
     noRecord: { patient: "Sin registro: un paciente nuevo", physician: "Sin registro: un médico que el laboratorio no conoce", insurer: "Sin registro: una mutua no registrada" },
     chosen: "Elegido por ti",
+    confirm: { patient: "Es este paciente", physician: "Es este médico", insurer: "Es esta mutua" },
+    confirmHint: "Confirmarlo como el de esta petición: se proponen entonces sus valores, como con un registro que eliges, y donde el documento dice otra cosa confirmas cada uno",
     reset: "Volver a lo encontrado",
     nothingFound: "Ningún registro coincide",
     typeToSearch: "Escribe para buscar en los registros",

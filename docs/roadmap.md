@@ -1773,7 +1773,7 @@ The audit left five product decisions, taken one at a time by the product owner:
    be taken by hand. Measured on the 200 recorded readings: no measure of the floor moves;
    18 values, in 15 documents, are no longer filled, all of them right in seed 42, whose 21
    candidates are all the right patient. The generator plants no wrong candidate, so the
-   harm avoided is not measured. Next step: a button to confirm the candidate as this
-   patient, which then counts as chosen (decision 1) and fills them at once.
+   harm avoided is not measured. "It is this patient" on the candidate's card confirms it in
+   one click, which counts as choosing it (decision 1) and fills them at once.
 4. **Still open:** batches with approvals that any technician can delete.
 5. **Still open:** one-key confirmations counted as active approvals in the memory.

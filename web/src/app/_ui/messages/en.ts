@@ -382,6 +382,8 @@ export const en = {
     },
     noRecord: { patient: "No record: a new patient", physician: "No record: a physician the lab does not know", insurer: "No record: an unregistered insurer" },
     chosen: "Chosen by you",
+    confirm: { patient: "It is this patient", physician: "It is this physician", insurer: "It is this insurer" },
+    confirmHint: "Confirm it as this request's: its values are then proposed, as for a record you chose, and where the document reads otherwise you confirm each",
     reset: "Back to what was found",
     nothingFound: "No record matches",
     typeToSearch: "Type to search the records",
