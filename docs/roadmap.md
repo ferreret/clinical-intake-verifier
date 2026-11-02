@@ -4,7 +4,7 @@ Where the project stands, what has been decided and what is only proposed. Read 
 starting a work session. Anything marked **proposed** is a design that has not been approved or
 implemented; it changes only after an explicit decision.
 
-Last updated: 2026-10-27.
+Last updated: 2026-11-02.
 
 ## Where things stand
 
@@ -1754,7 +1754,18 @@ redeployed with the first four parts' fixes (`779ac05`):
   (`.github/load/check.py`): on the code of before the incident it fails (an HTTP 500, a 30 s
   wait, 20 SQLITE_BUSY), and it passes now.
 
-Not done, as product decisions to take: a request kept linked to its patient after the
-technician changes that patient's identity; lines not mapped again when the insurer changes;
-a namesake offered another person's identity document; batches with approvals that any
-technician can delete; one-key confirmations counted as active approvals in the memory.
+The audit left five product decisions, taken one at a time by the product owner:
+
+1. **An identity changed under a link** (decided 2026-10-29, revised 2026-11-02). A record
+   the technician chooses from the search prevails: the fields it has a value for take it,
+   even over earlier edits, and every edit after that is valid, the decision recording what
+   the record said (`2516744`). Where the document reads otherwise, the field is orange, to
+   be confirmed, not green: choosing a record says who the person is, not that each field
+   was checked (`fda60a7`). Where the record has no value, the technician's edit stays
+   (`0ac02a8`).
+2. **The insurer changed** (decided 2026-10-29). Choosing another insurer maps the lines
+   again with its memory, on the screen and when approving, as if it had been found
+   (`7e08604`).
+3. **Still open:** a namesake offered another person's identity document.
+4. **Still open:** batches with approvals that any technician can delete.
+5. **Still open:** one-key confirmations counted as active approvals in the memory.
