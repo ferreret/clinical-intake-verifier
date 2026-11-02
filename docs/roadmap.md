@@ -1781,4 +1781,24 @@ The audit left five product decisions, taken one at a time by the product owner:
    signing in; what goes was. In live mode a batch with a decision now stays, and "delete
    all" leaves it and says so; a sandbox of the demo, a place to try things out, deletes
    everything as before (2026-10-27).
-5. **Still open:** one-key confirmations counted as active approvals in the memory.
+5. **One-key confirmations teaching the memory** (measured 2026-11-02, decision pending).
+   Confirming an orange line counts as an active approval, as choosing its codes by hand
+   does, and two active approvals make a line green for that insurer. The audit's worry: two
+   confirmations given without looking would make a wrong proposal green. `map-simulate`
+   can now hand each request to one of several technicians, some of whom confirm a share of
+   the wrong orange proposals unchecked, and set what green needs. On the 1,000 requests of
+   seed 42, lexical search without the model, 3 technicians, means of 5 seeds:
+
+   | Rule for green | Green | Wrong green, careless 10% / one at 30% / one at 100% / all at 100% | Wrong codes approved, all at 100% |
+   |---|---:|---|---:|
+   | Now: 2 active approvals | 71.8% | 0 / 0 / 0.4 / 6.0 | 54 |
+   | A confirmation is passive | 0% | 0 / 0 / 0 / 0 | 54 |
+   | 2 different technicians | 68.5% | 0 / 0 / 0 / 5.2 | 54 |
+   | 3 active approvals | 64.5% | 0 / 0 / 0 / 2.0 | 54 |
+
+   Of 8,329 lines only 37 are proposed orange and wrong (25 by the search, 12 by other
+   insurers' memory), each once per insurer, so an unchecked confirmation seldom meets the
+   same line again. The wrong codes approved come from the careless confirmations
+   themselves, not from greens they create. A passive confirmation stops all learning;
+   the other rules cost green lines that are right. With a single technician, "2 different
+   technicians" would never turn anything green.
