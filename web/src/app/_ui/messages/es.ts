@@ -284,6 +284,8 @@ export const es: Messages = {
     decided: (approved, rejected) =>
       `También ${approved} ${approved === 1 ? "aprobación" : "aprobaciones"} y ${rejected} ${rejected === 1 ? "rechazo" : "rechazos"}, y las peticiones que las aprobaciones registraron en mock-lis.`,
     memory: "Lo que la memoria del mapeo de pruebas aprendió de sus aprobaciones se conserva.",
+    kept: "Sus aprobaciones y rechazos son el registro de quién aprobó qué, y se quedan: un lote con decisiones no se puede borrar.",
+    keptAll: (n) => (n === 1 ? "El lote con aprobaciones o rechazos se queda: son un registro." : `Los ${n} lotes con aprobaciones o rechazos se quedan: son un registro.`),
     inVerification: (n) => `${n === 1 ? "Hay 1 documento abierto" : `Hay ${n} documentos abiertos`} en verificación ahora: quien ${n === 1 ? "lo" : "los"} tenga ${n === 1 ? "lo" : "los"} perderá.`,
     reading: "Aún se están leyendo documentos: bórralo cuando terminen.",
     cancel: "Cancelar",
@@ -453,6 +455,8 @@ export const es: Messages = {
     },
     noRecord: { patient: "Sin registro: un paciente nuevo", physician: "Sin registro: un médico que el laboratorio no conoce", insurer: "Sin registro: una mutua no registrada" },
     chosen: "Elegido por ti",
+    confirm: { patient: "Es este paciente", physician: "Es este médico", insurer: "Es esta mutua" },
+    confirmHint: "Confirmarlo como el de esta petición: se proponen entonces sus valores, como con un registro que eliges, y donde el documento dice otra cosa confirmas cada uno",
     reset: "Volver a lo encontrado",
     nothingFound: "Ningún registro coincide",
     typeToSearch: "Escribe para buscar en los registros",
@@ -482,6 +486,7 @@ export const es: Messages = {
     ai_only_doubtful: "Solo en el documento, y la lectura parece dudosa",
     conflict: "El documento y los registros discrepan: elige",
     candidate_agrees: "Coincide con un registro aún no confirmado como de este paciente",
+    chosen_record: "Del registro que elegiste, que difiere del documento",
     candidate_only: "Solo en un registro aún no confirmado como de este paciente",
     default: "El valor por defecto del sistema",
     missing_required: "Falta, y es obligatorio",
@@ -590,6 +595,7 @@ SERVER.push(
   [/^refused: the request did not come from this site's own pages$/, () => "rechazado: la petición no viene de las páginas de este sitio"],
   [/^at most (\d+) documents in this workspace: delete a batch first$/, (n) => `como mucho ${n} documentos en tu espacio: borra antes algún lote`],
   [/^a document is being read; delete the batch once it is read$/, () => "se está leyendo un documento: borra el lote cuando termine"],
+  [/^the batch has approvals or rejections: they are a record, and stay$/, () => "el lote tiene aprobaciones o rechazos: son un registro, y se quedan"],
   // Why a document could not be read (lib/batches/queue.ts).
   [/^the database was busy: retry the document$/, () => "la base de datos estaba ocupada: reintenta el documento"],
   [/^the database could not save it: retry the document$/, () => "la base de datos no pudo guardarlo: reintenta el documento"],

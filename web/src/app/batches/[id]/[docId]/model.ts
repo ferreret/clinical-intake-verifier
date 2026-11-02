@@ -107,3 +107,27 @@ export function checkOf(item: Item, view: ProposalView, value: string | undefine
   const confirmable = needsCheck(m.state) && m.codes !== null && codesKey(codes ?? []) === codesKey(m.codes);
   return { pending: !codes || codes.length === 0 || (confirmable && !confirmed), confirmable };
 }
+
+/**
+ * The fields' values once the document is fused again with other links: a field the
+ * technician has not changed takes the new proposal. A record chosen from the search (`id`
+ * set) prevails (decision of 2026-10-29): a field whose value now comes from it takes that
+ * value even over an edit, and counts as untouched again. Where the record has nothing for a
+ * field, an edit stays: there is nothing of the record to prevail with.
+ */
+export function relinkedFields(
+  values: Record<string, string>,
+  before: FusedField[],
+  after: FusedField[],
+  id: string | null | undefined,
+): { values: Record<string, string>; prevailed: Set<string> } {
+  const was = new Map(before.map((f) => [f.name, (f.value ?? "").trim()]));
+  const prevailed = new Set(after.filter((f) => typeof id === "string" && f.source === "lis" && f.lis?.recordId === id).map((f) => `f:${f.name}`));
+  const next = Object.fromEntries(
+    Object.entries(values).map(([key, v]) => {
+      const f = after.find((x) => `f:${x.name}` === key);
+      return [key, f && (prevailed.has(key) || v.trim() === was.get(f.name)) ? (f.value ?? "") : v];
+    }),
+  );
+  return { values: next, prevailed };
+}

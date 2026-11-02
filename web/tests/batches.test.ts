@@ -12,6 +12,7 @@ import { fuse } from "@/lib/fusion/fuse";
 import { chosenLink } from "@/lib/fusion/link";
 import { readSnapshot } from "@/lib/lis/snapshot";
 import { approveDocument, checkApproval, getDecision, rejectDocument, type ApprovalInput } from "@/lib/batches/decide";
+import { withChosenLinks } from "@/lib/batches/pipeline";
 import { BatchQueue, failure } from "@/lib/batches/queue";
 import { deleteAllBatches, deleteBatch } from "@/lib/batches/remove";
 import { batchDocuments } from "@/lib/batches/schema";
@@ -128,7 +129,10 @@ beforeAll(async () => {
       },
     ],
     physicians: [],
-    insurers: [{ id: "A1", name: "Garbí Salut Mútua", aliases: ["Garbí Salut"] }],
+    insurers: [
+      { id: "A1", name: "Garbí Salut Mútua", aliases: ["Garbí Salut"] },
+      { id: "A2", name: "Serralada Assegurances", aliases: [] },
+    ],
   });
   await loadCatalog(db, {
     catalog_version: 2,
@@ -596,6 +600,37 @@ describe("decisions", () => {
     expect(approved.lis?.recordId).toBe("P1");
   });
 
+  it("maps the lines again with the memory of an insurer the technician chose", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    // Glucosa is green for A1, approved there twice; A2 has never seen it.
+    const memory = new DbMemory(db);
+    for (let i = 0; i < 2; i++) await memory.approve("A1", textKey("Glucosa"), ["BQ0001"], "active");
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [doc] = (await getBatch(db, batch.id))!.documents;
+    await openDocument(db, doc.id, "T01");
+    const stored = (await getProposal(db, doc.id))!;
+    expect(stored.tests[0].mapping).toMatchObject({ state: "green", source: "memory" });
+
+    const chosen = await withChosenLinks(db, stored, await readSnapshot(db), { insurer: "A2" });
+    expect(chosen.fused.links.insurer).toMatchObject({ recordId: "A2", chosen: true });
+    expect(chosen.tests[0].mapping).toMatchObject({ state: "orange", source: "memory_elsewhere" });
+    expect(chosen.trace?.mapping.scope).toBe("A2");
+
+    // Approving checks the same: the line, green only for A1, has to be confirmed for A2.
+    const asFound = resolved(stored);
+    const unconfirmed = { ...asFound, confirmed: asFound.confirmed.filter((c) => c !== "t:0"), links: { insurer: "A2" } };
+    expect(await approveDocument(db, doc.id, "T01", unconfirmed)).toMatchObject({
+      ok: false,
+      problems: expect.arrayContaining([expect.stringMatching(/^line 1 \(Glucosa\) is orange/)]),
+    });
+    expect(await approveDocument(db, doc.id, "T01", { ...unconfirmed, confirmed: asFound.confirmed })).toMatchObject({ ok: true });
+    expect(await memory.lookup("A2", textKey("Glucosa"))).toEqual([{ codes: ["BQ0001"], active: 1, passive: 0, corrections: 0 }]);
+  });
+
   it("refuses a link to a record of another kind, or to no record at all", async () => {
     const ws = await createSandbox();
     const db = await openWorkspace(ws);
@@ -635,6 +670,40 @@ describe("decisions", () => {
     });
     const oneAdded = { ...noLines, added: [{ text: "Glucosa", codes: [asFound.lines.find((l) => l?.length)![0]] }] };
     expect(await approveDocument(db, doc.id, "T01", oneAdded)).toMatchObject({ ok: true });
+  });
+
+  it("takes a chosen record's value where the document differs, but only once that field is confirmed", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [doc] = (await getBatch(db, batch.id))!.documents;
+    const stored = (await getProposal(db, doc.id))!;
+    // The form reads another identity document than the record the technician chose.
+    const prediction = {
+      ...stored.prediction,
+      fields: { ...stored.prediction.fields, DocumentoIdentidad: { ...stored.prediction.fields.DocumentoIdentidad!, value: "99999999R" } },
+    };
+    const fused = fuse(prediction, await readSnapshot(db), { patient: "P1" });
+    const proposal = { ...stored, prediction, fused };
+    expect(fused.fields.find((f) => f.name === "DocumentoIdentidad")).toMatchObject({ state: "orange", reason: "chosen_record", value: "12345678Z" });
+
+    // Choosing the record is not checking each field: approving as proposed asks for it.
+    const input = resolved(proposal);
+    const catalog = new Set(["BQ0001"]);
+    const unchecked = { ...input, confirmed: input.confirmed.filter((k) => k !== "f:DocumentoIdentidad") };
+    expect(checkApproval(proposal, unchecked, catalog).problems).toEqual(["DocumentoIdentidad is orange: change or confirm it"]);
+    const { problems, record } = checkApproval(proposal, input, catalog);
+    expect(problems).toEqual([]);
+    expect(record.fields.find((f) => f.name === "DocumentoIdentidad")).toMatchObject({
+      value: "12345678Z",
+      action: "confirmed",
+      source: "lis",
+      ai: "99999999R",
+      lis: { value: "12345678Z", recordId: "P1" },
+    });
   });
 
   it("does not take a red field with no value as confirmed: one of its values must be chosen or typed", async () => {
@@ -829,7 +898,36 @@ describe("deleting a batch", () => {
     for (const name of ["A", "B"]) await createBatch(db, { name, provider: "gemini", createdBy: "T01", documents: [doc] });
     const reading = await createBatch(db, { name: "C", provider: "gemini", createdBy: "T01", documents: [doc] });
     await db.update(batchDocuments).set({ state: "extracting" }).where(eq(batchDocuments.batchId, reading.id));
-    expect(await deleteAllBatches(db)).toEqual({ deleted: 2, reading: 1 });
+    expect(await deleteAllBatches(db)).toEqual({ deleted: 2, reading: 1, decided: 0 });
     expect((await listBatches(db)).map((b) => b.name)).toEqual(["C"]);
+  });
+
+  it("in live mode keeps a batch with a decision: approvals and rejections are a record", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const doc = await newDoc("doc-a.pdf");
+    const approved = await createBatch(db, { name: "Approved", provider: "gemini", createdBy: "T01", documents: [doc] });
+    const rejected = await createBatch(db, { name: "Rejected", provider: "gemini", createdBy: "T01", documents: [doc] });
+    const untouched = await createBatch(db, { name: "Untouched", provider: "gemini", createdBy: "T01", documents: [doc] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [a] = (await getBatch(db, approved.id))!.documents;
+    await openDocument(db, a.id, "T01");
+    expect(await approveDocument(db, a.id, "T01", resolved((await getProposal(db, a.id))!))).toMatchObject({ ok: true });
+    const [r] = (await getBatch(db, rejected.id))!.documents;
+    await openDocument(db, r.id, "T01");
+    expect(await rejectDocument(db, r.id, "T01", "illegible", "")).toMatchObject({ ok: true });
+
+    expect(await deleteBatch(db, approved.id, "live")).toEqual({ ok: false, reason: "decided" });
+    expect(await deleteBatch(db, rejected.id, "live")).toEqual({ ok: false, reason: "decided" });
+    expect(await getDecision(db, a.id)).not.toBeNull();
+    expect(await db.select().from(requests)).toHaveLength(1);
+    // A batch with nothing decided goes, and "delete all" leaves the decided ones.
+    expect(await deleteAllBatches(db, "live")).toEqual({ deleted: 1, reading: 0, decided: 2 });
+    expect((await listBatches(db)).map((b) => b.id).sort()).toEqual([approved.id, rejected.id].sort());
+    expect(await getBatch(db, untouched.id)).toBeNull();
+    // A sandbox of the demo is for trying things out: there it all goes.
+    expect(await deleteAllBatches(db, "replay")).toEqual({ deleted: 2, reading: 0, decided: 0 });
   });
 });

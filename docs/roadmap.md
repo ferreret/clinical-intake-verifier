@@ -4,7 +4,7 @@ Where the project stands, what has been decided and what is only proposed. Read 
 starting a work session. Anything marked **proposed** is a design that has not been approved or
 implemented; it changes only after an explicit decision.
 
-Last updated: 2026-10-27.
+Last updated: 2026-11-02.
 
 ## Where things stand
 
@@ -1754,7 +1754,58 @@ redeployed with the first four parts' fixes (`779ac05`):
   (`.github/load/check.py`): on the code of before the incident it fails (an HTTP 500, a 30 s
   wait, 20 SQLITE_BUSY), and it passes now.
 
-Not done, as product decisions to take: a request kept linked to its patient after the
-technician changes that patient's identity; lines not mapped again when the insurer changes;
-a namesake offered another person's identity document; batches with approvals that any
-technician can delete; one-key confirmations counted as active approvals in the memory.
+The audit left five product decisions, taken one at a time by the product owner:
+
+1. **An identity changed under a link** (decided 2026-10-29, revised 2026-11-02). A record
+   the technician chooses from the search prevails: the fields it has a value for take it,
+   even over earlier edits, and every edit after that is valid, the decision recording what
+   the record said (`2516744`). Where the document reads otherwise, the field is orange, to
+   be confirmed, not green: choosing a record says who the person is, not that each field
+   was checked (`fda60a7`). Where the record has no value, the technician's edit stays
+   (`0ac02a8`).
+2. **The insurer changed** (decided 2026-10-29). Choosing another insurer maps the lines
+   again with its memory, on the screen and when approving, as if it had been found
+   (`7e08604`).
+3. **A namesake's identity** (decided 2026-11-02, option C). A record offered only as a
+   candidate may be a namesake; it filled the fields the document lacked, an identity
+   document required, so one key could register another person's. It now proposes nothing
+   of its own: the field is left empty (red if required, grey if not), its value in view to
+   be taken by hand. Measured on the 200 recorded readings: no measure of the floor moves;
+   18 values, in 15 documents, are no longer filled, all of them right in seed 42, whose 21
+   candidates are all the right patient. The generator plants no wrong candidate, so the
+   harm avoided is not measured. "It is this patient" on the candidate's card confirms it in
+   one click, which counts as choosing it (decision 1) and fills them at once.
+4. **Deleting what was decided** (decided 2026-11-02, option B). Deleting a batch took its
+   approvals and rejections with it, and the requests they registered, in live mode too,
+   while the memory kept what they taught. Who deletes was not the point, technicians not
+   signing in; what goes was. In live mode a batch with a decision now stays, and "delete
+   all" leaves it and says so; a sandbox of the demo, a place to try things out, deletes
+   everything as before (2026-10-27).
+5. **One-key confirmations teaching the memory** (measured and decided 2026-11-02: kept as it is).
+   Confirming an orange line counts as an active approval, as choosing its codes by hand
+   does, and two active approvals make a line green for that insurer. The audit's worry: two
+   confirmations given without looking would make a wrong proposal green. `map-simulate`
+   can now hand each request to one of several technicians, some of whom confirm a share of
+   the wrong orange proposals unchecked, and set what green needs. On the 1,000 requests of
+   seed 42, lexical search without the model, 3 technicians, means of 5 seeds:
+
+   | Rule for green | Green | Wrong green, careless 10% / one at 30% / one at 100% / all at 100% | Wrong codes approved, all at 100% |
+   |---|---:|---|---:|
+   | Now: 2 active approvals | 71.8% | 0 / 0 / 0.4 / 6.0 | 54 |
+   | A confirmation is passive | 0% | 0 / 0 / 0 / 0 | 54 |
+   | 2 different technicians | 68.5% | 0 / 0 / 0 / 5.2 | 54 |
+   | 3 active approvals | 64.5% | 0 / 0 / 0 / 2.0 | 54 |
+
+   Of 8,329 lines only 37 are proposed orange and wrong (25 by the search, 12 by other
+   insurers' memory), each once per insurer, so an unchecked confirmation seldom meets the
+   same line again. The wrong codes approved come from the careless confirmations
+   themselves, not from greens they create. A passive confirmation stops all learning;
+   the other rules cost green lines that are right. With a single technician, "2 different
+   technicians" would never turn anything green.
+
+   Decided by the product owner: the rule stays. The risk the audit saw does not show at a
+   realistic carelessness, and every alternative costs work saved for sure. The data are
+   synthetic: a wrong proposal for a frequent line could recur more in real requests, and
+   the simulation can measure it again then.
+
+All five decisions the audit left are settled.

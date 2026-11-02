@@ -2,7 +2,7 @@
  * The browser's side of the API (docs/workflow.md): typed fetches, and the shapes they return.
  * Types only are taken from the server's modules; nothing of theirs reaches the browser.
  */
-import type { DocumentState } from "@/lib/batches/schema";
+import type { DocumentState, ProcessingTrace, TestProposal } from "@/lib/batches/schema";
 import { withBase } from "@/lib/base-path";
 import type { Decision, RejectReason } from "@/lib/batches/decide";
 import type { BundledInfo } from "@/lib/batches/sources";
@@ -149,7 +149,7 @@ export const api = {
     for (const f of input.files) form.append("files", f);
     return call<{ batch: Batch }>("/api/batches", { method: "POST", body: form });
   },
-  deleteAllBatches: () => call<{ deleted: number; reading: number }>("/api/batches", { method: "DELETE" }),
+  deleteAllBatches: () => call<{ deleted: number; reading: number; decided: number }>("/api/batches", { method: "DELETE" }),
   deleteBatch: (id: string) => call<{ deleted: boolean }>(`/api/batches/${id}`, { method: "DELETE" }),
   retry: (documentId: string) => call<unknown>(`/api/documents/${documentId}/retry`, { method: "POST" }),
   proposal: (documentId: string) => call<ProposalView>(`/api/documents/${documentId}/proposal`),
@@ -174,7 +174,10 @@ export const api = {
   searchRecords: (kind: RecordKind, q: string, signal?: AbortSignal) =>
     call<{ results: RecordView[] }>(`/api/lis/search?kind=${kind}&q=${encodeURIComponent(q)}`, { signal }),
   fusion: (documentId: string, links: ChosenLinks) =>
-    call<{ fused: FusedDocument; records: Record<string, RecordView> }>(`/api/documents/${documentId}/fusion`, postJson({ links })),
+    call<{ fused: FusedDocument; records: Record<string, RecordView>; tests: TestProposal[]; trace: ProcessingTrace | null }>(
+      `/api/documents/${documentId}/fusion`,
+      postJson({ links }),
+    ),
   pageUrl: (documentId: string, page: number) => withBase(`/api/documents/${documentId}/pages/${page}`),
 };
 

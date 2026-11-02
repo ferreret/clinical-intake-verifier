@@ -30,7 +30,7 @@ import { Lens } from "./lens";
 import { DecisionLog } from "./log";
 import { RecordSearch } from "./records";
 import { ShortcutsDialog } from "./shortcuts";
-import { checkOf, itemsOf, type Check, type Light } from "./model";
+import { checkOf, itemsOf, relinkedFields, type Check, type Light } from "./model";
 import { Tests, type AddedLine, type Chosen } from "./tests";
 import { Viewer } from "./viewer";
 
@@ -394,6 +394,11 @@ export default function VerifyPage() {
    * Links the document to a record the technician found (id), to none (null), or back to what
    * the engine found (undefined), and fuses it again: fields the technician has not changed
    * take the new proposal, and field confirmations start over, the comparison having changed.
+   * A record chosen from the search prevails (decision of 2026-10-29): the fields it has a
+   * value for take it, even those changed before (model.ts, relinkedFields), and the
+   * technician may change them again after. An
+   * insurer chosen brings its memory too: the lines come mapped again with it, and those the
+   * technician has not touched take the new codes, their confirmations starting over.
    */
   async function relink(kind: RecordKind, id: string | null | undefined) {
     if (!view || busy) return;
@@ -402,19 +407,24 @@ export default function VerifyPage() {
     if (id === undefined) delete next[kind];
     else next[kind] = id;
     try {
-      const { fused, records } = await api.fusion(docId, next);
-      const before = new Map(view.proposal.fused.fields.map((f) => [f.name, (f.value ?? "").trim()]));
-      setValues((vals) =>
-        Object.fromEntries(
-          Object.entries(vals).map(([key, v]) => {
-            const f = fused.fields.find((x) => `f:${x.name}` === key);
-            return [key, f && v.trim() === before.get(f.name) ? (f.value ?? "") : v];
-          }),
-        ),
-      );
-      setConfirmed((c) => new Set([...c].filter((k) => !k.startsWith("f:"))));
+      const { fused, records, tests, trace } = await api.fusion(docId, next);
+      const { prevailed } = relinkedFields(values, view.proposal.fused.fields, fused.fields, id);
+      setValues((vals) => relinkedFields(vals, view.proposal.fused.fields, fused.fields, id).values);
+      setTouched((t) => new Set([...t].filter((key) => !prevailed.has(key))));
+      const remapped = JSON.stringify(tests) !== JSON.stringify(view.proposal.tests);
+      if (remapped) {
+        setChosen((c) =>
+          Object.fromEntries(
+            Object.entries(c).map(([key, codes]) => {
+              const line = key.startsWith("t:") ? tests[Number(key.slice(2))] : undefined;
+              return [key, line && !touched.has(key) ? (line.mapping.codes ?? []) : codes];
+            }),
+          ),
+        );
+      }
+      setConfirmed((c) => new Set([...c].filter((k) => !k.startsWith("f:") && !(remapped && k.startsWith("t:") && !touched.has(k)))));
       setChosenLinks(next);
-      setView({ ...view, proposal: { ...view.proposal, fused }, records: { ...view.records, ...records } });
+      setView({ ...view, proposal: { ...view.proposal, fused, tests, trace }, records: { ...view.records, ...records } });
     } catch (e) {
       setProblems([(e as Error).message]);
     } finally {
@@ -679,7 +689,7 @@ export default function VerifyPage() {
             <div className="@container space-y-4 p-4 @min-[88rem]:overflow-y-auto">
               <section>
                 <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{m.records}</h2>
-                <Links view={view} readOnly={readOnly} onSearch={(kind, anchor) => setSearching({ kind, anchor })} />
+                <Links view={view} readOnly={readOnly} onSearch={(kind, anchor) => setSearching({ kind, anchor })} onConfirm={(kind, id) => void relink(kind, id)} />
               </section>
               <section>
                 <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{m.fieldsTitle(fields.length)}</h2>

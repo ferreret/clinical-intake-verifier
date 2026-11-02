@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { relinkedFields } from "@/app/batches/[id]/[docId]/model";
 import { fuse, storedForm } from "@/lib/fusion/fuse";
 import { searchRecords } from "@/lib/lis/records";
 import type { FusedDocument, LisSnapshot } from "@/lib/fusion/types";
@@ -164,6 +165,19 @@ describe("fusion", () => {
     expect(stranger.links.patient).toMatchObject({ status: "none", recordId: null });
   });
 
+  it("proposes nothing of a candidate's own: a namesake's identity document stays in view only", () => {
+    // Same name as P1, another birth date, no identity document or phone on the form: P1 is
+    // offered, and may be someone else.
+    const namesake = without({ ...MARIA, FechaNacimiento: "07/07/1977" }, "DocumentoIdentidad", "Telefono");
+    const doc = fuse(prediction(namesake), LIS);
+    expect(doc.links.patient).toMatchObject({ status: "candidate", recordId: "P1" });
+    expect(states(doc)).toMatchObject({ DocumentoIdentidad: "red:candidate_only", Telefono: "grey:candidate_only", Sexo: "orange:candidate_agrees" });
+    const id = doc.fields.find((f) => f.name === "DocumentoIdentidad")!;
+    expect(id).toMatchObject({ value: null, source: null, lis: { value: "12345678Z", recordId: "P1", confirmed: false } });
+    // Confirmed as this patient's, by choosing it, the record fills them.
+    expect(states(fuse(prediction(namesake), LIS, { patient: "P1" }))).toMatchObject({ DocumentoIdentidad: "green:lis_only", Telefono: "green:lis_only" });
+  });
+
   it("never links on the identity document alone", () => {
     const doc = fuse(prediction({ ...MARIA, Paciente: "Otra Persona Distinta", FechaNacimiento: "01/01/2000" }), LIS);
     expect(doc.links.patient).toMatchObject({ status: "candidate", state: "red" });
@@ -182,12 +196,37 @@ describe("fusion", () => {
     expect(fuse(prediction(unknown), LIS).links.patient.status).not.toBe("linked");
     const chosen = fuse(prediction(unknown), LIS, { patient: "P2" });
     expect(chosen.links.patient).toMatchObject({ status: "linked", recordId: "P2", chosen: true });
-    expect(states(chosen)).toMatchObject({ Paciente: "green:agree", FechaNacimiento: "green:agree", DocumentoIdentidad: "red:conflict" });
+    // Where the document differs, the chosen record prevails (decision of 2026-10-29): the
+    // technician searched the records and chose it. Orange: each such field is still checked.
+    expect(states(chosen)).toMatchObject({ Paciente: "green:agree", FechaNacimiento: "green:agree", DocumentoIdentidad: "orange:chosen_record" });
+    const doc = chosen.fields.find((f) => f.name === "DocumentoIdentidad")!;
+    expect(doc).toMatchObject({ value: doc.lis!.value, source: "lis", ai: { value: "99999999R" } });
+    expect(doc.lis).toMatchObject({ recordId: "P2", confirmed: true });
+    // A record the engine found itself does not: the same disagreement there is red, no value.
+    expect(states(fuse(prediction({ ...MARIA, Telefono: "699 000 111" }), LIS)).Telefono).toBe("red:conflict");
     // "No record": the patient's fields stand on the document alone.
     const none = fuse(prediction(MARIA), LIS, { patient: null });
     expect(none.links.patient).toMatchObject({ status: "none", chosen: true });
     expect(states(none).Paciente).toBe("orange:ai_only");
     expect(none.links.physician.chosen).toBeUndefined();
+  });
+
+  it("on choosing a record, sets the fields it has a value for, and keeps edits where it has none", () => {
+    // A record with no phone; the document read none either, and the technician typed one.
+    const lis = { ...LIS, patients: [...LIS.patients, { ...LIS.patients[1], id: "P4", phone: null }] };
+    const read = prediction({ ...MARIA, Paciente: "VIDAL SOLER, ROSA", DocumentoIdentidad: "99999999R", FechaNacimiento: "14/09/1988", Telefono: "" });
+    const before = fuse(read, lis);
+    const values = { "f:DocumentoIdentidad": "11111111H", "f:Telefono": "600999888", "f:NombreMutua": "Garbí Salut" };
+    const after = fuse(read, lis, { patient: "P4" });
+    const { values: next, prevailed } = relinkedFields(values, before.fields, after.fields, "P4");
+    // The record prevails over an edit where it has a value; the typed phone stays.
+    expect(next).toEqual({ "f:DocumentoIdentidad": "87654321X", "f:Telefono": "600999888", "f:NombreMutua": "Garbí Salut" });
+    expect(prevailed).toEqual(new Set(["f:Paciente", "f:FechaNacimiento", "f:Sexo", "f:DocumentoIdentidad"]));
+    // "No record" or "back to what was found" leave every edit as it is.
+    expect(relinkedFields(values, before.fields, fuse(read, lis, { patient: null }).fields, null).values).toMatchObject({
+      "f:DocumentoIdentidad": "11111111H",
+      "f:Telefono": "600999888",
+    });
   });
 
   it("searches the records by every word of a name, or by an identifying number", () => {

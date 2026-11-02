@@ -2,15 +2,16 @@
  * POST /api/documents/:id/fusion: the document fused again with links the technician set by
  * searching the records, `{ "links": { "patient": "P123" | null, … } }` (null: no record, a
  * new one). Nothing is stored: the links count when the document is approved with them.
- * Returns the fusion and the records it shows.
+ * Returns the fusion, the records it shows, and the lines with their codes, mapped again with
+ * the chosen insurer's memory when it changed (batches/pipeline.ts, withChosenLinks).
  */
 import { NextResponse } from "next/server";
 
 import { jsonBody, tooLarge } from "@/lib/http";
 
 import { getSession, noSession } from "@/lib/batches/session";
+import { withChosenLinks } from "@/lib/batches/pipeline";
 import { getProposal } from "@/lib/batches/store";
-import { fuse } from "@/lib/fusion/fuse";
 import { parseChosenLinks, unknownChosen } from "@/lib/fusion/link";
 import { recordsOf } from "@/lib/lis/records";
 import { readSnapshot } from "@/lib/lis/snapshot";
@@ -30,6 +31,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const lis = await readSnapshot(session.db);
   const unknown = unknownChosen(links, lis);
   if (unknown.length > 0) return NextResponse.json({ error: `not a record of its kind: ${unknown.join(", ")}` }, { status: 400 });
-  const fused = fuse(proposal.prediction, lis, links);
-  return NextResponse.json({ fused, records: recordsOf(fused, lis) });
+  const { fused, tests, trace } = await withChosenLinks(session.db, proposal, lis, links);
+  return NextResponse.json({ fused, records: recordsOf(fused, lis), tests, trace });
 }

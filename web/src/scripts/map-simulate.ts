@@ -7,6 +7,9 @@
  *                           [--search lexical|embedding|hybrid --min-score 0.55 --min-lead 0.05]
  *                           [--model gemini|local --policy red|all]
  *                           [--fusion ../data/fusion/<fusion-id>] [--language es]
+ *                           [--technicians 3 --careless-rate 0.3 --careless-technicians 1]
+ *                           [--green-rule approvals|technicians --green-approvals 2]
+ *                           [--confirm-counts active|passive]
  *
  * With --model, a language model chooses among the candidates of the lines the memory did
  * not settle: under policy "all" every such line (its answer replaces the search's, and none
@@ -24,6 +27,14 @@
  * orange proposal that is right and corrects one that is wrong, and chooses the codes of a
  * red line. With --error-rate, that share of their actions picks wrong codes. The memory
  * learns only from approved requests, in memory: the run leaves no database behind.
+ *
+ * To weigh how much a one-key confirmation should teach (decision 5 of the 2026-10-29 audit),
+ * each request can go to one of --technicians, the first --careless-technicians of whom
+ * confirm that share (--careless-rate, by default the error rate) of the wrong orange
+ * proposals without checking them. What makes a line green can be measured apart from the
+ * product's rule (`approvals`: GREEN_APPROVALS active approvals): `technicians` counts the
+ * distinct technicians who approved it actively, --green-approvals sets how many are needed,
+ * and --confirm-counts passive makes a confirmation teach as little as a green kept.
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -32,7 +43,7 @@ import { parseArgs } from "node:util";
 import { alignLines, type ReadLine } from "@/lib/mapping/align";
 import { catalogFromFile, type CatalogFile } from "@/lib/mapping/catalog";
 import { Embedder, EmbeddingSearch, HybridSearch } from "@/lib/mapping/embeddings";
-import { InMemoryMemory, type ApprovalKind } from "@/lib/mapping/memory";
+import { InMemoryMemory, type ApprovalKind, type MappingMemory, type MemoryEntry } from "@/lib/mapping/memory";
 import { proposeDocument, type ModelPolicy } from "@/lib/mapping/document";
 import { MAPPING_PROMPT_VERSION, resolveProvider, type Provider } from "@/lib/mapping/model";
 import { CANDIDATES, GREEN_APPROVALS, LEXICAL_SETTINGS, textKey } from "@/lib/mapping/propose";
@@ -55,6 +66,48 @@ interface Golden {
 interface FusedDocument {
   extractor_error: unknown;
   links: { insurer: { status: string; recordId: string | null } };
+}
+
+/**
+ * The memory with another rule for green, for measuring only: it reports as active approvals
+ * what the rule counts (approvals, or distinct technicians), scaled so that the product's
+ * GREEN_APPROVALS threshold falls where `needed` does. With the product's rule it changes
+ * nothing.
+ */
+class RuleMemory implements MappingMemory {
+  private readonly inner = new InMemoryMemory();
+  private readonly who = new Map<string, Set<string>>();
+  /** The technician whose approvals are being recorded. */
+  technician = "T1";
+
+  constructor(
+    private readonly rule: "approvals" | "technicians",
+    private readonly needed: number,
+  ) {}
+
+  private reported(scope: string, textKey: string, e: MemoryEntry): MemoryEntry {
+    const n = this.rule === "technicians" ? (this.who.get(`${scope}\u0000${textKey}\u0000${setKey(e.codes)}`)?.size ?? 0) : e.active;
+    return { ...e, active: n >= this.needed ? Math.max(n, GREEN_APPROVALS) : Math.min(n, GREEN_APPROVALS - 1) };
+  }
+
+  async lookup(scope: string, textKey: string): Promise<MemoryEntry[]> {
+    return (await this.inner.lookup(scope, textKey)).map((e) => this.reported(scope, textKey, e));
+  }
+
+  elsewhere(scope: string, textKey: string): Promise<MemoryEntry[]> {
+    return this.inner.elsewhere(scope, textKey);
+  }
+
+  async approve(scope: string, textKey: string, codes: string[], kind: ApprovalKind): Promise<void> {
+    await this.inner.approve(scope, textKey, codes, kind);
+    if (kind !== "active") return;
+    const k = `${scope}\u0000${textKey}\u0000${setKey(codes)}`;
+    this.who.set(k, (this.who.get(k) ?? new Set()).add(this.technician));
+  }
+
+  correct(scope: string, textKey: string, codes: string[]): Promise<void> {
+    return this.inner.correct(scope, textKey, codes);
+  }
 }
 
 /** A small seeded generator (mulberry32), so a run is reproducible. */
@@ -90,6 +143,12 @@ async function main(): Promise<number> {
       "min-lead": { type: "string" },
       fusion: { type: "string" },
       language: { type: "string" },
+      technicians: { type: "string", default: "1" },
+      "careless-rate": { type: "string" },
+      "careless-technicians": { type: "string" },
+      "green-rule": { type: "string", default: "approvals" },
+      "green-approvals": { type: "string" },
+      "confirm-counts": { type: "string", default: "active" },
     },
   });
   if (!values.dataset) {
@@ -100,6 +159,16 @@ async function main(): Promise<number> {
   const errorRate = Number(values["error-rate"]);
   const seed = Number(values.seed);
   const random = rng(seed);
+  const technicians = Number(values.technicians);
+  const carelessRate = values["careless-rate"] !== undefined ? Number(values["careless-rate"]) : errorRate;
+  const carelessTechnicians = values["careless-technicians"] !== undefined ? Number(values["careless-technicians"]) : technicians;
+  const greenRule = values["green-rule"] as "approvals" | "technicians";
+  if (greenRule !== "approvals" && greenRule !== "technicians") throw new Error(`unknown --green-rule ${greenRule}: use approvals or technicians`);
+  const greenApprovals = values["green-approvals"] !== undefined ? Number(values["green-approvals"]) : GREEN_APPROVALS;
+  const confirmCounts = values["confirm-counts"] as ApprovalKind;
+  if (confirmCounts !== "active" && confirmCounts !== "passive") throw new Error(`unknown --confirm-counts ${confirmCounts}: use active or passive`);
+  // Apart from the main generator, so that runs with one technician stay as they were.
+  const assign = rng(seed + 1);
   await loadDotEnv(path.resolve(process.cwd(), ".env.local"));
   const method = values.search ?? "lexical";
   const policy = (values.policy ?? "red") as ModelPolicy;
@@ -142,7 +211,7 @@ async function main(): Promise<number> {
     else throw new Error(`unknown --search ${method}`);
   }
   const allCodes = catalogFile.tests.map((t) => t.code);
-  const memory = new InMemoryMemory();
+  const memory = new RuleMemory(greenRule, greenApprovals);
 
   const files = (await fs.readdir(dataset)).filter((f) => f.endsWith(".json") && !NOT_GOLDEN.has(f)).sort();
   const seen = new Map<string, number>();
@@ -181,6 +250,8 @@ async function main(): Promise<number> {
     const scope = insurerId ?? (insurer ? `name:${compareKey(insurer, "casefold")}` : "none");
     const k = (seen.get(scope) ?? 0) + 1;
     seen.set(scope, k);
+    const who = technicians > 1 ? Math.floor(assign() * technicians) : 0;
+    const careless = who < carelessTechnicians;
 
     const approvals: { text: string; codes: string[]; kind: ApprovalKind; corrected: string[] | null }[] = [];
     const { proposals, model: sent, consultation } = await proposeDocument(
@@ -216,8 +287,8 @@ async function main(): Promise<number> {
         [action, chosen] = ["remove", []];
       } else if (p.state === "green") {
         [action, chosen, kind] = ["approve", p.codes!, "passive"];
-      } else if (p.state === "orange" && (proposedRight || random() < errorRate)) {
-        [action, chosen] = ["confirm", p.codes!];
+      } else if (p.state === "orange" && (proposedRight || (careless && random() < carelessRate))) {
+        [action, chosen, kind] = ["confirm", p.codes!, confirmCounts];
       } else if (p.state === "orange") {
         [action, chosen, corrected] = ["correct", truth, p.codes];
       } else {
@@ -231,6 +302,7 @@ async function main(): Promise<number> {
           doc: g.id,
           scope,
           k,
+          technician: `T${who + 1}`,
           insurer,
           language: g.context.language ?? "es",
           text: t.text,
@@ -253,6 +325,7 @@ async function main(): Promise<number> {
       );
     }
     // The request is approved: only now does the memory learn.
+    memory.technician = `T${who + 1}`;
     for (const a of approvals) {
       if (a.corrected) await memory.correct(scope, textKey(a.text), a.corrected);
       await memory.approve(scope, textKey(a.text), a.codes, a.kind);
@@ -272,7 +345,12 @@ async function main(): Promise<number> {
     unread,
     error_rate: errorRate,
     seed,
-    green_approvals: GREEN_APPROVALS,
+    technicians,
+    careless_rate: carelessRate,
+    careless_technicians: carelessTechnicians,
+    green_rule: greenRule,
+    confirm_counts: confirmCounts,
+    green_approvals: greenApprovals,
     search: method,
     search_min_score: settings.minScore,
     search_min_lead: settings.minLead,

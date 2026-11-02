@@ -7,11 +7,16 @@
  *   only the LIS                 green
  *   only the AI                  orange (red when a warning casts doubt on it)
  *   AI and LIS disagree          red: no value is proposed, the technician decides
+ *     ... with a record the      orange: the record's value. The technician searched the
+ *     technician chose           records and chose it, so it prevails over what was read
+ *                                (decision of 2026-10-29); orange, since choosing a record
+ *                                is not checking each field against the document
  *   nothing, required            red
  *   nothing, optional            grey
  *
  * A record that is only a candidate (not confirmed as this document's) can never make a
- * field green: agreeing with it is orange. A value taken from the document is proposed in the
+ * field green: agreeing with it is orange, and a field only it has is left empty, its value
+ * in view (red if required, grey if not) until the technician takes it or confirms the record. A value taken from the document is proposed in the
  * form the system of record keeps it (fields.json, `stored_as`), such as an age as a number.
  */
 import { valuesMatch } from "@/lib/schema/compare";
@@ -86,8 +91,10 @@ function field(
   const ai = predicted ? { value: predicted.value, page: predicted.page, bbox: predicted.bbox, warnings } : null;
 
   let lisSide: FusedField["lis"] = null;
+  let chosen = false;
   if (spec.lis) {
     const l = links[spec.lis.source.split(".")[0] as RecordKind];
+    chosen = l.chosen === true && l.status === "linked";
     if (l.recordId && (l.status === "linked" || l.status === "candidate")) {
       const value = lisValue(spec.lis.source, l.recordId, lis);
       if (value !== null) lisSide = { value, recordId: l.recordId, confirmed: l.status === "linked" };
@@ -108,15 +115,20 @@ function field(
   if (ai && lisSide) {
     const { source, compare } = spec.lis!;
     const forms = [lisSide.value, ...lisAliases(source, lisSide.recordId, lis)];
-    if (!forms.some((v) => valuesMatch(ai.value, v, compare))) return out("red", "conflict", null, null);
+    if (!forms.some((v) => valuesMatch(ai.value, v, compare))) {
+      return chosen ? out("orange", "chosen_record", lisSide.value, "lis") : out("red", "conflict", null, null);
+    }
     return lisSide.confirmed
       ? out("green", "agree", lisSide.value, "lis")
       : out("orange", "candidate_agrees", lisSide.value, "lis");
   }
   if (lisSide) {
-    return lisSide.confirmed
-      ? out("green", "lis_only", lisSide.value, "lis")
-      : out("orange", "candidate_only", lisSide.value, "lis");
+    // A record not confirmed as this document's proposes nothing of its own (decision of
+    // 2026-11-02): it may be a namesake, and its identity document or phone, taken with one
+    // key, would register another person's. Its value is shown beside the empty field, to be
+    // taken by hand or by confirming the record.
+    if (lisSide.confirmed) return out("green", "lis_only", lisSide.value, "lis");
+    return out(spec.required ? "red" : "grey", "candidate_only", null, null);
   }
   if (ai) {
     const value = storedForm(spec, ai.value);

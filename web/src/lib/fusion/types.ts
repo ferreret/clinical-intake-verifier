@@ -82,8 +82,9 @@ export type FieldReason =
   | "ai_only" // only the AI has it
   | "ai_only_doubtful" // only the AI has it, with a warning that casts doubt on it
   | "conflict" // AI and LIS disagree: the technician decides
+  | "chosen_record" // AI and LIS disagree, the LIS record being one the technician chose: the record's value, to confirm
   | "candidate_agrees" // agrees with a record not yet confirmed as this patient's
-  | "candidate_only" // only an unconfirmed record has it
+  | "candidate_only" // only an unconfirmed record has it: shown, not proposed
   | "default" // only the system default
   | "missing_required"
   | "absent_optional";

@@ -3,18 +3,20 @@
 /**
  * Deleting a batch, or all of them, asked first: what goes (the documents, their decisions
  * and the requests registered in mock-lis) and what stays (what the mapping memory learned,
- * and batches still being read).
+ * batches still being read, and in live mode batches with a decision, which are a record).
  */
 import { useState } from "react";
 
 import { api, type DocumentState } from "./api";
 import { useI18n } from "./i18n";
 import { Trash } from "./icons";
+import { useSession } from "./session";
 
 export function DeleteBatchDialog({
   batch,
   batches = 1,
   readingBatches = 0,
+  decidedBatches = 0,
   states,
   onDeleted,
   onCancel,
@@ -24,18 +26,23 @@ export function DeleteBatchDialog({
   /** Deleting them all: how many there are, and how many are still being read (they stay). */
   batches?: number;
   readingBatches?: number;
+  /** Deleting them all in live mode: how many have a decision (they stay). */
+  decidedBatches?: number;
   /** Documents by state, in the batch or across all of them. */
   states: Record<DocumentState, number>;
   onDeleted: () => void;
   onCancel: () => void;
 }) {
   const { t } = useI18n();
+  const { mode } = useSession();
   const m = t.deleteBatch;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const total = Object.values(states).reduce((a, n) => a + n, 0);
   // One batch still being read cannot go; deleting them all leaves those behind.
   const reading = batch !== null && states.extracting > 0;
+  // In live mode decisions are a record: a batch with one stays (lib/batches/remove.ts).
+  const decided = batch !== null && mode === "live" && states.approved + states.rejected > 0;
 
   async function remove() {
     setBusy(true);
@@ -68,9 +75,16 @@ export function DeleteBatchDialog({
               {batch ? m.title(batch.name) : m.titleAll(batches)}
             </h2>
             <div className="mt-2 space-y-1.5 text-sm text-slate-600">
-              <p>{batch ? m.documents(total) : m.documentsAll(total)}</p>
-              {states.approved + states.rejected > 0 && <p>{m.decided(states.approved, states.rejected)}</p>}
-              {states.approved > 0 && <p className="text-xs text-slate-500">{m.memory}</p>}
+              {decided ? (
+                <p className="font-medium text-amber-800">{m.kept}</p>
+              ) : (
+                <>
+                  <p>{batch ? m.documents(total) : m.documentsAll(total)}</p>
+                  {states.approved + states.rejected > 0 && <p>{m.decided(states.approved, states.rejected)}</p>}
+                  {states.approved > 0 && <p className="text-xs text-slate-500">{m.memory}</p>}
+                </>
+              )}
+              {!batch && decidedBatches > 0 && <p className="font-medium text-amber-800">{m.keptAll(decidedBatches)}</p>}
               {states.in_verification > 0 && <p className="font-medium text-amber-800">{m.inVerification(states.in_verification)}</p>}
               {reading && <p className="font-medium text-amber-800">{m.reading}</p>}
               {!batch && readingBatches > 0 && <p className="font-medium text-amber-800">{m.readingAll(readingBatches)}</p>}
@@ -90,7 +104,7 @@ export function DeleteBatchDialog({
           <button
             type="button"
             onClick={() => void remove()}
-            disabled={busy || reading}
+            disabled={busy || reading || decided}
             className="rounded-lg bg-rose-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-40"
           >
             {busy ? m.deleting : batch ? m.confirm : m.confirmAll}

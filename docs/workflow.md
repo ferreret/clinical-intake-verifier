@@ -31,8 +31,11 @@ confirmation that says what goes: its documents and their proposals, the decisio
 them and the requests those approvals registered in the mock LIS, in one transaction, and
 then its uploaded PDFs. What the mapping memory learned from its approvals stays, as it
 cannot be told apart from what other approvals taught. A batch still being read waits.
-"Delete all", on the batch list, deletes every batch but those still being read, and says
-how many stay.
+In live mode, a batch with an approval or a rejection cannot be deleted (decision of
+2026-11-02): the decisions are the record of who approved what, and what the memory learned
+rests on them. A sandbox of the demo is for trying things out, and there everything goes.
+"Delete all", on the batch list, deletes every batch but those still being read and, in
+live mode, those decided on, and says how many stay.
 
 ## Two modes, one code path
 
@@ -191,9 +194,19 @@ session shell and the state badges.
   word of a name, accents and case aside, or an identifying number (identity document,
   birth date, phone, registration number, insurer code). Choosing one links the document to
   it, marked "chosen by you", and the document is fused again against it
-  (`POST /api/documents/:id/fusion`): the fields the technician has not changed take the new
-  proposal, and field confirmations start over. "No record" says the person or insurer is
-  new. "Back to what was found" undoes it. Nothing is stored until approval, which checks
+  (`POST /api/documents/:id/fusion`). The chosen record prevails (decision of 2026-10-29):
+  its fields take its values, even those the technician changed before. Where the document
+  reads otherwise the field is orange, the reading in view beside it, and is confirmed or
+  changed like any other: choosing a record is not checking each field. The technician may
+  then change any field, and what they approve is valid, the decision recording what the
+  record said. An insurer chosen brings its memory too: the lines are mapped again with it,
+  as if it had been found, and those the technician has not touched take the new codes;
+  approving checks them the same way. Field confirmations start over. "No record" says the
+  person or insurer is
+  new. "Back to what was found" undoes it. A record the engine offers only as a candidate
+  proposes none of its values: the fields only it has are left empty, its value beside them
+  to be taken by hand (decision of 2026-11-02), and "It is this patient" (physician,
+  insurer) on its card confirms it, which counts as choosing it from the search. Nothing is stored until approval, which checks
   the fields against the chosen records and records the choice. The search is not modal:
   it opens by its button, never over the document, which can be scrolled and zoomed while
   searching, since what is searched for is read off it; a click elsewhere, or Esc, closes it.
@@ -285,8 +298,8 @@ sandbox.
 | `GET /api/batches` | Batches, newest first, with documents counted by state. |
 | `POST /api/batches` | JSON `{ "provider", "name"?, "documents": [names] }`; in live mode also multipart with `files`. Up to 50 documents; queued at once. |
 | `GET /api/batches/:id` | The batch and its documents in order; a ready one with its summary (model, latency, recorded, pages, fields and lines by colour). |
-| `DELETE /api/batches` | Delete every batch but those still being read. Returns how many went and how many stay. |
-| `DELETE /api/batches/:id` | Delete the batch and everything it left: documents, proposals, decisions, the requests registered in the mock LIS, uploaded PDFs. 409 while a document is being read. |
+| `DELETE /api/batches` | Delete every batch but those still being read and, in live mode, those with a decision. Returns how many went and how many of each stay. |
+| `DELETE /api/batches/:id` | Delete the batch and everything it left: documents, proposals, decisions, the requests registered in the mock LIS, uploaded PDFs. 409 while a document is being read, and in live mode for a batch with a decision. |
 | `POST /api/documents/:id/retry` | A failed document back to the queue (409 otherwise). |
 | `GET /api/catalog?q=` | The workspace's catalog searched by a typed name or code: codes that start with it first, then the trigram search; with each code's name. |
 | `GET /api/documents/:id/proposal` | The prediction, the fusion and each line's codes (409 until ready); with the catalog names of the codes, the linked and candidate LIS records, and the batch's documents in order. |
