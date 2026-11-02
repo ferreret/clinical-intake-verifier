@@ -883,7 +883,8 @@ Mèdiques and Rosada Salut Assegurances (fictional, replacing three Spanish name
 Catalan. The recorder translates every fixed text of a Catalan document; the identity card
 stays in Spanish. Test names go through a vocabulary of the catalog's terms, with elision
 ("Sistemàtic d'orina") and the middle dot ("Pol·len d'olivera"). The garbled-text check
-accepts `l·l` and still flags a middle dot anywhere else; prompt v4 is written, not yet run.
+accepts `l·l` and still flags a middle dot anywhere else; prompt v4 was run on 2026-10-26
+(`20261026-gemini-3.8-flash-p4`, `20261026-qwen3.6-35b-a3b-p4`, section 3).
 In the regenerated seed-42 dataset, 60 of 200 documents and 400 of 1,578 test lines are
 Catalan; only 2 lines have an `l·l`.
 
