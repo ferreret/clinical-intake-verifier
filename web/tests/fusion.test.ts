@@ -165,6 +165,19 @@ describe("fusion", () => {
     expect(stranger.links.patient).toMatchObject({ status: "none", recordId: null });
   });
 
+  it("proposes nothing of a candidate's own: a namesake's identity document stays in view only", () => {
+    // Same name as P1, another birth date, no identity document or phone on the form: P1 is
+    // offered, and may be someone else.
+    const namesake = without({ ...MARIA, FechaNacimiento: "07/07/1977" }, "DocumentoIdentidad", "Telefono");
+    const doc = fuse(prediction(namesake), LIS);
+    expect(doc.links.patient).toMatchObject({ status: "candidate", recordId: "P1" });
+    expect(states(doc)).toMatchObject({ DocumentoIdentidad: "red:candidate_only", Telefono: "grey:candidate_only", Sexo: "orange:candidate_agrees" });
+    const id = doc.fields.find((f) => f.name === "DocumentoIdentidad")!;
+    expect(id).toMatchObject({ value: null, source: null, lis: { value: "12345678Z", recordId: "P1", confirmed: false } });
+    // Confirmed as this patient's, by choosing it, the record fills them.
+    expect(states(fuse(prediction(namesake), LIS, { patient: "P1" }))).toMatchObject({ DocumentoIdentidad: "green:lis_only", Telefono: "green:lis_only" });
+  });
+
   it("never links on the identity document alone", () => {
     const doc = fuse(prediction({ ...MARIA, Paciente: "Otra Persona Distinta", FechaNacimiento: "01/01/2000" }), LIS);
     expect(doc.links.patient).toMatchObject({ status: "candidate", state: "red" });

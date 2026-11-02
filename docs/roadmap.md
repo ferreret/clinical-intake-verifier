@@ -1766,6 +1766,14 @@ The audit left five product decisions, taken one at a time by the product owner:
 2. **The insurer changed** (decided 2026-10-29). Choosing another insurer maps the lines
    again with its memory, on the screen and when approving, as if it had been found
    (`7e08604`).
-3. **Still open:** a namesake offered another person's identity document.
+3. **A namesake's identity** (decided 2026-11-02, option C). A record offered only as a
+   candidate may be a namesake; it filled the fields the document lacked, an identity
+   document required, so one key could register another person's. It now proposes nothing
+   of its own: the field is left empty (red if required, grey if not), its value in view to
+   be taken by hand. Measured on the 200 recorded readings: no measure of the floor moves;
+   18 values, in 15 documents, are no longer filled, all of them right in seed 42, whose 21
+   candidates are all the right patient. The generator plants no wrong candidate, so the
+   harm avoided is not measured. Next step: a button to confirm the candidate as this
+   patient, which then counts as chosen (decision 1) and fills them at once.
 4. **Still open:** batches with approvals that any technician can delete.
 5. **Still open:** one-key confirmations counted as active approvals in the memory.

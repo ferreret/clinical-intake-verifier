@@ -15,7 +15,8 @@
  *   nothing, optional            grey
  *
  * A record that is only a candidate (not confirmed as this document's) can never make a
- * field green: agreeing with it is orange. A value taken from the document is proposed in the
+ * field green: agreeing with it is orange, and a field only it has is left empty, its value
+ * in view (red if required, grey if not) until the technician takes it or confirms the record. A value taken from the document is proposed in the
  * form the system of record keeps it (fields.json, `stored_as`), such as an age as a number.
  */
 import { valuesMatch } from "@/lib/schema/compare";
@@ -122,9 +123,12 @@ function field(
       : out("orange", "candidate_agrees", lisSide.value, "lis");
   }
   if (lisSide) {
-    return lisSide.confirmed
-      ? out("green", "lis_only", lisSide.value, "lis")
-      : out("orange", "candidate_only", lisSide.value, "lis");
+    // A record not confirmed as this document's proposes nothing of its own (decision of
+    // 2026-11-02): it may be a namesake, and its identity document or phone, taken with one
+    // key, would register another person's. Its value is shown beside the empty field, to be
+    // taken by hand or by confirming the record.
+    if (lisSide.confirmed) return out("green", "lis_only", lisSide.value, "lis");
+    return out(spec.required ? "red" : "grey", "candidate_only", null, null);
   }
   if (ai) {
     const value = storedForm(spec, ai.value);
