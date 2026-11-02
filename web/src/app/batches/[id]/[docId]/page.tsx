@@ -14,7 +14,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { LOCK_RENEW_MINUTES } from "@/lib/batches/locks";
-import { fieldSpec, TESTS } from "@/lib/schema/fields";
+import { TESTS } from "@/lib/schema/fields";
 
 import { ApiError, api, providerOf, type ChosenLinks, type Decision, type ProposalView, type RecordKind, type RejectReason } from "../../../_ui/api";
 import { useI18n } from "../../../_ui/i18n";
@@ -30,7 +30,7 @@ import { Lens } from "./lens";
 import { DecisionLog } from "./log";
 import { RecordSearch } from "./records";
 import { ShortcutsDialog } from "./shortcuts";
-import { checkOf, itemsOf, type Check, type Light } from "./model";
+import { checkOf, itemsOf, relinkedFields, type Check, type Light } from "./model";
 import { Tests, type AddedLine, type Chosen } from "./tests";
 import { Viewer } from "./viewer";
 
@@ -394,8 +394,9 @@ export default function VerifyPage() {
    * Links the document to a record the technician found (id), to none (null), or back to what
    * the engine found (undefined), and fuses it again: fields the technician has not changed
    * take the new proposal, and field confirmations start over, the comparison having changed.
-   * A record chosen from the search prevails (decision of 2026-10-29): its fields take its
-   * values, even those changed before, and the technician may change them again after. An
+   * A record chosen from the search prevails (decision of 2026-10-29): the fields it has a
+   * value for take it, even those changed before (model.ts, relinkedFields), and the
+   * technician may change them again after. An
    * insurer chosen brings its memory too: the lines come mapped again with it, and those the
    * technician has not touched take the new codes, their confirmations starting over.
    */
@@ -407,17 +408,9 @@ export default function VerifyPage() {
     else next[kind] = id;
     try {
       const { fused, records, tests, trace } = await api.fusion(docId, next);
-      const before = new Map(view.proposal.fused.fields.map((f) => [f.name, (f.value ?? "").trim()]));
-      const prevails = (name: string) => typeof id === "string" && (fieldSpec(name).lis?.source.startsWith(`${kind}.`) ?? false);
-      setValues((vals) =>
-        Object.fromEntries(
-          Object.entries(vals).map(([key, v]) => {
-            const f = fused.fields.find((x) => `f:${x.name}` === key);
-            return [key, f && (prevails(f.name) || v.trim() === before.get(f.name)) ? (f.value ?? "") : v];
-          }),
-        ),
-      );
-      setTouched((t) => new Set([...t].filter((key) => !(key.startsWith("f:") && prevails(key.slice(2))))));
+      const { prevailed } = relinkedFields(values, view.proposal.fused.fields, fused.fields, id);
+      setValues((vals) => relinkedFields(vals, view.proposal.fused.fields, fused.fields, id).values);
+      setTouched((t) => new Set([...t].filter((key) => !prevailed.has(key))));
       const remapped = JSON.stringify(tests) !== JSON.stringify(view.proposal.tests);
       if (remapped) {
         setChosen((c) =>
