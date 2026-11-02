@@ -31,8 +31,11 @@ confirmation that says what goes: its documents and their proposals, the decisio
 them and the requests those approvals registered in the mock LIS, in one transaction, and
 then its uploaded PDFs. What the mapping memory learned from its approvals stays, as it
 cannot be told apart from what other approvals taught. A batch still being read waits.
-"Delete all", on the batch list, deletes every batch but those still being read, and says
-how many stay.
+In live mode, a batch with an approval or a rejection cannot be deleted (decision of
+2026-11-02): the decisions are the record of who approved what, and what the memory learned
+rests on them. A sandbox of the demo is for trying things out, and there everything goes.
+"Delete all", on the batch list, deletes every batch but those still being read and, in
+live mode, those decided on, and says how many stay.
 
 ## Two modes, one code path
 
@@ -295,8 +298,8 @@ sandbox.
 | `GET /api/batches` | Batches, newest first, with documents counted by state. |
 | `POST /api/batches` | JSON `{ "provider", "name"?, "documents": [names] }`; in live mode also multipart with `files`. Up to 50 documents; queued at once. |
 | `GET /api/batches/:id` | The batch and its documents in order; a ready one with its summary (model, latency, recorded, pages, fields and lines by colour). |
-| `DELETE /api/batches` | Delete every batch but those still being read. Returns how many went and how many stay. |
-| `DELETE /api/batches/:id` | Delete the batch and everything it left: documents, proposals, decisions, the requests registered in the mock LIS, uploaded PDFs. 409 while a document is being read. |
+| `DELETE /api/batches` | Delete every batch but those still being read and, in live mode, those with a decision. Returns how many went and how many of each stay. |
+| `DELETE /api/batches/:id` | Delete the batch and everything it left: documents, proposals, decisions, the requests registered in the mock LIS, uploaded PDFs. 409 while a document is being read, and in live mode for a batch with a decision. |
 | `POST /api/documents/:id/retry` | A failed document back to the queue (409 otherwise). |
 | `GET /api/catalog?q=` | The workspace's catalog searched by a typed name or code: codes that start with it first, then the trigram search; with each code's name. |
 | `GET /api/documents/:id/proposal` | The prediction, the fusion and each line's codes (409 until ready); with the catalog names of the codes, the linked and candidate LIS records, and the batch's documents in order. |

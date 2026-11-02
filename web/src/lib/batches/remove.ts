@@ -5,8 +5,11 @@
  * mock LIS; then the PDFs uploaded for it. What the mapping memory learned from its
  * approvals stays: it cannot be told apart from what other approvals taught.
  *
- * A batch still being read cannot be deleted until its documents are read. Deleting them all
- * leaves those, and says how many.
+ * A batch still being read cannot be deleted until its documents are read. In live mode, a
+ * batch with an approval or a rejection cannot be deleted at all (decision of 2026-11-02):
+ * there the decisions are the record of who approved what, as in a lab, and the memory's
+ * learning rests on them. A sandbox of the demo is a place to try things out, so there
+ * everything goes. Deleting them all leaves those that cannot go, and says how many.
  */
 import { eq, inArray } from "drizzle-orm";
 
@@ -14,12 +17,13 @@ import type { LisDb } from "@/lib/lis/db";
 import { requests } from "@/lib/lis/schema";
 
 import { batchDocuments, batches, decisions, proposals } from "./schema";
+import { appMode, type AppMode } from "./config";
 import { listBatches } from "./store";
 import { deleteUpload } from "./sources";
 
-export type DeleteResult = { ok: true } | { ok: false; reason: "missing" | "reading" };
+export type DeleteResult = { ok: true } | { ok: false; reason: "missing" | "reading" | "decided" };
 
-export async function deleteBatch(db: LisDb, id: string): Promise<DeleteResult> {
+export async function deleteBatch(db: LisDb, id: string, mode: AppMode = appMode()): Promise<DeleteResult> {
   let uploads: string[] = [];
   const result = await db.transaction(async (tx): Promise<DeleteResult> => {
     const [batch] = await tx.select({ id: batches.id }).from(batches).where(eq(batches.id, id));
@@ -29,6 +33,7 @@ export async function deleteBatch(db: LisDb, id: string): Promise<DeleteResult> 
     const ids = docs.map((d) => d.id);
     if (ids.length > 0) {
       const taken = await tx.select({ id: decisions.id }).from(decisions).where(inArray(decisions.documentId, ids));
+      if (mode === "live" && taken.length > 0) return { ok: false, reason: "decided" };
       if (taken.length > 0) await tx.delete(requests).where(inArray(requests.decisionId, taken.map((d) => d.id)));
       await tx.delete(decisions).where(inArray(decisions.documentId, ids));
       await tx.delete(proposals).where(inArray(proposals.documentId, ids));
@@ -43,14 +48,19 @@ export async function deleteBatch(db: LisDb, id: string): Promise<DeleteResult> 
   return result;
 }
 
-/** Deletes every batch of the workspace but those still being read. */
-export async function deleteAllBatches(db: LisDb): Promise<{ deleted: number; reading: number }> {
+/** Deletes every batch of the workspace but those still being read, and in live mode those decided on. */
+export async function deleteAllBatches(
+  db: LisDb,
+  mode: AppMode = appMode(),
+): Promise<{ deleted: number; reading: number; decided: number }> {
   let deleted = 0;
   let reading = 0;
+  let decided = 0;
   for (const b of await listBatches(db)) {
-    const r = await deleteBatch(db, b.id);
+    const r = await deleteBatch(db, b.id, mode);
     if (r.ok) deleted += 1;
     else if (r.reason === "reading") reading += 1;
+    else if (r.reason === "decided") decided += 1;
   }
-  return { deleted, reading };
+  return { deleted, reading, decided };
 }

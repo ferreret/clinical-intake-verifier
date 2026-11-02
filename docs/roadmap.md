@@ -1775,5 +1775,10 @@ The audit left five product decisions, taken one at a time by the product owner:
    candidates are all the right patient. The generator plants no wrong candidate, so the
    harm avoided is not measured. "It is this patient" on the candidate's card confirms it in
    one click, which counts as choosing it (decision 1) and fills them at once.
-4. **Still open:** batches with approvals that any technician can delete.
+4. **Deleting what was decided** (decided 2026-11-02, option B). Deleting a batch took its
+   approvals and rejections with it, and the requests they registered, in live mode too,
+   while the memory kept what they taught. Who deletes was not the point, technicians not
+   signing in; what goes was. In live mode a batch with a decision now stays, and "delete
+   all" leaves it and says so; a sandbox of the demo, a place to try things out, deletes
+   everything as before (2026-10-27).
 5. **Still open:** one-key confirmations counted as active approvals in the memory.

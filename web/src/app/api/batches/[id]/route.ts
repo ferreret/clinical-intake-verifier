@@ -2,7 +2,7 @@
  * GET /api/batches/:id: the batch and its documents, in order, with their states; a ready
  * document also has its summary (who read it, in how long, its fields and lines by colour).
  * DELETE /api/batches/:id: deletes the batch and everything it left (lib/batches/remove.ts);
- * 409 while a document is being read.
+ * 409 while a document is being read, and in live mode for a batch with a decision.
  */
 import { NextResponse } from "next/server";
 
@@ -31,5 +31,8 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
   const result = await deleteBatch(session.db, (await ctx.params).id);
   if (result.ok) return NextResponse.json({ deleted: true });
   if (result.reason === "missing") return NextResponse.json({ error: "no such batch" }, { status: 404 });
+  if (result.reason === "decided") {
+    return NextResponse.json({ error: "the batch has approvals or rejections: they are a record, and stay" }, { status: 409 });
+  }
   return NextResponse.json({ error: "a document is being read; delete the batch once it is read" }, { status: 409 });
 }

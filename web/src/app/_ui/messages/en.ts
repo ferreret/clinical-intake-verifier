@@ -214,6 +214,8 @@ export const en = {
     decided: (approved: number, rejected: number) =>
       `So are ${approved} approval${approved === 1 ? "" : "s"} and ${rejected} rejection${rejected === 1 ? "" : "s"}, and the requests the approvals registered in mock-lis.`,
     memory: "What the test mapping memory learned from its approvals stays.",
+    kept: "Its approvals and rejections are the record of who approved what, and stay: a batch with decisions cannot be deleted.",
+    keptAll: (n: number) => `${plural(n, "batch", "batches")} with approvals or rejections ${n === 1 ? "stays" : "stay"}: they are a record.`,
     inVerification: (n: number) => `${n === 1 ? "1 document is" : `${n} documents are`} open in verification now: whoever has ${n === 1 ? "it" : "them"} loses ${n === 1 ? "it" : "them"}.`,
     reading: "Some documents are still being read: delete the batch once they are read.",
     cancel: "Cancel",

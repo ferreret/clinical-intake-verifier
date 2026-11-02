@@ -1,8 +1,8 @@
 /**
  * GET /api/batches: the workspace's batches, newest first, with their documents counted by
  * state.
- * DELETE /api/batches: deletes every batch but those still being read (lib/batches/remove.ts);
- * returns how many went and how many are still being read.
+ * DELETE /api/batches: deletes every batch but those still being read, and in live mode those
+ * with a decision (lib/batches/remove.ts); returns how many went and how many of each stay.
  * POST /api/batches: creates a batch and queues its documents. JSON
  * `{ "provider": "gemini", "name": "…", "documents": ["synth-000003.pdf", …] }` with bundled
  * documents; in live mode, also a multipart form with `provider`, `name`, `documents`

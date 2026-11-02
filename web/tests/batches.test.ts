@@ -898,7 +898,36 @@ describe("deleting a batch", () => {
     for (const name of ["A", "B"]) await createBatch(db, { name, provider: "gemini", createdBy: "T01", documents: [doc] });
     const reading = await createBatch(db, { name: "C", provider: "gemini", createdBy: "T01", documents: [doc] });
     await db.update(batchDocuments).set({ state: "extracting" }).where(eq(batchDocuments.batchId, reading.id));
-    expect(await deleteAllBatches(db)).toEqual({ deleted: 2, reading: 1 });
+    expect(await deleteAllBatches(db)).toEqual({ deleted: 2, reading: 1, decided: 0 });
     expect((await listBatches(db)).map((b) => b.name)).toEqual(["C"]);
+  });
+
+  it("in live mode keeps a batch with a decision: approvals and rejections are a record", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const doc = await newDoc("doc-a.pdf");
+    const approved = await createBatch(db, { name: "Approved", provider: "gemini", createdBy: "T01", documents: [doc] });
+    const rejected = await createBatch(db, { name: "Rejected", provider: "gemini", createdBy: "T01", documents: [doc] });
+    const untouched = await createBatch(db, { name: "Untouched", provider: "gemini", createdBy: "T01", documents: [doc] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [a] = (await getBatch(db, approved.id))!.documents;
+    await openDocument(db, a.id, "T01");
+    expect(await approveDocument(db, a.id, "T01", resolved((await getProposal(db, a.id))!))).toMatchObject({ ok: true });
+    const [r] = (await getBatch(db, rejected.id))!.documents;
+    await openDocument(db, r.id, "T01");
+    expect(await rejectDocument(db, r.id, "T01", "illegible", "")).toMatchObject({ ok: true });
+
+    expect(await deleteBatch(db, approved.id, "live")).toEqual({ ok: false, reason: "decided" });
+    expect(await deleteBatch(db, rejected.id, "live")).toEqual({ ok: false, reason: "decided" });
+    expect(await getDecision(db, a.id)).not.toBeNull();
+    expect(await db.select().from(requests)).toHaveLength(1);
+    // A batch with nothing decided goes, and "delete all" leaves the decided ones.
+    expect(await deleteAllBatches(db, "live")).toEqual({ deleted: 1, reading: 0, decided: 2 });
+    expect((await listBatches(db)).map((b) => b.id).sort()).toEqual([approved.id, rejected.id].sort());
+    expect(await getBatch(db, untouched.id)).toBeNull();
+    // A sandbox of the demo is for trying things out: there it all goes.
+    expect(await deleteAllBatches(db, "replay")).toEqual({ deleted: 2, reading: 0, decided: 0 });
   });
 });

@@ -13,13 +13,14 @@ import { useI18n } from "../_ui/i18n";
 import { ArrowRight, Cloud, Cpu, Plus, Trash } from "../_ui/icons";
 import { LoadError, passing } from "../_ui/load-error";
 import { usePolling } from "../_ui/polling";
-import { PageHeader } from "../_ui/session";
+import { PageHeader, useSession } from "../_ui/session";
 import { BAR_ORDER, StatesBar, StatesLegend } from "../_ui/states";
 
 export default function BatchesPage() {
   const [batches, setBatches] = useState<BatchSummary[] | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const { t } = useI18n();
+  const { mode } = useSession();
   // The batch to delete, or "all".
   const [deleting, setDeleting] = useState<BatchSummary | "all" | null>(null);
   const moving = batches?.some((b) => ACTIVE_STATES.some((s) => b.states[s] > 0)) ?? false;
@@ -36,8 +37,10 @@ export default function BatchesPage() {
   // While a failure passes (no reply, a server starting again), the page keeps trying.
   usePolling(load, moving || passing(error));
 
-  const total = (s: DocumentState) => batches?.reduce((a, b) => a + b.states[s], 0) ?? 0;
-  const allStates = Object.fromEntries(BAR_ORDER.map((s) => [s, total(s)])) as Record<DocumentState, number>;
+  const total = (s: DocumentState, of = batches ?? []) => of.reduce((a, b) => a + b.states[s], 0);
+  // "Delete all" in live mode leaves the batches with a decision: they are a record.
+  const deletable = (batches ?? []).filter((b) => mode !== "live" || b.states.approved + b.states.rejected === 0);
+  const allStates = Object.fromEntries(BAR_ORDER.map((s) => [s, total(s, deletable)])) as Record<DocumentState, number>;
   const tiles = [
     { label: t.batches.tiles.toVerify, value: total("awaiting_verification"), tone: "text-violet-700" },
     { label: t.batches.tiles.reading, value: total("extracting") + total("queued"), tone: "text-sky-700" },
@@ -151,8 +154,9 @@ export default function BatchesPage() {
       {deleting && (
         <DeleteBatchDialog
           batch={deleting === "all" ? null : deleting}
-          batches={batches?.length ?? 0}
-          readingBatches={batches?.filter((b) => b.states.extracting > 0).length ?? 0}
+          batches={deletable.length}
+          readingBatches={deletable.filter((b) => b.states.extracting > 0).length}
+          decidedBatches={(batches?.length ?? 0) - deletable.length}
           states={deleting === "all" ? allStates : deleting.states}
           onCancel={() => setDeleting(null)}
           onDeleted={() => {
