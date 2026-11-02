@@ -192,8 +192,9 @@ session shell and the state badges.
   birth date, phone, registration number, insurer code). Choosing one links the document to
   it, marked "chosen by you", and the document is fused again against it
   (`POST /api/documents/:id/fusion`). The chosen record prevails (decision of 2026-10-29):
-  its fields take its values, even those the technician changed before, green, and where
-  the document reads otherwise the reading stays in view beside them; the technician may
+  its fields take its values, even those the technician changed before. Where the document
+  reads otherwise the field is orange, the reading in view beside it, and is confirmed or
+  changed like any other: choosing a record is not checking each field. The technician may
   then change any field, and what they approve is valid, the decision recording what the
   record said. An insurer chosen brings its memory too: the lines are mapped again with it,
   as if it had been found, and those the technician has not touched take the new codes;

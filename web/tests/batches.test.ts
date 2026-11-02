@@ -672,6 +672,40 @@ describe("decisions", () => {
     expect(await approveDocument(db, doc.id, "T01", oneAdded)).toMatchObject({ ok: true });
   });
 
+  it("takes a chosen record's value where the document differs, but only once that field is confirmed", async () => {
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [await newDoc("doc-a.pdf")] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [doc] = (await getBatch(db, batch.id))!.documents;
+    const stored = (await getProposal(db, doc.id))!;
+    // The form reads another identity document than the record the technician chose.
+    const prediction = {
+      ...stored.prediction,
+      fields: { ...stored.prediction.fields, DocumentoIdentidad: { ...stored.prediction.fields.DocumentoIdentidad!, value: "99999999R" } },
+    };
+    const fused = fuse(prediction, await readSnapshot(db), { patient: "P1" });
+    const proposal = { ...stored, prediction, fused };
+    expect(fused.fields.find((f) => f.name === "DocumentoIdentidad")).toMatchObject({ state: "orange", reason: "chosen_record", value: "12345678Z" });
+
+    // Choosing the record is not checking each field: approving as proposed asks for it.
+    const input = resolved(proposal);
+    const catalog = new Set(["BQ0001"]);
+    const unchecked = { ...input, confirmed: input.confirmed.filter((k) => k !== "f:DocumentoIdentidad") };
+    expect(checkApproval(proposal, unchecked, catalog).problems).toEqual(["DocumentoIdentidad is orange: change or confirm it"]);
+    const { problems, record } = checkApproval(proposal, input, catalog);
+    expect(problems).toEqual([]);
+    expect(record.fields.find((f) => f.name === "DocumentoIdentidad")).toMatchObject({
+      value: "12345678Z",
+      action: "confirmed",
+      source: "lis",
+      ai: "99999999R",
+      lis: { value: "12345678Z", recordId: "P1" },
+    });
+  });
+
   it("does not take a red field with no value as confirmed: one of its values must be chosen or typed", async () => {
     const ws = await createSandbox();
     const db = await openWorkspace(ws);

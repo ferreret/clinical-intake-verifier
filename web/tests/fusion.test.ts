@@ -183,8 +183,8 @@ describe("fusion", () => {
     const chosen = fuse(prediction(unknown), LIS, { patient: "P2" });
     expect(chosen.links.patient).toMatchObject({ status: "linked", recordId: "P2", chosen: true });
     // Where the document differs, the chosen record prevails (decision of 2026-10-29): the
-    // technician searched the records and chose it. They can still change the field.
-    expect(states(chosen)).toMatchObject({ Paciente: "green:agree", FechaNacimiento: "green:agree", DocumentoIdentidad: "green:chosen_record" });
+    // technician searched the records and chose it. Orange: each such field is still checked.
+    expect(states(chosen)).toMatchObject({ Paciente: "green:agree", FechaNacimiento: "green:agree", DocumentoIdentidad: "orange:chosen_record" });
     const doc = chosen.fields.find((f) => f.name === "DocumentoIdentidad")!;
     expect(doc).toMatchObject({ value: doc.lis!.value, source: "lis", ai: { value: "99999999R" } });
     expect(doc.lis).toMatchObject({ recordId: "P2", confirmed: true });

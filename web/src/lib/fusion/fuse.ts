@@ -7,9 +7,10 @@
  *   only the LIS                 green
  *   only the AI                  orange (red when a warning casts doubt on it)
  *   AI and LIS disagree          red: no value is proposed, the technician decides
- *     ... with a record the      green: the record's value. The technician searched the
+ *     ... with a record the      orange: the record's value. The technician searched the
  *     technician chose           records and chose it, so it prevails over what was read
- *                                (decision of 2026-10-29); they can still change the field
+ *                                (decision of 2026-10-29); orange, since choosing a record
+ *                                is not checking each field against the document
  *   nothing, required            red
  *   nothing, optional            grey
  *
@@ -114,7 +115,7 @@ function field(
     const { source, compare } = spec.lis!;
     const forms = [lisSide.value, ...lisAliases(source, lisSide.recordId, lis)];
     if (!forms.some((v) => valuesMatch(ai.value, v, compare))) {
-      return chosen ? out("green", "chosen_record", lisSide.value, "lis") : out("red", "conflict", null, null);
+      return chosen ? out("orange", "chosen_record", lisSide.value, "lis") : out("red", "conflict", null, null);
     }
     return lisSide.confirmed
       ? out("green", "agree", lisSide.value, "lis")
