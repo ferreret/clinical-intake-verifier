@@ -21,7 +21,7 @@ from typing import Annotated
 import typer
 
 from intake_ocr.document import Page, document_dict, group_lines
-from intake_ocr.engines import ENGINES, make_engine
+from intake_ocr.engines import ENGINES, TEXT_ONLY, make_engine
 from intake_ocr.render import render_pages
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -55,6 +55,8 @@ def run(
     ] = None,
 ) -> None:
     """Read every PDF of --in with one engine."""
+    if engine in TEXT_ONLY:
+        raise typer.BadParameter(f"{engine} gives no position per line: use intake-ocr bench")
     pdfs = sorted(p for p in in_dir.glob("*.pdf"))
     if only:
         wanted = {s.strip() for s in only.split(",") if s.strip()}
@@ -133,4 +135,56 @@ def run(
     typer.echo(
         f"{len(page_ms)} page(s): mean {summary['page_ms_mean']} ms, "
         f"median {summary['page_ms_median']} ms per page (OCR only, rendering apart)"
+    )
+
+
+@app.command()
+def bench(
+    engine: Annotated[str, typer.Option(help=f"One of: {', '.join(ENGINES)}.")],
+    in_dir: Annotated[Path, typer.Option("--in", help="Directory of PDFs.")],
+    out: Annotated[Path, typer.Option(help="Where the text of each page and bench.json go.")],
+    pages: Annotated[int, typer.Option(help="How many pages, in document order.")] = 20,
+    dpi: Annotated[int, typer.Option(help="Resolution the pages are rendered at.")] = 300,
+    server: Annotated[
+        str | None, typer.Option(help="OpenAI-compatible server, for the vision engines.")
+    ] = None,
+) -> None:
+    """Time an engine on the first --pages pages and keep what it read of each."""
+    options = {"server": server} if server else {}
+    ocr = make_engine(engine, **options)
+    out.mkdir(parents=True, exist_ok=True)
+    timings: list[dict] = []
+    for pdf in sorted(in_dir.glob("*.pdf")):
+        for number, image in enumerate(render_pages(pdf, dpi), start=1):
+            if len(timings) >= pages:
+                break
+            image.info["dpi"] = (dpi, dpi)
+            t = time.perf_counter()
+            if engine in TEXT_ONLY:
+                text = ocr.read_text(image)
+                usage = ocr.last_usage
+            else:
+                text = "\n".join(s.text for s in ocr.read(image))
+                usage = {}
+            ms = round((time.perf_counter() - t) * 1000)
+            name = f"{pdf.stem}-p{number}"
+            (out / f"{name}.txt").write_text(text + "\n", encoding="utf-8")
+            timings.append({"page": name, "ms": ms, **usage})
+            typer.echo(f"  {name}  {ms / 1000:.1f}s")
+        if len(timings) >= pages:
+            break
+    ms = [t["ms"] for t in timings]
+    summary = {
+        "engine": engine,
+        "model": ocr.model,
+        "dpi": dpi,
+        "pages": len(ms),
+        "page_ms_mean": round(statistics.mean(ms)),
+        "page_ms_median": round(statistics.median(ms)),
+        "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "timings": timings,
+    }
+    (out / "bench.json").write_text(json.dumps(summary, indent=1) + "\n", encoding="utf-8")
+    typer.echo(
+        f"{len(ms)} page(s): mean {summary['page_ms_mean']} ms, median {summary['page_ms_median']} ms"
     )

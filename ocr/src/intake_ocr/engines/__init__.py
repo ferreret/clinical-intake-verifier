@@ -24,7 +24,9 @@ class Engine(Protocol):
     def read(self, image: Image.Image) -> list[Segment]: ...
 
 
-ENGINES = ("tesseract", "rapidocr")
+ENGINES = ("tesseract", "rapidocr", "paddle-vl", "glm-ocr", "dots")
+#: Engines that give text without a position per line: measured with intake-ocr bench only.
+TEXT_ONLY = ("paddle-vl", "glm-ocr", "dots")
 
 
 def make_engine(name: str, **options) -> Engine:
@@ -36,4 +38,8 @@ def make_engine(name: str, **options) -> Engine:
         from intake_ocr.engines.rapid import RapidEngine
 
         return RapidEngine(**options)
+    if name in TEXT_ONLY:
+        from intake_ocr.engines.vlm import VlmEngine
+
+        return VlmEngine(name, **options)
     raise ValueError(f"unknown engine {name!r}: use one of {', '.join(ENGINES)}")
