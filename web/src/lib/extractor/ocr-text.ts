@@ -47,6 +47,8 @@ export interface OcrDocument {
   /** The whole document, rendering included; added to the prediction's latency. */
   elapsed_ms?: number;
   checkboxes?: boolean;
+  /** Checkboxes found too doubtful to call: their lines have no mark. */
+  doubtful_checkboxes?: number;
   pages: OcrTextPage[];
 }
 
