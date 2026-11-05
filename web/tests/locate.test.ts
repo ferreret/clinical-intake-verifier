@@ -76,6 +76,31 @@ describe("locating a value on a page", () => {
   it("rejects text that is not close enough", () => {
     expect(locateOnPage("tests", "FERRITINA SÉRICA", [line(0.1, 0.1, "TRANSFERRINA")], null)).toBeNull();
   });
+  describe("near a whole line (the text pipeline)", () => {
+    // Two columns read as one line, as Tesseract does on many forms.
+    const twoColumns = [...line(0.07, 0.06, "Rosario Torrecilla Tovar"), ...line(0.78, 0.06, "C/ del Puerto")];
+    const lineBox = { x0: 0.07, y0: 0.06, x1: 0.91, y1: 0.07 };
+
+    it("does not stretch a value towards the line's centre", () => {
+      // From the centre of the line, the run with the next column's "C/" is nearer and wins.
+      expect(locateOnPage("Paciente", "Rosario Torrecilla Tovar", [twoColumns], lineBox)?.box.x1).toBeCloseTo(0.8);
+      expect(locateOnPage("Paciente", "Rosario Torrecilla Tovar", [twoColumns], lineBox, "region")?.box.x1).toBeCloseTo(0.31);
+    });
+
+    it("finds a short value anywhere on the line, and only exactly", () => {
+      const sex = [...line(0.07, 0.2, "Sexo: M"), ...line(0.5, 0.2, "Teléfono: 919-213-939"), ...line(0.8, 0.2, "Edad: 91")];
+      const box = { x0: 0.07, y0: 0.2, x1: 0.88, y1: 0.21 };
+      expect(locateOnPage("Sexo", "M", [sex], box)).toBeNull();
+      expect(locateOnPage("Sexo", "M", [sex], box, "region")?.box).toMatchObject({ x0: 0.13, x1: 0.14 });
+      expect(locateOnPage("Edad", "91", [sex], box, "region")?.box.x0).toBeCloseTo(0.86);
+      expect(locateOnPage("Edad", "19", [sex], box, "region")).toBeNull();
+    });
+
+    it("prefers the line over the same text on the next one", () => {
+      const page: OcrPage = [line(0.1, 0.3, "TSH T4L"), line(0.1, 0.32, "TSH")];
+      expect(locateOnPage("tests", "TSH", page, { x0: 0.1, y0: 0.32, x1: 0.13, y1: 0.33 }, "region")?.box.y0).toBe(0.32);
+    });
+  });
 });
 
 describe("relocating the boxes of an extraction", () => {

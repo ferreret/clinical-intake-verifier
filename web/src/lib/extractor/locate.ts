@@ -115,6 +115,22 @@ function centreDistance(a: BBox, b: BBox): number {
   return Math.hypot((a.x0 + a.x1 - b.x0 - b.x1) / 2, (a.y0 + a.y1 - b.y0 - b.y1) / 2);
 }
 
+/** From the centre of `a` to the nearest point of `region`: nothing for a run inside it. */
+function regionDistance(a: BBox, region: BBox): number {
+  const cx = (a.x0 + a.x1) / 2;
+  const cy = (a.y0 + a.y1) / 2;
+  return Math.hypot(Math.max(region.x0 - cx, 0, cx - region.x1), Math.max(region.y0 - cy, 0, cy - region.y1));
+}
+
+/**
+ * What `near` is. `point`: the model's own box, a guess at where the value is, so distance is
+ * from its centre. `region`: a whole OCR line the value is said to be on (the text pipeline),
+ * so every run on that line is at no distance, short values included, and distance counts
+ * only outside it. From the centre of a line, a value at its start or end is far away, and a
+ * run stretched towards the centre over the next column's words would win.
+ */
+export type NearKind = "point" | "region";
+
 export interface Located {
   box: BBox;
   score: number;
@@ -123,9 +139,16 @@ export interface Located {
 /**
  * The run of words on `page` that best matches `value`, or null. `near` is the model's box:
  * the farther from it, the lower the score, and short values must lie close to it. Without
- * it, distance does not count and short values are not looked for.
+ * it, distance does not count and short values are not looked for. `nearKind` says how
+ * distance from it is measured.
  */
-export function locateOnPage(field: string, value: string, page: OcrPage, near: BBox | null): Located | null {
+export function locateOnPage(
+  field: string,
+  value: string,
+  page: OcrPage,
+  near: BBox | null,
+  nearKind: NearKind = "point",
+): Located | null {
   const keys = printedKeys(field, value);
   if (keys.length === 0) return null;
   const longest = Math.max(...keys.map((k) => k.length));
@@ -141,7 +164,7 @@ export function locateOnPage(field: string, value: string, page: OcrPage, near: 
         if (candidate.length > 2 * longest + 4) break;
         if (candidate === "") continue;
         const box = union(words.map((w) => w.box));
-        const distance = near ? centreDistance(box, near) : 0;
+        const distance = near === null ? 0 : nearKind === "region" ? regionDistance(box, near) : centreDistance(box, near);
         let s = 0;
         for (const key of keys) {
           const short = key.length <= SHORT_LENGTH;
@@ -170,9 +193,14 @@ export interface RelocateResult {
 /**
  * Replaces, in place, the box of every value the OCR finds: on the model's page near its box
  * first, then on any other page. A box found there takes that page; a value not found keeps
- * the model's box and page. Every box ends with its `box_source`.
+ * the model's box and page. Every box ends with its `box_source`. `nearKind` is what each
+ * item's box is (see NearKind).
  */
-export function relocateBoxes(extraction: Pick<NormalisedExtraction, "fields" | "tests">, pages: OcrPage[]): RelocateResult {
+export function relocateBoxes(
+  extraction: Pick<NormalisedExtraction, "fields" | "tests">,
+  pages: OcrPage[],
+  nearKind: NearKind = "point",
+): RelocateResult {
   const items: [string, PredictedField][] = [
     ...Object.entries(extraction.fields).filter((e): e is [string, PredictedField] => e[1] !== null),
     ...extraction.tests.map((t): [string, PredictedField] => ["tests", t]),
@@ -182,7 +210,7 @@ export function relocateBoxes(extraction: Pick<NormalisedExtraction, "fields" | 
     result.asked += 1;
     let found: (Located & { page: number }) | null = null;
     if (item.page !== null && pages[item.page - 1]) {
-      const here = locateOnPage(field, item.value, pages[item.page - 1], item.bbox);
+      const here = locateOnPage(field, item.value, pages[item.page - 1], item.bbox, nearKind);
       if (here) found = { ...here, page: item.page };
     }
     if (!found) {
