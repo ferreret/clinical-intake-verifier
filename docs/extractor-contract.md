@@ -183,6 +183,43 @@ resolution, and `--grounding` sends each page again with only the values read on
 the model to locate them; a located value's box is replaced and nothing else changes
 (`grounding.ts`). Neither was adopted: OCR boxes did better (below).
 
+**Local text, `ocr-text`: an experiment.** Provider `local-text`, the same local model given no
+image: an OCR reads the pages first and the model gets only its text, one line of input per
+line of print, numbered by page and line (`ocr-text.ts`):
+
+```
+[p2] L16: PRUEBAS SOLICITADAS
+[p2] L17: [X] MAGNESIO (SUERO)
+[p2] L18: [ ] PROTEÍNAS
+```
+
+A checkbox the OCR detected is a token at the start of its line, `[X]` ticked and `[ ]` empty.
+The instruction is prompt `t1` (`prompt-text.ts`), versioned apart from the image prompt: the
+same field lines and normalisation rules, rules 1 to 6 worded for lines, and a description of
+the input. The reply has `line` where the other prompt has a box:
+
+```json
+{ "fields": { "Paciente": { "value": "PERALTA PASCUAL, ROSALINDA", "page": 2, "line": 6 } },
+  "tests": [ { "value": "MAGNESIO (SUERO)", "page": 2, "line": 17 } ] }
+```
+
+At the boundary `linesToLayer1` (`response-schema.ts`) replaces each line by its box, which
+the OCR measured, as layer 1's `box_2d`: from there on the reply is read as any other.
+`relocateBoxes` then tightens it to the value with the line as a region: a run of words on
+the line is at no distance, so a short value at either end of a long line is found and a
+value is not stretched over the next column. A value whose line does not exist keeps its page,
+no box, and a `bbox_invalid` warning; a box the OCR cannot tighten stays the whole line's,
+`box_source: "model"`, approximate. Temperature 0 and reasoning off, no constrained decoding,
+the schema in the instruction, as for the image provider.
+
+The OCR is Tesseract in-process, as for OCR boxes, unless an OCR file is given:
+`<id>.ocr.json` ([`schema/ocr.schema.json`](../schema/ocr.schema.json)), written by another
+engine with `intake-ocr run` (the `ocr/` package), with each line's box, its words and its
+checkbox. The extractor refuses a file of another PDF (`sha256`) or of another page count;
+the time the file records (`elapsed_ms`) is added to the prediction's latency, so that a
+run's time per document is the whole pipeline's. In the API it is reached only through
+`provider: "local-text"`, which then reads with Tesseract.
+
 ## Boxes from the OCR
 
 The local model reads values about as well as Gemini but places its boxes loosely. So by
@@ -232,7 +269,12 @@ attempt (`{id, model, prompt_version, replies: [{attempt, text}]}`), so that a
 `schema_mismatch` or an odd value can be diagnosed. It is not part of the contract: the
 harness reads only `.pred.json`, and `intake-synth validate` skips these files.
 
-`run-id` defaults to `<timestamp>-<model>-p<prompt_version>`. The runner reads **only the
+`run-id` defaults to `<timestamp>-<model>-p<prompt_version>`; the text pipeline's prompt
+versions start with `t`, so its runs end in `-pt1`. With `--provider local-text`,
+`--ocr-dir <dir>` reads `<dir>/<id>.ocr.json` for every PDF: all are read and checked against
+their schema before the first model call, and a directory that mixes engines, or with and
+without checkboxes, is refused. `options` in `run.json` then records `ocr_engine` (`tesseract`
+when no directory is given), `ocr_dir` and `checkboxes`. The runner reads **only the
 PDFs** of the input directory: golden files are never opened by anything on the extraction
 side. Documents already predicted in the same run directory with the same model and prompt
 version and no error are skipped, so repeating a run after a prompt change costs only the
