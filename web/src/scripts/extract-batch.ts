@@ -37,6 +37,7 @@ import {
 
 import { loadDotEnv } from "./env";
 import { validateOcrDocument, type OcrDocument } from "@/lib/extractor/ocr-text";
+import { sha256Hex } from "@/lib/extractor/pdf";
 import type { Prediction } from "@/lib/schema/prediction";
 
 interface RunDocument {
@@ -213,6 +214,10 @@ async function main(): Promise<number> {
       const errors = validateOcrDocument(doc);
       if (errors.length > 0) {
         console.error(`${ocrFile} does not match schema/ocr.schema.json: ${errors.slice(0, 3).join("; ")}`);
+        return 1;
+      }
+      if (doc.sha256 !== sha256Hex(new Uint8Array(await fs.readFile(path.join(inDir, file))))) {
+        console.error(`${ocrFile} is the OCR of another PDF than ${file} (sha256 differs)`);
         return 1;
       }
       ocrFiles.set(id, doc);
