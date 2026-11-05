@@ -9,6 +9,8 @@
  */
 import Ajv2020 from "ajv/dist/2020";
 import { FIELDS, TESTS } from "@/lib/schema/fields";
+import type { BBox, PredictionWarning } from "@/lib/schema/prediction";
+import { findLine, type OcrTextPage } from "./ocr-text";
 
 export interface RawItem {
   value: string | null;
@@ -63,7 +65,12 @@ function boxDescription(boxes: BoxConvention): string {
   );
 }
 
-function itemSchema(valueDescription: string, nullableValue: boolean, boxes: BoxConvention): Record<string, unknown> {
+/** One item of the reply: its value, its page, and where on the page, under `location`. */
+function itemSchema(
+  valueDescription: string,
+  nullableValue: boolean,
+  location: [key: string, schema: Record<string, unknown>],
+): Record<string, unknown> {
   return {
     type: "object",
     properties: {
@@ -71,20 +78,24 @@ function itemSchema(valueDescription: string, nullableValue: boolean, boxes: Box
         ? { anyOf: [{ type: "string" }, { type: "null" }], description: valueDescription }
         : { type: "string", description: valueDescription },
       page: { anyOf: [{ type: "integer" }, { type: "null" }], description: PAGE_DESCRIPTION },
-      [boxes.key]: {
-        anyOf: [{ type: "array", items: { type: "integer" } }, { type: "null" }],
-        description: boxDescription(boxes),
-      },
+      [location[0]]: location[1],
     },
-    required: ["value", "page", boxes.key],
+    required: ["value", "page", location[0]],
   };
 }
 
-export function buildResponseSchema(boxes: BoxConvention = GEMINI_BOXES): Record<string, unknown> {
+function boxLocation(boxes: BoxConvention): [string, Record<string, unknown>] {
+  return [
+    boxes.key,
+    { anyOf: [{ type: "array", items: { type: "integer" } }, { type: "null" }], description: boxDescription(boxes) },
+  ];
+}
+
+function responseSchema(location: [string, Record<string, unknown>]): Record<string, unknown> {
   const fieldProperties = Object.fromEntries(
     FIELDS.map((f) => [
       f.name,
-      itemSchema(`${f.description} Null when not clearly present in the document.`, true, boxes),
+      itemSchema(`${f.description} Null when not clearly present in the document.`, true, location),
     ]),
   );
   return {
@@ -98,11 +109,29 @@ export function buildResponseSchema(boxes: BoxConvention = GEMINI_BOXES): Record
       tests: {
         type: "array",
         description: TESTS.description,
-        items: itemSchema("One requested test, exactly as printed.", false, boxes),
+        items: itemSchema("One requested test, exactly as printed.", false, location),
       },
     },
     required: ["fields", "tests"],
   };
+}
+
+export function buildResponseSchema(boxes: BoxConvention = GEMINI_BOXES): Record<string, unknown> {
+  return responseSchema(boxLocation(boxes));
+}
+
+/**
+ * The schema of the text pipeline's reply (prompt-text.ts): each value with the number of the
+ * OCR line it is on, instead of a box. `linesToLayer1` turns the line into the box.
+ */
+export function buildTextResponseSchema(): Record<string, unknown> {
+  return responseSchema([
+    "line",
+    {
+      anyOf: [{ type: "integer" }, { type: "null" }],
+      description: "Number k of the line the value is on, from the [pN] Lk in front of it. Null when value is null.",
+    },
+  ]);
 }
 
 /**
@@ -141,6 +170,65 @@ export function toLayer1(doc: unknown, boxes: BoxConvention): unknown {
           )
         : fields,
     tests: Array.isArray(tests) ? tests.map(item) : tests,
+  };
+}
+
+/** A line number as the text reply writes it: 17, or "17" or "L17" when written as text. */
+function lineNumber(raw: unknown): number | null {
+  if (typeof raw === "number" && Number.isInteger(raw)) return raw;
+  const m = typeof raw === "string" ? /^\s*L?(\d+)\s*$/i.exec(raw) : null;
+  return m ? Number(m[1]) : null;
+}
+
+/** A box on 0-1 of the page as layer 1 writes it: `[ymin, xmin, ymax, xmax]`, integers on 0-1000, covering it. */
+function boxToLayer1(box: BBox): number[] {
+  return [Math.floor(box.y0 * 1000), Math.floor(box.x0 * 1000), Math.ceil(box.y1 * 1000), Math.ceil(box.x1 * 1000)];
+}
+
+/**
+ * A parsed reply of the text pipeline, `{value, page, line}` per item, rewritten in layer 1's
+ * shape: the line's box, which the OCR measured, as `box_2d` in Gemini's order. normalize.ts,
+ * the harness and the UI then read it as any other reply. The box covers the whole line; the
+ * caller tightens it to the value (relocateBoxes).
+ *
+ * A value with no line, or with a line that is not on its page, gives no box, the value and
+ * page kept, and is reported in `warnings` as `bbox_invalid`. A box written instead of a line is
+ * dropped: in this pipeline the model never sees the page, so it cannot measure one. The
+ * shorthands of toLayer1 are read in the same way: a bare null is a field not present, a bare
+ * string a value with no page and no line.
+ */
+export function linesToLayer1(doc: unknown, pages: readonly OcrTextPage[], warnings?: PredictionWarning[]): unknown {
+  if (typeof doc !== "object" || doc === null) return doc;
+  const item = (raw: unknown, field: string): unknown => {
+    if (typeof raw === "string") return { value: raw, page: null, box_2d: null };
+    if (typeof raw !== "object" || raw === null) return raw;
+    const rest = { ...(raw as Record<string, unknown>) };
+    const line = rest.line;
+    delete rest.line;
+    delete rest.box_2d;
+    delete rest.bbox_2d;
+    let box: number[] | null = null;
+    if (typeof rest.value === "string" && rest.value.trim() !== "") {
+      const n = lineNumber(line);
+      const found = typeof rest.page === "number" && n !== null ? findLine(pages, rest.page, n) : null;
+      if (found) box = boxToLayer1(found.box);
+      else warnings?.push({ code: "bbox_invalid", field, detail: `line ${JSON.stringify(line ?? null)} of page ${JSON.stringify(rest.page ?? null)}` });
+    }
+    return { ...rest, box_2d: box };
+  };
+  const { fields, tests, ...rest } = doc as Record<string, unknown>;
+  return {
+    ...rest,
+    fields:
+      typeof fields === "object" && fields !== null
+        ? Object.fromEntries(
+            Object.entries(fields).map(([name, raw]) => [
+              name,
+              raw === null ? { value: null, page: null, box_2d: null } : item(raw, name),
+            ]),
+          )
+        : fields,
+    tests: Array.isArray(tests) ? tests.map((t) => item(t, "tests")) : tests,
   };
 }
 

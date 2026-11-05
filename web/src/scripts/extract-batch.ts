@@ -3,15 +3,21 @@
  * run.json (docs/extractor-contract.md, "Batch runs").
  *
  *   npm run extract -- --in ../data/synth/seed-42 [--out ../data/runs/<run-id>] [--limit 20]
- *                      [--provider gemini|local] [--concurrency 4] [--model gemini-x]
+ *                      [--provider gemini|local|local-text] [--concurrency 4] [--model gemini-x]
  *                      [--only synth-000003,synth-000007] [--force]
+ *                      [--ocr-dir ../data/ocr/<engine>/seed-42]
  *
  * The provider defaults to EXTRACTOR_PROVIDER, else gemini. The local model answers one
- * request at a time, so its concurrency defaults to 1. The local model's boxes come from the
- * page's OCR where it finds the value: [--no-ocr-boxes] keeps the model's own, [--ocr-boxes]
- * applies the OCR to Gemini too. Experiments with the local model: [--dpi 200] renders the
+ * request at a time, so its concurrency defaults to 1, with local-text too. The local model's
+ * boxes come from the page's OCR where it finds the value: [--no-ocr-boxes] keeps the model's
+ * own, [--ocr-boxes] applies the OCR to Gemini too. Experiments with the local model: [--dpi 200] renders the
  * pages at another resolution, [--grounding] locates the values again in a second pass per
  * page. All are recorded under `options` in run.json.
+ *
+ * `local-text` is the text pipeline: an OCR reads the pages and the local model gets only its
+ * text. The OCR is Tesseract, in-process, unless [--ocr-dir] names a directory of
+ * `<id>.ocr.json` files written by `intake-ocr run`, one per PDF. The engine is recorded as
+ * `options.ocr_engine`.
  *
  * Reads only the PDFs: golden files are never opened here.
  */
@@ -21,7 +27,7 @@ import { parseArgs } from "node:util";
 import {
   extract,
   INPUT_MODE_OF,
-  PROMPT_VERSION,
+  promptVersionOf,
   PROVIDERS,
   resolveModel,
   resolveProvider,
@@ -30,6 +36,7 @@ import {
 } from "@/lib/extractor";
 
 import { loadDotEnv } from "./env";
+import { validateOcrDocument, type OcrDocument } from "@/lib/extractor/ocr-text";
 import type { Prediction } from "@/lib/schema/prediction";
 
 interface RunDocument {
@@ -49,7 +56,15 @@ interface RunManifest {
   prompt_version: string;
   input_mode: string;
   /** Local-model experiments, when any was used. */
-  options?: { dpi?: number; grounding?: boolean; ocr_boxes?: boolean };
+  options?: {
+    dpi?: number;
+    grounding?: boolean;
+    ocr_boxes?: boolean;
+    /** local-text: the OCR engine, the directory its files came from, and whether checkboxes were read. */
+    ocr_engine?: string;
+    ocr_dir?: string;
+    checkboxes?: boolean;
+  };
   temperature: number;
   started_at: string;
   finished_at: string | null;
@@ -119,11 +134,12 @@ async function main(): Promise<number> {
       model: { type: "string" },
       only: { type: "string" },
       force: { type: "boolean", default: false },
+      "ocr-dir": { type: "string" },
     },
   });
   if (!values.in) {
     console.error(
-      "usage: npm run extract -- --in <dir of PDFs> [--out <dir>] [--limit N] [--provider gemini|local] [--concurrency N] [--model id] [--only id,id] [--force]",
+      "usage: npm run extract -- --in <dir of PDFs> [--out <dir>] [--limit N] [--provider gemini|local|local-text] [--concurrency N] [--model id] [--only id,id] [--force] [--ocr-dir <dir>]",
     );
     return 1;
   }
@@ -139,9 +155,10 @@ async function main(): Promise<number> {
 
   const model = values.model ?? resolveModel(provider);
   const inputMode = INPUT_MODE_OF[provider];
+  const promptVersion = promptVersionOf(provider);
   const inDir = path.resolve(values.in);
   // Local model ids have a publisher prefix ("qwen/..."), which cannot go in a directory name.
-  const runId = `${timestamp(new Date())}-${model.replaceAll("/", "-")}-p${PROMPT_VERSION}`;
+  const runId = `${timestamp(new Date())}-${model.replaceAll("/", "-")}-p${promptVersion}`;
   const outDir = path.resolve(values.out ?? path.join(process.cwd(), "..", "data", "runs", runId));
   const dpi = values.dpi ? Number.parseInt(values.dpi, 10) : undefined;
   const grounding = values.grounding ?? false;
@@ -157,12 +174,18 @@ async function main(): Promise<number> {
     console.error("--ocr-boxes and --no-ocr-boxes contradict each other");
     return 1;
   }
+  const textPipeline = provider === "local-text";
+  if (textPipeline && (values["ocr-boxes"] || values["no-ocr-boxes"])) {
+    console.error("--ocr-boxes and --no-ocr-boxes do not apply to local-text, whose boxes are always the OCR's");
+    return 1;
+  }
+  if (values["ocr-dir"] !== undefined && !textPipeline) {
+    console.error("--ocr-dir applies to the local-text provider only");
+    return 1;
+  }
+  const ocrDir = values["ocr-dir"] !== undefined ? path.resolve(values["ocr-dir"]) : null;
   const ocrBoxes = values["ocr-boxes"] || (provider === "local" && !values["no-ocr-boxes"]);
-  const options =
-    dpi !== undefined || grounding || ocrBoxes
-      ? { ...(dpi !== undefined && { dpi }), ...(grounding && { grounding }), ...(ocrBoxes && { ocr_boxes: true }) }
-      : undefined;
-  const defaultConcurrency = provider === "local" ? "1" : "4";
+  const defaultConcurrency = provider === "gemini" ? "4" : "1";
   const concurrency = Math.max(1, Number.parseInt(values.concurrency ?? defaultConcurrency, 10) || 1);
   const limit = values.limit ? Number.parseInt(values.limit, 10) : undefined;
   const only = values.only ? new Set(values.only.split(",").map((s) => s.trim()).filter(Boolean)) : null;
@@ -175,6 +198,45 @@ async function main(): Promise<number> {
     return 1;
   }
 
+  // Every OCR file is read and checked before the first model call: a run must not stop
+  // halfway, or mix engines.
+  const ocrFiles = new Map<string, OcrDocument>();
+  if (ocrDir !== null) {
+    for (const file of pdfs) {
+      const id = file.replace(/\.pdf$/i, "");
+      const ocrFile = path.join(ocrDir, `${id}.ocr.json`);
+      const doc = await readJson<OcrDocument>(ocrFile);
+      if (doc === null) {
+        console.error(`no OCR for ${id}: ${ocrFile} is missing or not JSON`);
+        return 1;
+      }
+      const errors = validateOcrDocument(doc);
+      if (errors.length > 0) {
+        console.error(`${ocrFile} does not match schema/ocr.schema.json: ${errors.slice(0, 3).join("; ")}`);
+        return 1;
+      }
+      ocrFiles.set(id, doc);
+    }
+    const engines = new Set([...ocrFiles.values()].map((d) => `${d.engine}${d.checkboxes ? " +checkboxes" : ""}`));
+    if (engines.size > 1) {
+      console.error(`the OCR files of ${ocrDir} mix engines: ${[...engines].join(", ")}`);
+      return 1;
+    }
+  }
+  const firstOcr = ocrFiles.values().next().value;
+  const repoRoot = path.resolve(process.cwd(), "..");
+  const options =
+    dpi !== undefined || grounding || ocrBoxes || textPipeline
+      ? {
+          ...(dpi !== undefined && { dpi }),
+          ...(grounding && { grounding }),
+          ...(ocrBoxes && { ocr_boxes: true }),
+          ...(textPipeline && { ocr_engine: firstOcr?.engine ?? "tesseract" }),
+          ...(ocrDir !== null && { ocr_dir: path.relative(repoRoot, ocrDir).split(path.sep).join("/") }),
+          ...(textPipeline && { checkboxes: firstOcr?.checkboxes ?? false }),
+        }
+      : undefined;
+
   await fs.mkdir(outDir, { recursive: true });
   const manifestFile = path.join(outDir, "run.json");
   const previous = await readJson<RunManifest>(manifestFile);
@@ -182,7 +244,7 @@ async function main(): Promise<number> {
     run_id: path.basename(outDir),
     source: path.relative(path.resolve(process.cwd(), ".."), inDir).split(path.sep).join("/"),
     model,
-    prompt_version: PROMPT_VERSION,
+    prompt_version: promptVersion,
     input_mode: inputMode,
     ...(options && { options }),
     temperature: 0,
@@ -201,7 +263,7 @@ async function main(): Promise<number> {
 
   console.log(`run ${manifest.run_id}: ${pdfs.length} PDF(s) from ${inDir}`);
   console.log(
-    `${provider} model ${model}, prompt v${PROMPT_VERSION}, ${inputMode}, concurrency ${concurrency}` +
+    `${provider} model ${model}, prompt v${promptVersion}, ${inputMode}, concurrency ${concurrency}` +
       (options ? `, options ${JSON.stringify(options)}` : ""),
   );
   console.log(`writing to ${outDir}`);
@@ -221,7 +283,7 @@ async function main(): Promise<number> {
           existing &&
           existing.extractor.error === null &&
           existing.extractor.model === model &&
-          existing.extractor.prompt_version === PROMPT_VERSION
+          existing.extractor.prompt_version === promptVersion
         ) {
           skipped += 1;
           documents.set(id, toRunDocument(existing, predictionFile));
@@ -239,13 +301,14 @@ async function main(): Promise<number> {
         dpi,
         grounding,
         ocrBoxes,
+        ocr: ocrFiles.get(id),
         onReply: (r) => replies.push(r),
       });
       await writeJson(predictionPath, prediction);
       await writeJson(path.join(outDir, `${id}.raw.json`), {
         id,
         model,
-        prompt_version: PROMPT_VERSION,
+        prompt_version: promptVersion,
         replies,
       });
       documents.set(id, toRunDocument(prediction, predictionFile));

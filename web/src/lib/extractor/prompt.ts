@@ -9,8 +9,12 @@ import { GEMINI_BOXES, type BoxConvention } from "./response-schema";
 
 export const PROMPT_VERSION = "6";
 
-/** How each `normalize` rule in fields.json is explained to the model. */
-const NORMALISATION_TEXT: Record<string, string> = {
+/**
+ * How each `normalize` rule in fields.json is explained to the model. Shared with the text
+ * prompt (prompt-text.ts), which has no boxes: what a rule says about the box is apart, in
+ * BOX_NOTE.
+ */
+export const NORMALISATION_TEXT: Record<string, string> = {
   "dd/mm/yyyy":
     "Normalise to dd/mm/yyyy whatever the printed format and language (12-mar-1978, " +
     "12-març-1978, 12.3.78 and 1978-03-12 all become 12/03/1978).",
@@ -24,21 +28,27 @@ const NORMALISATION_TEXT: Record<string, string> = {
     "sex as unknown or other; when no sex is printed or marked anywhere, the value is null.",
   "no-title":
     "Drop any title or honorific in front of the name (Dr., Dra., Doctor, Doctora, Prof.) and " +
-    "return only the name and surnames, otherwise exactly as printed. The box still covers the " +
-    "whole printed name, title included.",
+    "return only the name and surnames, otherwise exactly as printed.",
 };
 
-function describeField(f: FieldSpec): string {
+/** What a normalisation rule adds when boxes are asked for. */
+const BOX_NOTE: Record<string, string> = {
+  "no-title": " The box still covers the whole printed name, title included.",
+};
+
+/** One line of the field list: name, description and normalisation rule; `boxes` adds BOX_NOTE. */
+export function describeField(f: FieldSpec, boxes = true): string {
   const rule = f.normalize ? NORMALISATION_TEXT[f.normalize] : undefined;
   if (f.normalize && !rule) {
     throw new Error(`no prompt text for normalisation rule "${f.normalize}" of ${f.name}`);
   }
-  return `- ${f.name}: ${f.description}${rule ? ` ${rule}` : ""}`;
+  const note = boxes && f.normalize ? (BOX_NOTE[f.normalize] ?? "") : "";
+  return `- ${f.name}: ${f.description}${rule ? ` ${rule}${note}` : ""}`;
 }
 
 /** The instruction, with boxes asked for in `boxes`' convention; Gemini's by default. */
 export function buildSystemInstruction(boxes: BoxConvention = GEMINI_BOXES): string {
-  const fieldLines = FIELDS.map(describeField).join("\n");
+  const fieldLines = FIELDS.map((f) => describeField(f)).join("\n");
   return `You extract structured data from a scanned clinical laboratory request (a "volante"), printed in Spanish or Catalan, so that an operator can verify it. Your output is not the source of truth: it will be checked against the laboratory's own records and a person decides. Be exact, and prefer null over a guess.
 
 The document may have several pages in any order: the request form itself (sometimes continued on a further page), the insurer's authorisation letter, photocopies of an insurance card or an identity document, an informed-consent form, a fax cover sheet, blank pages, or the same form scanned twice. All pages belong to one patient and one request.

@@ -9,6 +9,10 @@
  * vision model sees the pages rendered to images and answers in its own box convention, which
  * is converted before anything else reads the reply. The local model's boxes are then replaced
  * by the page's OCR wherever it finds the value (locate.ts): the model reads, the OCR places.
+ *
+ * A third, experimental, `local-text`: an OCR reads the pages and the same local model gets only
+ * its text, numbered by line, and answers with the line of each value (prompt-text.ts). The
+ * line's box, measured by the OCR, is the value's box, tightened to the value (locate.ts).
  */
 import { FIELD_NAMES } from "@/lib/schema/fields";
 import {
@@ -17,6 +21,7 @@ import {
   type ExtractorError,
   type InputMode,
   type Prediction,
+  type PredictionWarning,
   type Usage,
 } from "@/lib/schema/prediction";
 import { callGemini, GeminiApiError } from "./gemini";
@@ -25,30 +30,48 @@ import { relocateBoxes } from "./locate";
 import { callLocal, LocalModelError, resolveLocalModel, resolveLocalUrl } from "./local";
 import type { NormalisedExtraction } from "./normalize";
 import { garbledCount, normaliseExtraction } from "./normalize";
-import { ocrPages } from "./ocr";
+import { ocrPages, tesseractDocument } from "./ocr";
+import { renderOcrText, wordPages, type OcrDocument } from "./ocr-text";
 import { looksLikePdf, readPages, sha256Hex } from "./pdf";
 import { buildSystemInstruction, PROMPT_VERSION, USER_MESSAGE } from "./prompt";
+import { buildTextInstruction, PROMPT_VERSION_TEXT, TEXT_USER_MESSAGE } from "./prompt-text";
 import { renderPages } from "./render";
 import {
   buildResponseSchema,
+  buildTextResponseSchema,
   GEMINI_BOXES,
+  linesToLayer1,
   localBoxes,
   toLayer1,
   validateRawExtraction,
-  type BoxConvention,
   type RawExtraction,
 } from "./response-schema";
 
 export const DEFAULT_MODEL = "gemini-3.8-flash";
 export const DEFAULT_THINKING_LEVEL = "low";
 
-export const PROVIDERS = ["gemini", "local"] as const;
+export const PROVIDERS = ["gemini", "local", "local-text"] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
-/** What each provider is given: the PDF itself, or one image per page. */
-export const INPUT_MODE_OF: Record<Provider, InputMode> = { gemini: "pdf-inline", local: "page-images" };
+/** What each provider is given: the PDF itself, one image per page, or the text of an OCR. */
+export const INPUT_MODE_OF: Record<Provider, InputMode> = {
+  gemini: "pdf-inline",
+  local: "page-images",
+  "local-text": "ocr-text",
+};
 
 export { PROMPT_VERSION } from "./prompt";
+export { PROMPT_VERSION_TEXT } from "./prompt-text";
+
+/** The prompt each provider is asked with: the text pipeline has its own. */
+export function promptVersionOf(provider: Provider): string {
+  return provider === "local-text" ? PROMPT_VERSION_TEXT : PROMPT_VERSION;
+}
+
+/** Providers served by the local model behind LOCAL_LLM_URL. */
+function isLocal(provider: Provider): boolean {
+  return provider === "local" || provider === "local-text";
+}
 
 export class ConfigError extends Error {
   constructor(message: string) {
@@ -96,6 +119,11 @@ export interface ExtractOptions {
   grounding?: boolean;
   /** Boxes from the page's OCR where it finds the value; on for the local provider by default. */
   ocrBoxes?: boolean;
+  /**
+   * `local-text` only: the OCR of this PDF, as `intake-ocr run` writes it. Tesseract reads the
+   * pages in-process when it is omitted.
+   */
+  ocr?: OcrDocument;
 }
 
 /** One reply as the model sent it, before parsing (for a local model, without its fence). */
@@ -117,7 +145,7 @@ export function resolveProvider(): Provider {
 }
 
 export function resolveModel(provider: Provider = "gemini"): string {
-  return provider === "local" ? resolveLocalModel() : process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
+  return isLocal(provider) ? resolveLocalModel() : process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
 }
 
 export function resolveThinkingLevel(): string {
@@ -140,12 +168,12 @@ function emptyFields(): Record<string, null> {
   return Object.fromEntries(FIELD_NAMES.map((name) => [name, null]));
 }
 
-/** `boxes` is the convention of an unconstrained reply; null for Gemini's, read as it is. */
-function parseRaw(text: string, boxes: BoxConvention | null): RawExtraction {
+/** `adapt` brings an unconstrained reply to layer 1; null for Gemini's, read as it is. */
+function parseRaw(text: string, adapt: ((doc: unknown) => unknown) | null): RawExtraction {
   let doc: unknown;
   try {
     doc = JSON.parse(text);
-    if (boxes !== null) doc = toLayer1(doc, boxes);
+    if (adapt !== null) doc = adapt(doc);
   } catch (err) {
     throw new ModelOutputError("invalid_json", err instanceof Error ? err.message : String(err));
   }
@@ -188,8 +216,11 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
   const model = opts.model ?? resolveModel(provider);
   const temperature = opts.temperature ?? 0;
   // The local server takes no thinking level; reasoning is switched off in local.ts.
-  const thinkingLevel =
-    provider === "local" ? null : opts.thinkingLevel === undefined ? resolveThinkingLevel() : opts.thinkingLevel;
+  const thinkingLevel = isLocal(provider)
+    ? null
+    : opts.thinkingLevel === undefined
+      ? resolveThinkingLevel()
+      : opts.thinkingLevel;
   const maxAttempts = Math.max(1, opts.maxAttempts ?? 2);
   const retryDelayMs = opts.retryDelayMs ?? 2000;
 
@@ -203,8 +234,40 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
   const started = Date.now();
   const boxes = provider === "local" ? localBoxes(model) : GEMINI_BOXES;
   let call: () => Promise<{ text: string; modelVersion: string | null; usage: Usage }>;
+  let adapt: ((doc: unknown) => unknown) | null = provider === "local" ? (doc) => toLayer1(doc, boxes) : null;
   let images: Uint8Array[] = [];
-  if (provider === "local") {
+  let ocr: OcrDocument | null = null;
+  // An OCR read beforehand took time too: what its file records counts in the latency.
+  let ocrElapsedMs = 0;
+  let lineWarnings: PredictionWarning[] = [];
+  if (provider === "local-text") {
+    if (opts.ocr) {
+      ocr = opts.ocr;
+      ocrElapsedMs = ocr.elapsed_ms ?? 0;
+    } else {
+      ocr = await tesseractDocument(pdf, sha256);
+    }
+    if (ocr.sha256 !== sha256) throw new ConfigError(`the OCR given is of another PDF (sha256 ${ocr.sha256.slice(0, 12)})`);
+    if (ocr.pages.length !== pages.length) {
+      throw new ConfigError(`the OCR given has ${ocr.pages.length} page(s), the PDF ${pages.length}`);
+    }
+    const lines = ocr.pages;
+    adapt = (doc) => {
+      lineWarnings = [];
+      return linesToLayer1(doc, lines, lineWarnings);
+    };
+    // No constrained decoding, as with the local vision model: the schema goes in the text.
+    const request = {
+      baseUrl: resolveLocalUrl(),
+      model,
+      pages: [],
+      systemInstruction:
+        buildTextInstruction() + "\n\nThe JSON object has this JSON Schema:\n" + JSON.stringify(buildTextResponseSchema()),
+      userMessage: `${TEXT_USER_MESSAGE}\n\n${renderOcrText(ocr.pages)}`,
+      temperature,
+    };
+    call = () => callLocal(request);
+  } else if (provider === "local") {
     images = await renderPages(pdf, opts.dpi).catch((err) => {
       throw new InvalidPdfError(err instanceof Error ? err.message : String(err));
     });
@@ -253,7 +316,8 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
       opts.onReply?.({ attempt: attempts, text: reply.text });
       modelVersion = reply.modelVersion ?? modelVersion;
       usage = addUsage(usage, reply.usage);
-      const candidate = normaliseExtraction(parseRaw(reply.text, provider === "local" ? boxes : null), pages.length);
+      const candidate = normaliseExtraction(parseRaw(reply.text, adapt), pages.length);
+      candidate.warnings.unshift(...lineWarnings);
       if (result === null) garbledFirst = garbledCount(candidate);
       if (result === null || garbledCount(candidate) < garbledCount(result)) result = candidate;
       error = null;
@@ -271,7 +335,10 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
     );
     for (const u of grounded.usage) usage = addUsage(usage, u);
   }
-  if (result !== null && (opts.ocrBoxes ?? provider === "local")) {
+  if (result !== null && ocr !== null) {
+    // Each box is its line's: tightened to the value where the OCR finds it on or near it.
+    relocateBoxes(result, wordPages(ocr.pages), "region");
+  } else if (result !== null && (opts.ocrBoxes ?? provider === "local")) {
     try {
       relocateBoxes(result, await ocrPages(pdf));
     } catch (err) {
@@ -299,12 +366,12 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
     extractor: {
       model,
       model_version: modelVersion,
-      prompt_version: PROMPT_VERSION,
+      prompt_version: promptVersionOf(provider),
       input_mode: INPUT_MODE_OF[provider],
       temperature,
       thinking_level: thinkingLevel,
       attempts,
-      latency_ms: Date.now() - started,
+      latency_ms: Date.now() - started + ocrElapsedMs,
       usage,
       created_at: new Date().toISOString(),
       error,

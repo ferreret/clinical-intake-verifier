@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clinical-intake-verifier/schema/ocr.schema.json",
+  "title": "OCR of one document, with positions",
+  "description": "What an OCR engine read from one PDF: its lines in reading order, each with its box, its words and the checkbox in front of it, if one was detected. Written by the ocr/ package (intake-ocr run) as <id>.ocr.json, read by the extractor's text pipeline (npm run extract -- --provider local-text --ocr-dir). Boxes are on 0-1 of the page, origin top-left, like the golden's and the prediction's.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ocr_version", "engine", "model", "dpi", "sha256", "pages"],
+  "properties": {
+    "ocr_version": { "const": 1 },
+    "engine": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "description": "Engine name, as given to intake-ocr --engine (tesseract, rapidocr, paddle-vl, ...)." },
+    "model": { "type": ["string", "null"], "description": "The engine's model and version, as precisely as it reports them." },
+    "dpi": { "type": "integer", "minimum": 50, "maximum": 1200, "description": "Resolution the pages were rendered at." },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Of the PDF that was read; the extractor refuses a file of another PDF." },
+    "elapsed_ms": { "type": "integer", "minimum": 0, "description": "Wall-clock time of the whole document, rendering included. The extractor adds it to the prediction's latency." },
+    "checkboxes": { "type": "boolean", "description": "Whether checkboxes were looked for. When false or absent, every mark is null." },
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["number", "width", "height", "lines"],
+        "properties": {
+          "number": { "type": "integer", "minimum": 1 },
+          "width": { "type": "integer", "minimum": 1, "description": "Of the rendered page, in pixels." },
+          "height": { "type": "integer", "minimum": 1 },
+          "elapsed_ms": { "type": "integer", "minimum": 0 },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "box", "text", "words", "mark"],
+              "properties": {
+                "id": { "type": "string", "pattern": "^p[1-9][0-9]*l[1-9][0-9]*$", "description": "p<page>l<n>, n counting the page's lines from 1 in reading order." },
+                "box": { "$ref": "#/$defs/box" },
+                "text": { "type": "string", "minLength": 1, "description": "The line's words, joined by single spaces, without the checkbox." },
+                "words": {
+                  "type": "array",
+                  "description": "Empty when the engine reports lines only.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["text", "box"],
+                    "properties": {
+                      "text": { "type": "string", "minLength": 1 },
+                      "box": { "$ref": "#/$defs/box" }
+                    }
+                  }
+                },
+                "mark": {
+                  "enum": ["checked", "unchecked", null],
+                  "description": "The checkbox in front of the line: ticked, empty, or none detected (also when it was too doubtful to call)."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "box": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x0", "y0", "x1", "y1"],
+      "properties": {
+        "x0": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y0": { "type": "number", "minimum": 0, "maximum": 1 },
+        "x1": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y1": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}
