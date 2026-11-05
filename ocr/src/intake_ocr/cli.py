@@ -10,7 +10,6 @@ the time per page.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import statistics
 import time
@@ -20,8 +19,8 @@ from typing import Annotated
 
 import typer
 
-from intake_ocr.document import Page, document_dict, group_lines
 from intake_ocr.engines import ENGINES, TEXT_ONLY, make_engine
+from intake_ocr.reader import read_document
 from intake_ocr.render import render_pages
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -85,38 +84,13 @@ def run(
                 page_ms += [p.get("elapsed_ms", 0) for p in existing["pages"]]
                 doubtful += existing.get("doubtful_checkboxes", 0)
                 continue
-        data = pdf.read_bytes()
-        started = time.perf_counter()
-        pages = []
-        doc_doubtful = 0
-        for number, image in enumerate(render_pages(pdf, dpi), start=1):
-            image.info["dpi"] = (dpi, dpi)
-            t = time.perf_counter()
-            segments = ocr.read(image)
-            if detector is not None:
-                found = detector.detect(image)
-                doc_doubtful += sum(1 for c in found if c.state is None)
-                segments = detector.attach(segments, found, image.width)
-            lines = group_lines(segments, image.width) if ocr.regroup else segments
-            ms = round((time.perf_counter() - t) * 1000)
-            page_ms.append(ms)
-            pages.append(Page(number, image.width, image.height, lines, elapsed_ms=ms))
-        doc = document_dict(
-            engine=engine,
-            model=ocr.model,
-            dpi=dpi,
-            sha256=hashlib.sha256(data).hexdigest(),
-            pages=pages,
-            elapsed_ms=round((time.perf_counter() - started) * 1000),
-            checkboxes=checkboxes,
-            doubtful_checkboxes=doc_doubtful if detector is not None else None,
-        )
-        doubtful += doc_doubtful
+        doc = read_document(pdf.read_bytes(), ocr, dpi=dpi, detector=detector)
+        page_ms += [p["elapsed_ms"] for p in doc["pages"]]
+        doubtful += doc.get("doubtful_checkboxes", 0)
         target.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         lines = sum(len(p["lines"]) for p in doc["pages"])
-        typer.echo(
-            f"  {pdf.stem}  {doc['elapsed_ms'] / 1000:.1f}s  pages={len(pages)} lines={lines}"
-        )
+        pages = len(doc["pages"])
+        typer.echo(f"  {pdf.stem}  {doc['elapsed_ms'] / 1000:.1f}s  pages={pages} lines={lines}")
 
     summary = {
         "engine": engine,
@@ -188,3 +162,33 @@ def bench(
     typer.echo(
         f"{len(ms)} page(s): mean {summary['page_ms_mean']} ms, median {summary['page_ms_median']} ms"
     )
+
+
+@app.command()
+def serve(
+    host: Annotated[str, typer.Option(help="Address to listen on.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port to listen on.")] = 8765,
+    token: Annotated[
+        str | None,
+        typer.Option(envvar="INTAKE_OCR_TOKEN", help="Bearer token every request must carry."),
+    ] = None,
+    preload: Annotated[
+        list[str] | None, typer.Option(help="Engines to load before the first request.")
+    ] = None,
+) -> None:
+    """Serve the engines over HTTP: POST /ocr with a PDF, GET /health (see server.py)."""
+    from intake_ocr.server import OcrService, make_server
+
+    service = OcrService()
+    for name in preload or []:
+        service.read_engine(name)
+    if host not in ("127.0.0.1", "localhost", "::1") and token is None:
+        typer.echo("warning: listening beyond this machine without a token", err=True)
+    httpd = make_server(host, port, token, service)
+    typer.echo(f"intake-ocr serving on http://{host}:{port} (POST /ocr, GET /health)")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        httpd.server_close()

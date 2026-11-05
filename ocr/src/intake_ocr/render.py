@@ -8,9 +8,9 @@ import pypdfium2 as pdfium
 from PIL import Image
 
 
-def render_pages(pdf: Path, dpi: int) -> list[Image.Image]:
+def render_pages(pdf: Path | bytes, dpi: int) -> list[Image.Image]:
     """One RGB image per page, in page order, on a white background."""
-    doc = pdfium.PdfDocument(str(pdf))
+    doc = pdfium.PdfDocument(str(pdf) if isinstance(pdf, Path) else pdf)
     try:
         return [page.render(scale=dpi / 72).to_pil().convert("RGB") for page in doc]
     finally:
