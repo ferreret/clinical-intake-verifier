@@ -31,6 +31,7 @@ import { callLocal, LocalModelError, resolveLocalModel, resolveLocalUrl } from "
 import type { NormalisedExtraction } from "./normalize";
 import { garbledCount, normaliseExtraction } from "./normalize";
 import { ocrPages, tesseractDocument } from "./ocr";
+import { OcrServerError, requestOcr, resolveOcrServer, type OcrServer } from "./ocr-client";
 import { renderOcrText, wordPages, type OcrDocument } from "./ocr-text";
 import { looksLikePdf, readPages, sha256Hex } from "./pdf";
 import { buildSystemInstruction, PROMPT_VERSION, USER_MESSAGE } from "./prompt";
@@ -120,10 +121,12 @@ export interface ExtractOptions {
   /** Boxes from the page's OCR where it finds the value; on for the local provider by default. */
   ocrBoxes?: boolean;
   /**
-   * `local-text` only: the OCR of this PDF, as `intake-ocr run` writes it. Tesseract reads the
-   * pages in-process when it is omitted.
+   * `local-text` only: the OCR of this PDF, as `intake-ocr run` writes it. Without it, the OCR
+   * server (`ocrServer`, else OCR_URL) reads the PDF; without one, Tesseract in-process.
    */
   ocr?: OcrDocument;
+  /** `local-text` only: the OCR server to send the PDF to; null for none, whatever OCR_URL says. */
+  ocrServer?: OcrServer | null;
 }
 
 /** One reply as the model sent it, before parsing (for a local model, without its fence). */
@@ -240,13 +243,32 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
   // An OCR read beforehand took time too: what its file records counts in the latency.
   let ocrElapsedMs = 0;
   let lineWarnings: PredictionWarning[] = [];
+  // The OCR server could not read the PDF: the prediction records it as the call that failed.
+  let ocrFailure: OcrServerError | null = null;
   if (provider === "local-text") {
+    const server = opts.ocrServer === undefined ? resolveOcrServer() : opts.ocrServer;
     if (opts.ocr) {
       ocr = opts.ocr;
       ocrElapsedMs = ocr.elapsed_ms ?? 0;
+    } else if (server) {
+      // Timed as it happens, inside this call's latency, like the model's reply.
+      for (let attempt = 1; ocr === null && ocrFailure === null; attempt += 1) {
+        try {
+          ocr = await requestOcr(server, pdf);
+        } catch (err) {
+          if (!(err instanceof OcrServerError)) throw err;
+          if (!err.retryable || attempt >= maxAttempts) ocrFailure = err;
+          else if (retryDelayMs > 0) await sleep(retryDelayMs * attempt);
+        }
+      }
     } else {
       ocr = await tesseractDocument(pdf, sha256);
     }
+  }
+  if (ocrFailure !== null) {
+    const failure = ocrFailure;
+    call = () => Promise.reject(failure);
+  } else if (ocr !== null) {
     if (ocr.sha256 !== sha256) throw new ConfigError(`the OCR given is of another PDF (sha256 ${ocr.sha256.slice(0, 12)})`);
     if (ocr.pages.length !== pages.length) {
       throw new ConfigError(`the OCR given has ${ocr.pages.length} page(s), the PDF ${pages.length}`);

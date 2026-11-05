@@ -212,13 +212,18 @@ no box, and a `bbox_invalid` warning; a box the OCR cannot tighten stays the who
 `box_source: "model"`, approximate. Temperature 0 and reasoning off, no constrained decoding,
 the schema in the instruction, as for the image provider.
 
-The OCR is Tesseract in-process, as for OCR boxes, unless an OCR file is given:
-`<id>.ocr.json` ([`schema/ocr.schema.json`](../schema/ocr.schema.json)), written by another
-engine with `intake-ocr run` (the `ocr/` package), with each line's box, its words and its
-checkbox. The extractor refuses a file of another PDF (`sha256`) or of another page count;
-the time the file records (`elapsed_ms`) is added to the prediction's latency, so that a
-run's time per document is the whole pipeline's. In the API it is reached only through
-`provider: "local-text"`, which then reads with Tesseract.
+The OCR runs on the server with the models, not in the application: the PDF is posted to
+the OCR server, `intake-ocr serve` in the `ocr/` package ([ocr.md](ocr.md)), named by
+`OCR_URL` (or `--ocr-url`), which returns an OCR document
+([`schema/ocr.schema.json`](../schema/ocr.schema.json)): each line's box, its words and its
+checkbox. For measuring, the same document can come from a file `<id>.ocr.json` written
+beforehand by `intake-ocr run` (`--ocr-dir`); the time the file records (`elapsed_ms`) is then
+added to the prediction's latency, so that a run's time per document is the whole
+pipeline's. With neither, Tesseract reads the pages in-process, as for OCR boxes: the first
+measure of the pipeline, not how it is meant to run. The extractor refuses an OCR of another
+PDF (`sha256`) or of another page count. An OCR server that cannot be reached, after one
+retry, fails the document with `api_error` and no model call. In the API it is reached
+through `provider: "local-text"`, with `OCR_URL` set.
 
 ## Boxes from the OCR
 
@@ -271,10 +276,12 @@ harness reads only `.pred.json`, and `intake-synth validate` skips these files.
 
 `run-id` defaults to `<timestamp>-<model>-p<prompt_version>`; the text pipeline's prompt
 versions start with `t`, so its runs end in `-pt1`. With `--provider local-text`,
-`--ocr-dir <dir>` reads `<dir>/<id>.ocr.json` for every PDF: all are read and checked against
-their schema before the first model call, and a directory that mixes engines, or with and
-without checkboxes, is refused. `options` in `run.json` then records `ocr_engine` (`tesseract`
-when no directory is given), `ocr_dir` and `checkboxes`. The runner reads **only the
+`--ocr-url <url>` sends each PDF to the OCR server (`--ocr-engine`, `--checkboxes`), whose
+health is checked before the first document; `--ocr-dir <dir>` reads `<dir>/<id>.ocr.json`
+for every PDF instead: all are read and checked against their schema and their PDF's hash
+before the first model call, and a directory that mixes engines, or with and without
+checkboxes, is refused. `options` in `run.json` then records `ocr_engine` (`tesseract` when
+neither is given), `ocr_url` or `ocr_dir`, and `checkboxes`. The runner reads **only the
 PDFs** of the input directory: golden files are never opened by anything on the extraction
 side. Documents already predicted in the same run directory with the same model and prompt
 version and no error are skipped, so repeating a run after a prompt change costs only the

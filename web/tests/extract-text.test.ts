@@ -1,3 +1,5 @@
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfigError, extract } from "@/lib/extractor";
@@ -77,7 +79,7 @@ function textJson(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({ fields: { ...fields, ...overrides }, tests: [{ value: "Urea", page: 1, line: 2 }] });
 }
 
-const opts = { provider: "local-text" as const, model: "qwen/test", retryDelayMs: 0 };
+const opts = { provider: "local-text" as const, model: "qwen/test", retryDelayMs: 0, ocrServer: null };
 
 beforeEach(() => {
   mockedCall.mockReset();
@@ -139,6 +141,45 @@ describe("extract with the text pipeline", () => {
     const other = { ...ocrOf(pdf), sha256: "b".repeat(64) };
     await expect(extract(pdf, { ...opts, ocr: other })).rejects.toThrow(ConfigError);
     expect(mockedCall).not.toHaveBeenCalled();
+  });
+
+  it("asks the OCR server for the OCR, with its engine, checkboxes and token", async () => {
+    mockedCall.mockResolvedValueOnce(reply(textJson()));
+    const pdf = await samplePdf();
+    const seen: { url?: string; auth?: string; bytes?: number } = {};
+    const server = http.createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (c: Buffer) => chunks.push(c));
+      req.on("end", () => {
+        Object.assign(seen, { url: req.url, auth: req.headers.authorization, bytes: Buffer.concat(chunks).length });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(ocrOf(pdf)));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    try {
+      const p = await extract(pdf, { ...opts, ocrServer: { url, engine: "rapidocr", checkboxes: true, token: "t0k" } });
+      expect(seen).toEqual({ url: "/ocr?engine=rapidocr&checkboxes=1", auth: "Bearer t0k", bytes: pdf.length });
+      expect(mockedCall.mock.calls[0][0].userMessage).toContain("[p1] L2: [X] Urea");
+      expect(p.fields.Sexo).toMatchObject({ value: "M", box_source: "ocr" });
+      // The server's time is in the latency as it happened, not added from the file again.
+      expect(p.extractor.latency_ms).toBeLessThan(1500);
+      expect(validatePrediction(p)).toEqual([]);
+    } finally {
+      server.close();
+    }
+  });
+
+  it("records an OCR server that cannot be reached as an API error, and calls no model", async () => {
+    const p = await extract(await samplePdf(), {
+      ...opts,
+      ocrServer: { url: "http://127.0.0.1:9", engine: "rapidocr", checkboxes: false },
+    });
+    expect(p.extractor.error).toMatchObject({ code: "api_error", message: expect.stringContaining("OCR server at http://127.0.0.1:9") });
+    expect(mockedCall).not.toHaveBeenCalled();
+    expect(p.tests).toEqual([]);
+    expect(validatePrediction(p)).toEqual([]);
   });
 
   it("reads the pages with Tesseract when no OCR is given", async () => {

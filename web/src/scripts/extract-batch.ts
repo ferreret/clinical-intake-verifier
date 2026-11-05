@@ -6,6 +6,7 @@
  *                      [--provider gemini|local|local-text] [--concurrency 4] [--model gemini-x]
  *                      [--only synth-000003,synth-000007] [--force]
  *                      [--ocr-dir ../data/ocr/<engine>/seed-42]
+ *                      [--ocr-url http://127.0.0.1:8765 --ocr-engine rapidocr --checkboxes]
  *
  * The provider defaults to EXTRACTOR_PROVIDER, else gemini. The local model answers one
  * request at a time, so its concurrency defaults to 1, with local-text too. The local model's
@@ -16,8 +17,10 @@
  *
  * `local-text` is the text pipeline: an OCR reads the pages and the local model gets only its
  * text. The OCR is Tesseract, in-process, unless [--ocr-dir] names a directory of
- * `<id>.ocr.json` files written by `intake-ocr run`, one per PDF. The engine is recorded as
- * `options.ocr_engine`.
+ * `<id>.ocr.json` files written by `intake-ocr run`, one per PDF, or [--ocr-url] an OCR server
+ * (`intake-ocr serve`), which reads each PDF as the product would, where the models run
+ * (OCR_URL, OCR_ENGINE, OCR_CHECKBOXES and OCR_TOKEN give the same). The engine is recorded
+ * as `options.ocr_engine`.
  *
  * Reads only the PDFs: golden files are never opened here.
  */
@@ -37,6 +40,12 @@ import {
 
 import { loadDotEnv } from "./env";
 import { validateOcrDocument, type OcrDocument } from "@/lib/extractor/ocr-text";
+import {
+  DEFAULT_OCR_ENGINE,
+  ocrServerHealth,
+  resolveOcrServer,
+  type OcrServer,
+} from "@/lib/extractor/ocr-client";
 import { sha256Hex } from "@/lib/extractor/pdf";
 import type { Prediction } from "@/lib/schema/prediction";
 
@@ -64,6 +73,7 @@ interface RunManifest {
     /** local-text: the OCR engine, the directory its files came from, and whether checkboxes were read. */
     ocr_engine?: string;
     ocr_dir?: string;
+    ocr_url?: string;
     checkboxes?: boolean;
   };
   temperature: number;
@@ -136,11 +146,14 @@ async function main(): Promise<number> {
       only: { type: "string" },
       force: { type: "boolean", default: false },
       "ocr-dir": { type: "string" },
+      "ocr-url": { type: "string" },
+      "ocr-engine": { type: "string" },
+      checkboxes: { type: "boolean", default: false },
     },
   });
   if (!values.in) {
     console.error(
-      "usage: npm run extract -- --in <dir of PDFs> [--out <dir>] [--limit N] [--provider gemini|local|local-text] [--concurrency N] [--model id] [--only id,id] [--force] [--ocr-dir <dir>]",
+      "usage: npm run extract -- --in <dir of PDFs> [--out <dir>] [--limit N] [--provider gemini|local|local-text] [--concurrency N] [--model id] [--only id,id] [--force] [--ocr-dir <dir> | --ocr-url <url> [--ocr-engine e] [--checkboxes]]",
     );
     return 1;
   }
@@ -185,6 +198,38 @@ async function main(): Promise<number> {
     return 1;
   }
   const ocrDir = values["ocr-dir"] !== undefined ? path.resolve(values["ocr-dir"]) : null;
+  if ((values["ocr-url"] !== undefined || values["ocr-engine"] !== undefined || values.checkboxes) && !textPipeline) {
+    console.error("--ocr-url, --ocr-engine and --checkboxes apply to the local-text provider only");
+    return 1;
+  }
+  if (ocrDir !== null && (values["ocr-url"] !== undefined || values["ocr-engine"] !== undefined || values.checkboxes)) {
+    console.error("--ocr-dir reads files already made: --ocr-url, --ocr-engine and --checkboxes do not apply");
+    return 1;
+  }
+  const envServer = resolveOcrServer();
+  const ocrServer: OcrServer | null =
+    !textPipeline || ocrDir !== null
+      ? null
+      : values["ocr-url"] !== undefined
+        ? {
+            url: values["ocr-url"],
+            engine: values["ocr-engine"] ?? DEFAULT_OCR_ENGINE,
+            checkboxes: values.checkboxes ?? false,
+            token: process.env.OCR_TOKEN?.trim() || undefined,
+          }
+        : envServer;
+  if (ocrServer !== null) {
+    try {
+      const health = await ocrServerHealth(ocrServer);
+      if (!health.engines.includes(ocrServer.engine)) {
+        console.error(`the OCR server serves ${health.engines.join(", ")}, not ${ocrServer.engine}`);
+        return 1;
+      }
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      return 1;
+    }
+  }
   const ocrBoxes = values["ocr-boxes"] || (provider === "local" && !values["no-ocr-boxes"]);
   const defaultConcurrency = provider === "gemini" ? "4" : "1";
   const concurrency = Math.max(1, Number.parseInt(values.concurrency ?? defaultConcurrency, 10) || 1);
@@ -236,9 +281,10 @@ async function main(): Promise<number> {
           ...(dpi !== undefined && { dpi }),
           ...(grounding && { grounding }),
           ...(ocrBoxes && { ocr_boxes: true }),
-          ...(textPipeline && { ocr_engine: firstOcr?.engine ?? "tesseract" }),
+          ...(textPipeline && { ocr_engine: firstOcr?.engine ?? ocrServer?.engine ?? "tesseract" }),
           ...(ocrDir !== null && { ocr_dir: path.relative(repoRoot, ocrDir).split(path.sep).join("/") }),
-          ...(textPipeline && { checkboxes: firstOcr?.checkboxes ?? false }),
+          ...(ocrServer !== null && { ocr_url: ocrServer.url }),
+          ...(textPipeline && { checkboxes: firstOcr?.checkboxes ?? ocrServer?.checkboxes ?? false }),
         }
       : undefined;
 
@@ -307,6 +353,8 @@ async function main(): Promise<number> {
         grounding,
         ocrBoxes,
         ocr: ocrFiles.get(id),
+        // The runner decided which OCR to use: OCR_URL is not looked at again.
+        ocrServer,
         onReply: (r) => replies.push(r),
       });
       await writeJson(predictionPath, prediction);
