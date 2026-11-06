@@ -101,6 +101,13 @@ as close as 0.07. So each piece is a line, in reading order (rows from the top, 
 right), and only pieces that touch are joined (`JOIN_GAP`), such as a mark read as an "X" in
 front of its test.
 
+A piece's text is built from its words, one space between two (`line_text`). RapidOCR's own
+text for a piece drops spaces its split into words keeps ("CantábricaSegurosMédicos" for the
+words "Cantábrica", "Seguros", "Médicos"); over the 200 documents of seed 42, the values found
+exactly on their page rose from 1,841 to 1,873 of 1,920 with the words' text. A piece the
+engine split into characters, which it does on a line it takes for Chinese or Japanese (a
+fullwidth colon, faint small print), keeps the engine's text.
+
 ## Checkboxes (`--checkboxes`)
 
 Classic OCR does not read checkboxes: Tesseract reads an empty one as `L]` or `[1]` and drops
