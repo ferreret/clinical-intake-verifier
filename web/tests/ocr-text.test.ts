@@ -123,6 +123,23 @@ describe("a text reply in layer 1", () => {
     expect(warnings).toEqual([]);
   });
 
+  it("reads each value written as [value, page, line], as prompt t3 asks", () => {
+    const warnings: PredictionWarning[] = [];
+    const doc = linesToLayer1(
+      reply({ Paciente: ["RUIZ ORTEGA, MARIA", 1, 1], Sexo: null, Edad: ["41", 1, 7] }, [["Glucosa", 3, 1], ["Urea", 3]]),
+      pages,
+      warnings,
+    ) as { fields: Record<string, unknown>; tests: unknown[] };
+    expect(doc.fields.Paciente).toEqual({ value: "RUIZ ORTEGA, MARIA", page: 1, box_2d: [100, 100, 110, 380] });
+    expect(doc.fields.Sexo).toEqual({ value: null, page: null, box_2d: null });
+    expect(doc.fields.Edad).toEqual({ value: "41", page: 1, box_2d: null });
+    expect(doc.tests[0]).toEqual({ value: "Glucosa", page: 3, box_2d: [300, 100, 310, 170] });
+    // An array of another length is not read: the validator rejects it.
+    expect(doc.tests[1]).toEqual(["Urea", 3]);
+    expect(validateRawExtraction(doc)).not.toEqual([]);
+    expect(warnings).toEqual([{ code: "bbox_invalid", field: "Edad", detail: "line 7 of page 1" }]);
+  });
+
   it("covers the line when its box is not on the 1/1000 grid", () => {
     const odd = structuredClone(pages);
     odd[0].lines[0].box = { x0: 0.1234, y0: 0.1005, x1: 0.3456, y1: 0.1109 };

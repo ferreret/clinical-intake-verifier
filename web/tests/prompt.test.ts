@@ -55,10 +55,11 @@ describe("text instruction", () => {
     const text = buildTextInstruction();
     expect(text).toContain("[pN] Lk: text");
     expect(text).toContain("starts with [X] if it is ticked and [ ] if it is empty");
-    expect(text).toContain("return null for its value, page and line");
+    expect(text).toContain("If a field is not clearly printed, write it as null.");
     expect(text).toContain("Pre-printed tests whose checkbox is not ticked are not requested.");
     expect(text).toContain('A list bullet or dash in front of a test ("- ", "• ") is not part of it.');
-    expect(text).toContain("Write it on one line, with no indentation and no line breaks.");
+    expect(text).toContain("Write each value as an array [value, page, line] and a field that is not present as null");
+    expect(text).toContain('{"fields":{"Paciente":["<as printed>",1,4],"Edad":null},"tests":[["<as printed>",2,22]');
     // "box" is left only where the form has one: "share a box, a border".
     expect(text).not.toMatch(/box_2d|0-1000|The box|tight around/);
   });

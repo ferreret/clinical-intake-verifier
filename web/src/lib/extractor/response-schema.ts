@@ -120,18 +120,41 @@ export function buildResponseSchema(boxes: BoxConvention = GEMINI_BOXES): Record
   return responseSchema(boxLocation(boxes));
 }
 
+/** One value of the text reply: `[value, page, line]`. */
+function textItemSchema(valueDescription: string): Record<string, unknown> {
+  return {
+    type: "array",
+    description: "[value, page, line]",
+    prefixItems: [
+      { type: "string", description: valueDescription },
+      { type: "integer", description: "1-based number N of the page the value was read from, from the [pN] in front of it." },
+      { type: "integer", description: "Number k of the line the value is on, from the Lk in front of it." },
+    ],
+    minItems: 3,
+    maxItems: 3,
+  };
+}
+
 /**
- * The schema of the text pipeline's reply (prompt-text.ts): each value with the number of the
- * OCR line it is on, instead of a box. `linesToLayer1` turns the line into the box.
+ * The schema of the text pipeline's reply (prompt-text.ts, since t3): each value as `[value,
+ * page, line]`, the number of the OCR line it is on instead of a box, and a field not present
+ * as null. `linesToLayer1` turns the line into the box.
  */
 export function buildTextResponseSchema(): Record<string, unknown> {
-  return responseSchema([
-    "line",
-    {
-      anyOf: [{ type: "integer" }, { type: "null" }],
-      description: "Number k of the line the value is on, from the [pN] Lk in front of it. Null when value is null.",
+  const fieldProperties = Object.fromEntries(
+    FIELDS.map((f) => [
+      f.name,
+      { anyOf: [textItemSchema(f.description), { type: "null" }], description: "Null when not clearly present in the document." },
+    ]),
+  );
+  return {
+    type: "object",
+    properties: {
+      fields: { type: "object", properties: fieldProperties, required: FIELDS.map((f) => f.name) },
+      tests: { type: "array", description: TESTS.description, items: textItemSchema("One requested test, exactly as printed.") },
     },
-  ]);
+    required: ["fields", "tests"],
+  };
 }
 
 /**
@@ -186,20 +209,24 @@ function boxToLayer1(box: BBox): number[] {
 }
 
 /**
- * A parsed reply of the text pipeline, `{value, page, line}` per item, rewritten in layer 1's
- * shape: the line's box, which the OCR measured, as `box_2d` in Gemini's order. normalize.ts,
- * the harness and the UI then read it as any other reply. The box covers the whole line; the
- * caller tightens it to the value (relocateBoxes).
+ * A parsed reply of the text pipeline, `[value, page, line]` per item (prompt t3) or
+ * `{value, page, line}` (t1 and t2), rewritten in layer 1's shape: the line's box, which the
+ * OCR measured, as `box_2d` in Gemini's order. normalize.ts, the harness and the UI then read
+ * it as any other reply. The box covers the whole line; the caller tightens it to the value
+ * (relocateBoxes).
  *
  * A value with no line, or with a line that is not on its page, gives no box, the value and
  * page kept, and is reported in `warnings` as `bbox_invalid`. A box written instead of a line is
  * dropped: in this pipeline the model never sees the page, so it cannot measure one. The
  * shorthands of toLayer1 are read in the same way: a bare null is a field not present, a bare
- * string a value with no page and no line.
+ * string a value with no page and no line. An array of another length is passed through for
+ * the validator to reject.
  */
 export function linesToLayer1(doc: unknown, pages: readonly OcrTextPage[], warnings?: PredictionWarning[]): unknown {
   if (typeof doc !== "object" || doc === null) return doc;
-  const item = (raw: unknown, field: string): unknown => {
+  const item = (written: unknown, field: string): unknown => {
+    if (Array.isArray(written) && written.length !== 3) return written;
+    const raw = Array.isArray(written) ? { value: written[0], page: written[1], line: written[2] } : written;
     if (typeof raw === "string") return { value: raw, page: null, box_2d: null };
     if (typeof raw !== "object" || raw === null) return raw;
     const rest = { ...(raw as Record<string, unknown>) };

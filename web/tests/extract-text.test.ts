@@ -71,12 +71,12 @@ function reply(text: string) {
   return { text, modelVersion: "qwen/test", usage: { input_tokens: 2000, output_tokens: 300, thinking_tokens: 0 } };
 }
 
-/** A reply of the text prompt: each value with its page and line. */
+/** A reply of the text prompt: each value as [value, page, line], an absent field as null. */
 function textJson(overrides: Record<string, unknown> = {}): string {
-  const fields: Record<string, unknown> = Object.fromEntries(FIELD_NAMES.map((n) => [n, { value: null, page: null, line: null }]));
-  fields.Sexo = { value: "M", page: 1, line: 1 };
-  fields.Telefono = { value: "919213939", page: 1, line: 1 };
-  return JSON.stringify({ fields: { ...fields, ...overrides }, tests: [{ value: "Urea", page: 1, line: 2 }] });
+  const fields: Record<string, unknown> = Object.fromEntries(FIELD_NAMES.map((n) => [n, null]));
+  fields.Sexo = ["M", 1, 1];
+  fields.Telefono = ["919213939", 1, 1];
+  return JSON.stringify({ fields: { ...fields, ...overrides }, tests: [["Urea", 1, 2]] });
 }
 
 const opts = { provider: "local-text" as const, model: "qwen/test", retryDelayMs: 0, ocrServer: null };
@@ -96,7 +96,7 @@ describe("extract with the text pipeline", () => {
     expect(validatePrediction(p)).toEqual([]);
     expect(p.extractor).toMatchObject({
       model: "qwen/test",
-      prompt_version: "t2",
+      prompt_version: "t3",
       input_mode: "ocr-text",
       thinking_level: null,
       attempts: 1,
@@ -105,7 +105,7 @@ describe("extract with the text pipeline", () => {
     const request = mockedCall.mock.calls[0][0];
     expect(request.pages).toEqual([]);
     expect(request.userMessage).toContain("[p1] L1: Sexo: M Teléfono: 919213939\n[p1] L2: [X] Urea");
-    expect(request.systemInstruction).toContain('"line"');
+    expect(request.systemInstruction).toContain("[value, page, line]");
     expect(request.systemInstruction).not.toMatch(/b?box_2d/);
   });
 
@@ -127,7 +127,7 @@ describe("extract with the text pipeline", () => {
   });
 
   it("keeps a value on a line that does not exist, without a box and with a warning", async () => {
-    mockedCall.mockResolvedValueOnce(reply(textJson({ NumeroPeticion: { value: "2605150980", page: 1, line: 9 } })));
+    mockedCall.mockResolvedValueOnce(reply(textJson({ NumeroPeticion: ["2605150980", 1, 9] })));
     const pdf = await samplePdf();
     const p = await extract(pdf, { ...opts, ocr: ocrOf(pdf) });
 
@@ -183,7 +183,7 @@ describe("extract with the text pipeline", () => {
   });
 
   it("reads the pages with Tesseract when no OCR is given", async () => {
-    mockedCall.mockResolvedValueOnce(reply(textJson({ Telefono: { value: null, page: null, line: null } })));
+    mockedCall.mockResolvedValueOnce(reply(textJson({ Telefono: null })));
     const p = await extract(await samplePdf(), opts);
 
     const text = mockedCall.mock.calls[0][0].userMessage;
