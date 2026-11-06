@@ -110,3 +110,13 @@ def test_a_marked_segment_starts_a_line_of_its_own() -> None:
     home = Segment("Home", Box(240, 100, 320, 130), _words(240, 100, "Home"), mark="checked")
     lines = group_lines([sex, home], width=2481)
     assert [(line.text, line.mark) for line in lines] == [("Sexo:", None), ("Home", "checked")]
+
+
+def test_a_piece_with_no_box_in_front_keeps_the_engine_s_text() -> None:
+    img = _page([(100, 100, 8, "x")])
+    found = CheckboxDetector(DPI).detect(img)
+    # RapidOCR's characters for a line it took for Chinese: its own text has the spaces.
+    chars = [Word(c, Box(600 + 20 * i, 300, 615 + 20 * i, 330)) for i, c in enumerate("CLAVERO")]
+    seg = Segment("CLAVERO", Box(600, 300, 735, 330), chars)
+    (line,) = CheckboxDetector(DPI).attach([seg], found, img.width)
+    assert (line.text, line.mark) == ("CLAVERO", None)

@@ -1,11 +1,23 @@
 from __future__ import annotations
 
 import hashlib
+from types import SimpleNamespace
 
 import jsonschema
 import pytest
+from PIL import Image
 
-from intake_ocr.document import Box, Page, Segment, Word, document_dict, group_lines, validate
+from intake_ocr.document import (
+    Box,
+    Page,
+    Segment,
+    Word,
+    document_dict,
+    group_lines,
+    line_text,
+    validate,
+)
+from intake_ocr.engines.rapid import RapidEngine
 from intake_ocr.engines.tesseract import parse_tsv
 
 
@@ -80,3 +92,38 @@ def test_tesseract_tsv_gives_its_lines_with_their_words_and_no_punctuation_alone
     assert [line.text for line in lines] == ["Sexo: M", "Teléfono:", "Urea"]
     assert lines[0].box == Box(170, 753, 583, 801)
     assert [w.text for w in lines[0].words] == ["Sexo:", "M"]
+
+
+def _row(*texts: str) -> list[Word]:
+    return [Word(t, Box(100 * i, 0, 100 * i + 90, 30)) for i, t in enumerate(texts)]
+
+
+def test_a_piece_s_text_is_its_words_unless_they_are_characters() -> None:
+    words = _row("Financiador:", "Cantábrica", "Seguros", "Médicos")
+    joined = "Financiador: CantábricaSegurosMédicos"
+    assert line_text(words, joined) == "Financiador: Cantábrica Seguros Médicos"
+    assert line_text(_row(*"CLAVERO"), "CLAVERO") == "CLAVERO"
+    assert line_text(_row("M"), "M") == "M"
+    assert line_text([], "Urea") == "Urea"
+
+
+def test_rapidocr_gives_each_piece_the_text_of_its_words() -> None:
+    def quad(x0: float, x1: float) -> list[list[float]]:
+        return [[x0, 10], [x1, 10], [x1, 40], [x0, 40]]
+
+    result = SimpleNamespace(
+        boxes=[quad(0, 300)],
+        txts=["CantábricaSegurosMédicos"],
+        word_results=[
+            [
+                ("Cantábrica", 0.99, quad(0, 100)),
+                ("Seguros", 0.98, quad(110, 200)),
+                ("Médicos", 0.99, quad(210, 300)),
+            ]
+        ],
+    )
+    engine = object.__new__(RapidEngine)
+    engine._engine = lambda image, return_word_box: result
+    (piece,) = engine.read(Image.new("RGB", (400, 50), "white"))
+    assert piece.text == "Cantábrica Seguros Médicos"
+    assert piece.box == Box(0, 10, 300, 40)

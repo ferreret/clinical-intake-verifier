@@ -20,7 +20,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from intake_ocr.document import Box, Mark, Segment, Word
+from intake_ocr.document import Box, Mark, Segment, Word, line_text
 
 #: Sides of the boxes drawn on the forms, in points (synth: recorder.checkbox and sex_boxes).
 SMALLEST_PT = 6.8
@@ -199,7 +199,9 @@ class CheckboxDetector:
                 and seg.box.x0 - MAX_LEAD * c.box.height <= c.box.x1 <= seg.box.x1
             ]
             if not row:
-                out.append(_segment(words, seg.mark) if seg.words else seg)
+                # Rebuilt only when a word on a box was dropped: the engine's text stands.
+                dropped = seg.words and len(words) < len(seg.words)
+                out.append(_segment(words, seg.mark) if dropped else seg)
                 continue
             row.sort(key=lambda c: c.box.x0)
             parts: list[tuple[Checkbox | None, list[Word]]] = [(None, [])]
@@ -221,10 +223,11 @@ class CheckboxDetector:
 
 
 def _segment(words: list[Word], mark: Mark) -> Segment:
+    """The words of a piece as a line of their own; characters (see line_text) run together."""
     box = words[0].box
     for w in words[1:]:
         box = box.union(w.box)
-    return Segment(" ".join(w.text for w in words), box, list(words), mark)
+    return Segment(line_text(words, "".join(w.text for w in words)), box, list(words), mark)
 
 
 def _area(b: Box) -> float:

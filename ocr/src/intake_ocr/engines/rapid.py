@@ -1,7 +1,8 @@
 """RapidOCR on ONNX Runtime, CPU only, with the PP-OCRv6 models (multilingual, Latin script).
 
 Its detector finds pieces of text (a label, a value, a cell), each with its words;
-document.group_lines joins them into lines. The models are fetched by RapidOCR from its model
+document.group_lines joins them into lines. A piece's text is made of its words
+(document.line_text): the text RapidOCR gives for it drops some of their spaces. The models are fetched by RapidOCR from its model
 hub on first use and kept in data/models/rapidocr, outside the repository.
 """
 
@@ -12,7 +13,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from intake_ocr.document import Box, Segment, Word, repo_root
+from intake_ocr.document import Box, Segment, Word, line_text, repo_root
 
 #: The detector and recogniser size: tiny, small or medium.
 MODEL_TYPE = "small"
@@ -55,5 +56,5 @@ class RapidEngine:
         segments = []
         for points, text, words in zip(result.boxes, result.txts, words_of):
             ws = [Word(w[0], Box.of_points(w[2])) for w in words if w[0].strip()]
-            segments.append(Segment(text=text, box=Box.of_points(points), words=ws))
+            segments.append(Segment(line_text(ws, text), box=Box.of_points(points), words=ws))
         return segments

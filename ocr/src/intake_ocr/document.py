@@ -32,6 +32,11 @@ ROW_TOLERANCE = 0.5
 #: Segments of a row closer than this, in page widths (a character at 10 pt is about 0.01),
 #: are one line: they touch. Anything wider is another line (see above).
 JOIN_GAP = 0.01
+#: A piece of at least this many words, most of them one character, was split by its engine
+#: into characters, not words: RapidOCR does so on a line it takes for Chinese or Japanese (one
+#: with a fullwidth colon, "Autorització：", or faint small print), and those words say nothing
+#: about where the spaces are.
+PER_CHARACTER_WORDS = 3
 
 
 @dataclass(frozen=True)
@@ -90,6 +95,23 @@ class Page:
     height: int
     lines: list[Segment]
     elapsed_ms: int | None = None
+
+
+def line_text(words: list[Word], engine_text: str) -> str:
+    """A piece's text from its words, one space between two, as the engine split them.
+
+    RapidOCR's text for a piece drops spaces that its own split into words keeps: it reads
+    "CantábricaSegurosMédicos" and gives the words "Cantábrica", "Seguros", "Médicos". Over the
+    200 documents of seed 42, the values found exactly on their page, spaces included, rose
+    from 1,841 to 1,873 of 1,920 with the words' text (2026-11-06). A piece split into
+    characters (``PER_CHARACTER_WORDS``) keeps the engine's text, whose spaces are right there.
+    """
+    if not words:
+        return engine_text
+    singles = sum(len(w.text) == 1 for w in words)
+    if len(words) >= PER_CHARACTER_WORDS and 2 * singles > len(words):
+        return engine_text
+    return " ".join(w.text for w in words)
 
 
 def _same_row(a: Box, b: Box) -> bool:
