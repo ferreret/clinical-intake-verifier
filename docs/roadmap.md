@@ -20,6 +20,10 @@ Last updated: 2026-11-02.
 Local open-weight vision models were approved on 2026-10-26 as the top priority, ahead of
 F4 block 6 (section 3).
 
+An OCR-text pipeline for the local model (an OCR on the server reads the pages, Qwen reads
+its text) was measured on 2026-11-06 as an experiment flag: 2.9 times faster than the local
+image path, 1.9 points less field precision. Not adopted (section 3).
+
 ### First live extractor run
 
 Five documents (`synth-000000` to `synth-000004`, seed 42), `gemini-3.8-flash`, prompt v1,
@@ -817,6 +821,205 @@ On the failed document it also kept the "- " list bullets in front of the tests.
 **Verdict:** Gemma is no faster on this machine and is less accurate on every count, so Qwen
 stays the local model. The 200-document run is not worth doing. The change of convention
 stays, so Gemma can still be selected with `LOCAL_LLM_MODEL`.
+
+#### OCR-text pipeline, measured on 2026-11-06
+
+**Status: commissioned by the product owner on 2026-11-05 as an experiment flag, not an
+adoption.** The local image path (Qwen v6 + OCR boxes) reads values almost as well as Gemini
+but takes 84 s per document on this machine, most of it spent on image tokens and on the
+reply. The hypothesis: an OCR reads the pages, and the same local model reads only the OCR's
+text, in 15 to 25 s per document.
+
+**What was built** (`ed230ba`..`d1c2e21`, 18 commits):
+
+- **Provider `local-text`, input mode `ocr-text`** (`bda0597`, `fae0fb9`). The model is given
+  the OCR's lines as `[pN] Lk: text`, with `[X]` or `[ ]` in front of a line that has a
+  checkbox, and answers each value with its page and line instead of a box. The box is that
+  line's, tightened to the value with the OCR's words (`relocateBoxes`, `ed230ba`). Prompt
+  `t1`, versioned apart from the image prompt; same fields and rules. Contract in
+  [`extractor-contract.md`](extractor-contract.md).
+- **`ocr/`, the `intake-ocr` package** (`de72e11`, `7ee1a6e`, `1a9c0a2`): five engines behind
+  one OCR file (`schema/ocr.schema.json`), `run` for a directory, `bench` to time an engine on
+  the first pages, and `serve`, the engines behind HTTP on the models' machine, which is how
+  the product would call them: the OCR runs on the server, not on the operator's computer. The
+  extractor asks it with `--ocr-server`. Design in [`ocr.md`](ocr.md).
+- **A checkbox detector without a model** (`80f8e33`): OpenCV squares of a checkbox's size,
+  and the ink inside them, given as the mark of the text on their right.
+
+Every run below: Qwen3.6-35B-A3B in LM Studio, temperature 0, `reasoning_effort: "none"`, no
+`response_format`, concurrency 1, 200 documents of `seed-42` after a 20-document smoke, each
+scored with `--baseline` against `20261026-qwen3.6-35b-a3b-p6-ocr` and
+`20261026-gemini-3.8-flash-p6`; the `.raw.json` replies are kept. Time per document includes
+the OCR.
+
+**OCR engines** (`intake-ocr bench`, first 20 pages of `seed-42` at 300 dpi, alone on the
+machine; text scored against the goldens):
+
+| Engine | s/page, mean / median | Checkboxes | Handwriting | How it was started |
+|---|---|---|---|---|
+| RapidOCR 3.9.2, PP-OCRv6 small | 1.7 / 1.7 (CPU) | Reads 113 of 623 ticks as an "X", nothing else; 616 of 617 lines with the detector | 94 of 100 handwritten values exact (200 documents) | `uv` package, ONNX Runtime on the CPU |
+| Tesseract 5.5, `spa+cat` | 0.9 / 0.9 (CPU) | 64 of 623 ticks seen; an empty box as "L]" or "[1]"; 594 of 607 lines with the detector | 22 of 100 | System package (`apt`), from its TSV |
+| tesseract.js, `spa` (step 0) | 0.9 / 0.8 (wall time, 8 workers) | 7 of 623 ticks seen | 36 of 100 | In the extractor's process |
+| PaddleOCR-VL-1.6 | 10.1 / 8.9 (GPU) | `☒`/`☐` on 6 of 11 lines | 4 of 5 | Official GGUF in LM Studio, prompt `OCR:`; second try all on the CPU, below |
+| GLM-OCR | 13.7 / 15.1 (GPU) | `☑`/`☐` on 10 of 11 | 5 of 5 | ggml-org's GGUF in LM Studio |
+| dots.ocr | 47.3 / 51.1 (GPU) | `[x]`/`[ ]` on 11 of 11 | 4 of 5 | ggml-org's GGUF in LM Studio, its layout prompt |
+
+Exact values (letters and digits) on the 20 pages: RapidOCR 182 of 183, PaddleOCR-VL 180,
+GLM-OCR 183, dots.ocr 181, Tesseract 171. On the 200 documents: RapidOCR 99.3%, Tesseract
+93.9%, tesseract.js 92.7%.
+
+- **The three vision OCR models give no position per line through LM Studio**, so they cannot
+  write an OCR file with boxes, and the text pipeline cannot use them as they run here. They
+  are also 6 to 28 times slower than RapidOCR per page, on the GPU the text model needs.
+- **PaddleOCR-VL, tried twice.** The projector on the GPU, and the whole model on the CPU
+  (`lms load --gpu off`, the nearest LM Studio has to `--no-mmproj-offload`): the same text,
+  byte for byte, on 3 of the first 4 pages, and one line read differently on the fourth. The
+  degraded output reported with the projector on Vulkan does not show here; the CPU is 1.2 to
+  1.5 times slower. On one page of the 20 it runs away on the form's blank lines (4,096
+  tokens of `_____`, 50 s). `llama-server --special`, the documented route to its `Spotting:`
+  boxes, could not be run: the permission rules of the session blocked the downloaded binary.
+
+**Verdict:** RapidOCR on the CPU is the engine: as exact as the vision models on printed
+text, the best on handwriting, positions per word, and no GPU.
+
+**Step 0: Tesseract text path** (tesseract.js in the extractor, no checkboxes; run
+`20261105-qwen3.6-35b-a3b-pt1-tesseractjs`) and **step 3: the text path per OCR** (runs
+`20261105-qwen3.6-35b-a3b-pt1-<ocr>`, then `20261106-qwen3.6-35b-a3b-pt2-rapidocr-cb2` and
+`-pt3-rapidocr-cb2`):
+
+| Measure | Image: Qwen v6 + OCR boxes | Image: Gemini v6 | tesseract.js | Tesseract | Tesseract + cb | RapidOCR | RapidOCR + cb | RapidOCR + cb, t2 | **RapidOCR + cb, t3** |
+|---|---|---|---|---|---|---|---|---|---|
+| Documents evaluated / failed | 200 / 0 | 200 / 0 | 200 / 0 | 199 / 1 | 199 / 1 | 200 / 0 | 199 / 1 | 198 / 2 | 200 / 0 |
+| Fields correct / wrong / missed | 2,042 / 7 / 1 | 2,045 / 5 / 0 | 1,829 / 138 / 83 | 1,817 / 168 / 53 | 1,817 / 156 / 65 | 1,948 / 64 / 38 | 1,971 / 32 / 39 | 1,967 / 31 / 36 | 1,992 / 29 / 29 |
+| Precision / recall | 99.5 / 99.6 | 99.8 / 99.8 | 91.5 / 89.2 | 90.4 / 89.2 | 90.8 / 89.2 | 95.9 / 95.0 | 97.5 / 96.5 | 97.5 / 96.7 | 97.6 / 97.2 |
+| Invented values | 3 | 0 | 32 | 24 | 27 | 19 | 19 | 19 | 21 |
+| Tests P / R / F1 | 99.4 / 99.4 / 99.4 | 99.8 / 99.6 / 99.7 | 57.4 / 79.0 / 66.5 | 61.7 / 81.1 / 70.1 | 90.2 / 87.5 / 88.8 | 59.6 / 90.8 / 71.9 | 95.5 / 94.7 / 95.1 | 96.9 / 96.2 / 96.6 | 96.2 / 95.6 / 95.9 |
+| Exact test lists | 190 of 200 | 194 of 200 | 66 of 200 | 66 of 199 | 87 of 199 | 120 of 200 | 154 of 199 | 151 of 198 | 156 of 200 |
+| Boxes at IoU ≥ 0.5 | 92.5% (3,360 of 3,632) | 99.4% (3,615 of 3,636) | 97.1% (3,004 of 3,093) | 96.4% (2,999 of 3,112) | 96.5% (3,099 of 3,212) | 97.6% (3,319 of 3,401) | 97.3% (3,388 of 3,482) | 97.1% (3,384 of 3,486) | 97.3% (3,419 of 3,515) |
+| Values without a box (no_box) | 2 | 3 | 0 | 0 | 1 | 0 | 0 | 1 | 7 |
+| Median IoU | 0.77 | 0.76 | 0.77 | 0.77 | 0.77 | 0.74 | 0.74 | 0.74 | 0.74 |
+| End-to-end field / test recall | 99.6 / 99.4 | 99.8 / 99.6 | 89.2 / 79.0 | 88.6 / 80.9 | 88.6 / 87.2 | 95.0 / 90.8 | 96.1 / 94.4 | 96.0 / 94.9 | 97.2 / 95.6 |
+| Time per document | 83.8 s | 8.7 s | 47.3 s | 40.4 s | 37.3 s | 47.4 s | 42.2 s | 38.3 s | 28.8 s |
+| Tokens in / out per document | 9,361 / 1,169 | 2,658 / 1,006 | 4,885 / 900 | 4,834 / 886 | 4,840 / 779 | 4,863 / 916 | 4,942 / 781 | 4,951 / 782 | 4,844 / 570 |
+
+"+ cb" is the checkbox detector. The last two columns read the OCR again with the fixes
+below (`data/ocr/rapidocr-cb2`, alone on the machine) and are prompts `t2` and `t3`; the rest
+are prompt `t1`. The image columns are the baselines, from section 3 above.
+
+- **Step 0, verdict:** tesseract.js halves the time (47.3 s) but costs 8 points of precision,
+  invents 32 values, and without checkboxes gets two test lists of three wrong (F1 66.5%). Not
+  usable.
+- **Tesseract, verdict:** native Tesseract reads no better than tesseract.js (precision
+  90.4%, 22 of 100 handwritten values). The detector mends its test lists (F1 70.1% → 88.8%)
+  but not its values, which the model copies as they were misread. Not usable.
+- **RapidOCR, verdict:** the engine whose text the model can trust: precision 95.9% alone,
+  97.5% with the detector, test F1 95.1%, at 42 s. Without the detector the test lists are
+  wrong; with it they are within 4.3 points of the image path.
+- **Prompt t2, verdict:** the bullet rule is worth 1.5 points of test F1 (95.1% → 96.6%);
+  fields do not move. The one-line rule did nothing: Qwen indented its reply as before, 782
+  tokens against 781. The 4 s it seems to save is the OCR timed alone (7.7 → 4.8 s per
+  document) and a slightly faster machine (33.5 s of model against 34.6), not the prompt.
+- **Prompt t3, verdict:** the reply is 27% shorter (570 tokens against 782) and the
+  document 9.5 s faster (28.8 s: 4.8 of OCR, 24.0 of model), with fields as good or better
+  (precision 97.6%, recall 97.2%) and no document lost: the two t2 lost to the sex slip are
+  read. Test F1 is 0.7 points lower, and 27 of the 33 test errors it adds are one document
+  whose bullets Qwen kept (`synth-000074`, 14 tests). 7 values come without a line (`no_box`),
+  against 1. It needed two readings at the boundary, below. **The best run.**
+
+**Checkboxes are what the test lists need.** Without them the model lists every pre-printed
+test of the classic form, ticked or not: test precision 59.6% with RapidOCR, 95.5% with the
+detector (F1 71.9% → 95.1%); the sex, ticked in a box on two templates, is right on 170
+documents instead of 157. The reply is also shorter (916 → 781 tokens), and so 5 s faster.
+
+**Gemma 4 26B-A4B on the same OCR** (`20261105-gemma-4-26b-a4b-pt1-rapidocr-cb`): 8 s per
+document faster than Qwen (34.3 s), with a compact reply (523 tokens against 781), but 45 of
+the 200 documents fail as invalid JSON on both attempts. Its replies, without
+`response_format`, close an object one brace early or add one at the end (53 of the 90
+failed replies), glue a key to its value (`"value,"+34…`, 32, 30 of them on the telephone),
+or write an absent field without its page and line (5). On the 155 it read: precision 96.0%,
+recall 96.5%, 27 invented, tests F1 95.2% (Qwen on the same 155: −1.4, +0.2, 13 more
+invented, −0.7). **Verdict:** not usable without constrained output; it would need
+`response_format` with the schema, or a parser that repairs syntax, before it is worth
+measuring again.
+
+**MTP drafting** (`lms load --speculative-draft-mtp`) could not be measured: LM Studio
+refuses it for this build of Qwen ("requires a GGUF model with a bundled supported MTP head").
+The 20 documents ran on the model loaded without it, and repeated the first 20 of the
+checkbox run byte for byte, at the same speed: at temperature 0, Qwen nearly always repeats
+itself on the same input (one exception below).
+
+**Findings, and what changed** (`2177a4a`, `e1483b8`, `c6af8ec`, `0b82faa`, `3e2d556`,
+`01c9147`, `d1c2e21`):
+
+- **RapidOCR's text drops spaces its words keep.** It reads "CantábricaSegurosMédicos" and
+  gives the words "Cantábrica", "Seguros", "Médicos"; all 13 insurers it got wrong without
+  checkboxes were this. The checkbox step rebuilt the text from the words and hid it.
+  Each piece's text now comes from its words, except a piece split into characters, which
+  RapidOCR does on a line it takes for Chinese or Japanese: values found exactly on their page
+  1,841 → 1,873 of 1,920.
+- **Fullwidth punctuation.** RapidOCR writes a few colons and commas as `：` and `，` (one inside
+  a patient's name); the OCR file now writes them as ASCII. Not full NFKC, which would turn
+  the "º" of "Nº" (962 times) into an "o".
+- **Prompt `t2`.** A list bullet in front of a test is not part of it (t1 kept "- CT" on 28
+  tests of 3 documents, 56 of the 156 test errors with checkboxes), and the reply on one line:
+  Qwen indented it, and on this machine the reply is most of the time (about 23 tokens per
+  second, 33.5 of the 38.3 s per document).
+- **Qwen's invalid JSON on t1 and t2 is always the same slip.** Six documents failed so,
+  across four runs (`synth-000111` with Tesseract, with and without checkboxes; `-000117`
+  with RapidOCR on t1 and t2; `-000195` on t2; `-000016` on t2's smoke), and every one is the
+  sex written as a bare `"H"` or `"M"` followed by its `page` and `line` keys and a `}`,
+  which closes `fields` too early; each time right after `"Edad": null`. It is the habit
+  prompt v5 showed on the image path (a bare `"M"`), here inside an object. The retry inside
+  a run repeats it byte for byte, but a document that failed in one run can pass in another
+  (`synth-000016`: t2's smoke, then its 200). On t3, with no keys inside a value, it is gone.
+- **Prompt `t3`.** Since the instruction did not shorten the reply, its shape does: each value
+  as `[value, page, line]`, a field not present as `null`, shown in a one-line example with
+  placeholders. No keys are left inside a value to misplace. The boundary still reads `t1`'s
+  and `t2`'s objects. Qwen still indents, now one array element per line: what it saves is
+  the keys, not the layout.
+- **Two new shorthands on `t3`** (`01c9147`, `d1c2e21`). Qwen wrote an absent field as
+  `["null", null, null]`, the word with no page and no line (two fields of one document on
+  the smoke, scored as wrong values), and as `[null]` (one field on the 200, which failed the
+  document on both attempts as `schema_mismatch`). The boundary now reads an array that holds
+  nothing, in a field, as a field not present; with a page or a line it is left as written.
+  Each document was read again after its fix, the first copies kept apart; the other 199
+  were not touched.
+
+**Fusion and test mapping on the text runs**, against the image path (`npm run fuse` and
+`map-simulate`, lexical and with Qwen on the red lines, as in F4):
+
+| Measure | Image: Qwen v6 + OCR boxes | Image: Gemini v6 | RapidOCR + cb, t1 | RapidOCR + cb, t2 | **RapidOCR + cb, t3** |
+|---|---|---|---|---|---|
+| Fields green / orange / red / grey | 1,157 / 941 / 59 / 443 | 1,160 / 936 / 59 / 445 | 1,120 / 916 / 98 / 466 | 1,116 / 914 / 102 / 468 | 1,129 / 922 / 95 / 454 |
+| Wrong links / wrong green | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| LIS disagreements caught red | 49 of 50 | 50 of 50 | 50 of 50 | 49 of 50 | 50 of 50 |
+| Wrong values, none green | 7 | 5 | 23 | 23 | 24 |
+| Values missing, red / grey | 0 / 0 | 0 / 0 | 22 / 32 | 26 / 34 | 15 / 24 |
+| Red with no disagreement | 3 | 0 | 19 | 20 | 23 |
+| Test lines read exact / misread / invented / not read | 1,592 / 8 / 1 / 1 | 1,594 / 3 / 0 / 4 | 1,511 / 69 / 3 / 15 | 1,520 / 43 / 5 / 17 | 1,530 / 56 / 4 / 15 |
+| Mapping, lexical: green / orange / red | 588 / 943 / 70 | 582 / 946 / 69 | 547 / 955 / 81 | 549 / 946 / 73 | 551 / 962 / 77 |
+| Mapping, lexical: technician's work | 4.7% | 4.7% | 5.5% | 5.2% | 5.2% |
+| Mapping, + Qwen on the red: red / technician's work | 5 / 1.5% | 5 / 1.5% | 14 / 1.9% | 11 / 1.8% | 12 / 1.8% |
+| Qwen on the red: right | 52 of 65 (80.0%) | 51 of 64 (79.7%) | 57 of 67 (85.1%) | 52 of 62 (83.9%) | 54 of 65 (83.1%) |
+| Wrong green in mapping | 0 | 0 | 0 | 0 | 0 |
+
+The safety holds: no wrong green, no wrong link, and every disagreement with the LIS red on
+t3. What the text path costs lands in orange and red, where a person looks: 24 values wrong
+in orange instead of 7, 95 fields red instead of 59, and 56 test lines misread instead of 8
+(the OCR's "liquido" for "líquido", "HbAlc" for "HbA1c"), which the mapping still codes; the
+technician's share of test lines goes from 1.5% to 1.8%.
+
+**Verdict.**
+
+1. **Time:** 83.8 → 28.8 s per document, 2.9 times faster (4.8 s of OCR on the CPU, 24.0 s
+   of Qwen). Above the 15 to 25 s hoped for: Qwen still writes 570 tokens, at about 24 a
+   second on this machine.
+2. **Precision cost:** field precision 99.5% → 97.6%, recall 99.6% → 97.2%, 21 invented
+   values instead of 3, test F1 99.4% → 95.9%. No wrong green; 17 more wrong values in orange,
+   36 more fields in red, mapping work 1.5% → 1.8%.
+3. **Recommended combination:** RapidOCR on the server's CPU (`intake-ocr serve`) + the
+   OpenCV checkbox detector + Qwen3.6-35B-A3B on prompt `t3`. Not adopted: it stays the
+   `local-text` flag, and the README changes only if the product owner adopts it.
 
 ### 4. F4: mock LIS, fusion engine and test mapping (approved)
 
