@@ -57,6 +57,8 @@ describe("text instruction", () => {
     expect(text).toContain("starts with [X] if it is ticked and [ ] if it is empty");
     expect(text).toContain("return null for its value, page and line");
     expect(text).toContain("Pre-printed tests whose checkbox is not ticked are not requested.");
+    expect(text).toContain('A list bullet or dash in front of a test ("- ", "• ") is not part of it.');
+    expect(text).toContain("Write it on one line, with no indentation and no line breaks.");
     // "box" is left only where the form has one: "share a box, a border".
     expect(text).not.toMatch(/box_2d|0-1000|The box|tight around/);
   });

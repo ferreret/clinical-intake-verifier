@@ -194,9 +194,11 @@ line of print, numbered by page and line (`ocr-text.ts`):
 ```
 
 A checkbox the OCR detected is a token at the start of its line, `[X]` ticked and `[ ]` empty.
-The instruction is prompt `t1` (`prompt-text.ts`), versioned apart from the image prompt: the
+The instruction is prompt `t2` (`prompt-text.ts`), versioned apart from the image prompt: the
 same field lines and normalisation rules, rules 1 to 6 worded for lines, and a description of
-the input. The reply has `line` where the other prompt has a box:
+the input. Since `t2` it also says that a list bullet in front of a test is not part of it, and
+asks for the reply on one line, since output tokens are most of a local run's time. The reply
+has `line` where the other prompt has a box:
 
 ```json
 { "fields": { "Paciente": { "value": "PERALTA PASCUAL, ROSALINDA", "page": 2, "line": 6 } },
@@ -275,7 +277,7 @@ attempt (`{id, model, prompt_version, replies: [{attempt, text}]}`), so that a
 harness reads only `.pred.json`, and `intake-synth validate` skips these files.
 
 `run-id` defaults to `<timestamp>-<model>-p<prompt_version>`; the text pipeline's prompt
-versions start with `t`, so its runs end in `-pt1`. With `--provider local-text`,
+versions start with `t`, so its runs end in `-pt2`. With `--provider local-text`,
 `--ocr-url <url>` sends each PDF to the OCR server (`--ocr-engine`, `--checkboxes`), whose
 health is checked before the first document; `--ocr-dir <dir>` reads `<dir>/<id>.ocr.json`
 for every PDF instead: all are read and checked against their schema and their PDF's hash

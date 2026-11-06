@@ -96,7 +96,7 @@ describe("extract with the text pipeline", () => {
     expect(validatePrediction(p)).toEqual([]);
     expect(p.extractor).toMatchObject({
       model: "qwen/test",
-      prompt_version: "t1",
+      prompt_version: "t2",
       input_mode: "ocr-text",
       thinking_level: null,
       attempts: 1,

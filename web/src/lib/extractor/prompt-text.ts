@@ -6,11 +6,16 @@
  * the same values; rules 1 to 6 are the same rules, worded for lines. Bump PROMPT_VERSION_TEXT
  * whenever the wording here changes. It is a version of its own, with a `t`, because the
  * harness only compares like with like.
+ *
+ * t2 (2026-11-06), from the 200-document runs of t1: a list bullet in front of a test is not
+ * part of it (the OCR text shows it, and t1 kept "- CT" on 28 tests of 3 documents), and the
+ * reply is written on one line, since Qwen indented it and output tokens are most of the time
+ * on this machine (about 25 per second; Gemma, which writes it compact, used half as many).
  */
 import { FIELDS, TESTS } from "@/lib/schema/fields";
 import { describeField } from "./prompt";
 
-export const PROMPT_VERSION_TEXT = "t1";
+export const PROMPT_VERSION_TEXT = "t2";
 
 export function buildTextInstruction(): string {
   const fieldLines = FIELDS.map((f) => describeField(f, false)).join("\n");
@@ -20,7 +25,7 @@ You do not see the pages. You are given the text an OCR read from them: one line
 
 The document may have several pages in any order: the request form itself (sometimes continued on a further page), the insurer's authorisation letter, photocopies of an insurance card or an identity document, an informed-consent form, a fax cover sheet, blank pages, or the same form scanned twice. All pages belong to one patient and one request.
 
-Return only a JSON object that matches the response schema. No prose, no markdown.
+Return only a JSON object that matches the response schema. No prose, no markdown. Write it on one line, with no indentation and no line breaks.
 
 Fields (object "fields", one entry per name):
 ${fieldLines}
@@ -32,7 +37,7 @@ Rules:
 2. If a field is not clearly printed, return null for its value, page and line. Never infer a value from another field (do not compute Edad from FechaNacimiento, do not derive Sexo from the name) and never invent one.
 3. Prefer the value printed on the request form. If it appears only on a companion sheet (an authorisation letter, a card), take it from there. Return each field once even when the same value appears on several pages. NumeroPeticion in particular is often printed twice, in the body and under a barcode: return it once, from the body.
 4. page is the 1-based page N the returned value was read from, and line the number k of the line it is on, both as written in front of it ([pN] Lk). When a value runs over two lines, give the first.
-5. tests: one entry per requested test, in order of first appearance, each with its own page and line. Never merge several tests because they share a box, a border, a table row, a line of the text or a profile heading, and never split one test into several. Profile or group headings are not tests. Pre-printed tests whose checkbox is not ticked are not requested. If the same tests are repeated on another sheet, list them once.
+5. tests: one entry per requested test, in order of first appearance, each with its own page and line. Never merge several tests because they share a box, a border, a table row, a line of the text or a profile heading, and never split one test into several. Profile or group headings are not tests. A list bullet or dash in front of a test ("- ", "• ") is not part of it. Pre-printed tests whose checkbox is not ticked are not requested. If the same tests are repeated on another sheet, list them once.
 6. Ignore distractors: record numbers (NHC), fax numbers, issue dates, centre addresses and phone numbers, and the physician's details when the field asks for the patient's.`;
 }
 
