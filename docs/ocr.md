@@ -61,8 +61,9 @@ prediction's latency, as the model's is.
 One `<id>.ocr.json` per PDF, as [`schema/ocr.schema.json`](../schema/ocr.schema.json) says:
 the engine and its model, the resolution, the PDF's `sha256` (the extractor refuses the OCR
 of another PDF), the time it took, and per page its lines in reading order, each with an id
-(`p2l17`), a box on 0–1 of the page, its text, its words with their boxes, and the checkbox
-in front of it (`checked`, `unchecked` or `null`). A `run.json` beside them keeps the mean
+(`p2l17`), a box on 0–1 of the page, its text (fullwidth punctuation such as `：` written as
+ASCII), its words with their boxes, and the checkbox in front of it (`checked`, `unchecked` or
+`null`). A `run.json` beside them keeps the mean
 and median time per page. Documents already read with the same engine, resolution and
 checkbox setting are skipped unless `--force`. Like everything under `data/`, none of it is
 committed; the models are fetched into `data/models/` or LM Studio's folder, never the

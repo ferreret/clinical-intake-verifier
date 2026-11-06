@@ -12,6 +12,7 @@ from intake_ocr.document import (
     Page,
     Segment,
     Word,
+    clean_text,
     document_dict,
     group_lines,
     line_text,
@@ -127,3 +128,21 @@ def test_rapidocr_gives_each_piece_the_text_of_its_words() -> None:
     (piece,) = engine.read(Image.new("RGB", (400, 50), "white"))
     assert piece.text == "Cantábrica Seguros Médicos"
     assert piece.box == Box(0, 10, 300, 40)
+
+
+def test_fullwidth_punctuation_is_written_as_ascii_and_the_ordinal_stays() -> None:
+    assert clean_text("CLAVERO FONSECA，  CHITA") == "CLAVERO FONSECA, CHITA"
+    assert clean_text("Autorització：189186872") == "Autorització:189186872"
+    assert clean_text("Nº Colegiado: 2829") == "Nº Colegiado: 2829"
+    word = Word("Targeta：", Box(248, 351, 448, 386))
+    page = Page(1, 2481, 3508, [Segment("Targeta：", Box(248, 351, 448, 386), [word])])
+    (line,) = document_dict(
+        engine="rapidocr",
+        model="test",
+        dpi=300,
+        sha256=hashlib.sha256(b"pdf").hexdigest(),
+        pages=[page],
+        elapsed_ms=1000,
+        checkboxes=False,
+    )["pages"][0]["lines"]
+    assert (line["text"], line["words"][0]["text"]) == ("Targeta:", "Targeta:")

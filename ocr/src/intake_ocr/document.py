@@ -16,6 +16,7 @@ mark read as a letter in front of its test ("X MAGNESIO (SUERO)", 0.004 of the p
 from __future__ import annotations
 
 import json
+import unicodedata
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
@@ -37,6 +38,8 @@ JOIN_GAP = 0.01
 #: with a fullwidth colon, "Autorització：", or faint small print), and those words say nothing
 #: about where the spaces are.
 PER_CHARACTER_WORDS = 3
+#: The fullwidth ASCII forms, "！" to "～" (see ``clean_text``).
+FULLWIDTH_FIRST, FULLWIDTH_LAST = "！", "～"
 
 
 @dataclass(frozen=True)
@@ -169,6 +172,21 @@ def _norm(box: Box, width: int, height: int) -> dict:
     }
 
 
+def clean_text(text: str) -> str:
+    """Spaces collapsed, and fullwidth forms as their ASCII ("：" ":", "，" ",").
+
+    RapidOCR writes a few colons and commas in their fullwidth form, which the forms never
+    print: 5 times on the 200 documents of seed 42, one of them inside a patient's name. Only
+    that Unicode block is folded; full NFKC would also turn the "º" of "Nº", which RapidOCR
+    reads 962 times there, into an "o".
+    """
+    folded = "".join(
+        unicodedata.normalize("NFKC", c) if FULLWIDTH_FIRST <= c <= FULLWIDTH_LAST else c
+        for c in text
+    )
+    return " ".join(folded.split())
+
+
 def page_dict(page: Page) -> dict:
     lines = []
     for n, line in enumerate((s for s in page.lines if s.text.strip()), start=1):
@@ -176,9 +194,9 @@ def page_dict(page: Page) -> dict:
             {
                 "id": f"p{page.number}l{n}",
                 "box": _norm(line.box, page.width, page.height),
-                "text": " ".join(line.text.split()),
+                "text": clean_text(line.text),
                 "words": [
-                    {"text": w.text, "box": _norm(w.box, page.width, page.height)}
+                    {"text": clean_text(w.text), "box": _norm(w.box, page.width, page.height)}
                     for w in line.words
                     if w.text.strip()
                 ],
