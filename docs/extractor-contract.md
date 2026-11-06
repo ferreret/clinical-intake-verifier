@@ -207,8 +207,9 @@ objects whatever the instruction said.
 ```
 
 The boundary still reads `t1`'s and `t2`'s `{"value", "page", "line"}` objects. It also
-reads a field written as `["null", null, null]`, the word with no page and no line, as a field
-not present: Qwen wrote two so on `t3`'s smoke. With a page or a line it is left as written.
+reads a field written as an array that holds nothing, `["null", null, null]` or `[null]`, as
+a field not present: Qwen wrote both on `t3`'s runs. With a page or a line it is left as
+written.
 
 At the boundary `linesToLayer1` (`response-schema.ts`) replaces each line by its box, which
 the OCR measured, as layer 1's `box_2d`: from there on the reply is read as any other.

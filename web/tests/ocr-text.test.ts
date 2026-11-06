@@ -140,14 +140,20 @@ describe("a text reply in layer 1", () => {
     expect(warnings).toEqual([{ code: "bbox_invalid", field: "Edad", detail: "line 7 of page 1" }]);
   });
 
-  it('reads a field written as ["null", null, null] as not present, and nothing else so', () => {
+  it('reads a field written as ["null", null, null] or [null] as not present, and nothing else so', () => {
     const warnings: PredictionWarning[] = [];
     const doc = linesToLayer1(
-      reply({ Telefono: ["null", null, null], Edad: ["null", 1, 2], Sexo: ["NULL", null, null] }, [["null", null, null]]),
+      reply(
+        { Telefono: ["null", null, null], NumeroTarjeta: [null], Edad: ["null", 1, 2], Sexo: ["NULL", null, null], Paciente: [null, 1] },
+        [["null", null, null]],
+      ),
       pages,
       warnings,
     ) as { fields: Record<string, unknown>; tests: unknown[] };
     expect(doc.fields.Telefono).toEqual({ value: null, page: null, box_2d: null });
+    expect(doc.fields.NumeroTarjeta).toEqual({ value: null, page: null, box_2d: null });
+    // An array with a page is not empty: not read, so the validator rejects it.
+    expect(doc.fields.Paciente).toEqual([null, 1]);
     // With a page or a line, or written otherwise, it is left as written.
     expect(doc.fields.Edad).toEqual({ value: "null", page: 1, box_2d: [200, 100, 210, 170] });
     expect(doc.fields.Sexo).toEqual({ value: "NULL", page: null, box_2d: null });

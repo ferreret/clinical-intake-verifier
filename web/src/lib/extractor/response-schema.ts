@@ -204,12 +204,19 @@ function lineNumber(raw: unknown): number | null {
 }
 
 /**
- * A field the text reply says is not present by writing the word: `["null", null, null]`, the
- * text "null" with no page and no line. Qwen wrote two fields so on prompt t3 (synth-000003 of
- * the smoke, 2026-11-06). With a page or a line, it is left as written.
+ * A field the text reply says is not present with an array that holds nothing: up to three
+ * items, the first null or the word "null", the rest null. Qwen wrote `["null", null, null]`
+ * for two fields on prompt t3's smoke (synth-000003) and `[null]` on its 200 (synth-000179),
+ * 2026-11-06. With a page or a line, it is left as written.
  */
 function isWrittenNull(written: unknown): boolean {
-  return Array.isArray(written) && written[0] === "null" && written[1] === null && written[2] === null;
+  return (
+    Array.isArray(written) &&
+    written.length >= 1 &&
+    written.length <= 3 &&
+    (written[0] === null || written[0] === "null") &&
+    written.slice(1).every((x) => x === null)
+  );
 }
 
 /** A box on 0-1 of the page as layer 1 writes it: `[ymin, xmin, ymax, xmax]`, integers on 0-1000, covering it. */
@@ -228,15 +235,15 @@ function boxToLayer1(box: BBox): number[] {
  * page kept, and is reported in `warnings` as `bbox_invalid`. A box written instead of a line is
  * dropped: in this pipeline the model never sees the page, so it cannot measure one. The
  * shorthands of toLayer1 are read in the same way: a bare null is a field not present, a bare
- * string a value with no page and no line; and so is `["null", null, null]` in a field, a field
- * not present (isWrittenNull). An array of another length is passed through for the validator
- * to reject.
+ * string a value with no page and no line; and in a field, an array that holds nothing, such as
+ * `["null", null, null]` or `[null]`, a field not present (isWrittenNull). Any other array not
+ * of three items is passed through for the validator to reject.
  */
 export function linesToLayer1(doc: unknown, pages: readonly OcrTextPage[], warnings?: PredictionWarning[]): unknown {
   if (typeof doc !== "object" || doc === null) return doc;
   const item = (written: unknown, field: string): unknown => {
-    if (Array.isArray(written) && written.length !== 3) return written;
     if (field !== "tests" && isWrittenNull(written)) return { value: null, page: null, box_2d: null };
+    if (Array.isArray(written) && written.length !== 3) return written;
     const raw = Array.isArray(written) ? { value: written[0], page: written[1], line: written[2] } : written;
     if (typeof raw === "string") return { value: raw, page: null, box_2d: null };
     if (typeof raw !== "object" || raw === null) return raw;
