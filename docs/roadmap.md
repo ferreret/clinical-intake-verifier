@@ -4,7 +4,7 @@ Where the project stands, what has been decided and what is only proposed. Read 
 starting a work session. Anything marked **proposed** is a design that has not been approved or
 implemented; it changes only after an explicit decision.
 
-Last updated: 2026-11-02.
+Last updated: 2026-11-09.
 
 ## Where things stand
 
@@ -2013,3 +2013,46 @@ The audit left five product decisions, taken one at a time by the product owner:
    the simulation can measure it again then.
 
 All five decisions the audit left are settled.
+
+### 2026-11-09: the model box served on the local network
+
+Another application on the local network, a separate project, now calls this machine's
+LM Studio and `intake-ocr serve`, as the product owner decided on 2026-11-05: the OCR and the
+models run on the server, and clients call them over HTTP. Nothing in this repository changed
+for it; this entry records how the box is served, since it affects how the verifier reaches
+it. No address or token is written here.
+
+- **LM Studio.** The model is loaded explicitly, as loading on demand ignores the per-model
+  settings: `lms load qwen/qwen3.6-35b-a3b --context-length 16384 --gpu max --parallel 2`.
+  The server listens on all interfaces, port 1234 (`lms server start --bind 0.0.0.0 --port
+  1234`), with "Require Authentication" on. LM Studio 0.4.26 turns that on, and makes
+  tokens, only in its window (Developer, Server Settings): `lms` has no flag for it. The
+  client has a token of its own, with both MCP permissions denied, so it cannot have the
+  box call an MCP server it names. Without a token, or with a wrong one, `/v1/models`
+  answers 401; with the token, 200.
+- **OCR.** `intake-ocr serve --host 0.0.0.0 --preload rapidocr`, port 8765, its token in
+  `INTAKE_OCR_TOKEN` rather than `--token`, so that it does not show in the process list.
+  `/health` answers 401 without the token and 200 with it, and a synthetic document was read
+  over the network (3 pages, 6.5 s).
+- **Firewall.** ufw already denied all incoming traffic by default. One rule per port lets in
+  the client's address alone, over TCP; the rest of the network is still refused. The OCR
+  server's log shows the client's request arriving.
+- **Starting and stopping.** Neither starts on its own: there are no systemd units, and
+  LM Studio's server does not start with the application. After a reboot both are down until
+  started again by hand. `lms server stop` stops LM Studio's server and `lms unload --all`
+  frees the model's memory; `pkill -f "intake-ocr serve"` stops the OCR.
+
+What it means for this repository:
+
+1. **The verifier's local model now needs a token.** With authentication required, every
+   call from the verifier to LM Studio on this machine (test mapping with the local model,
+   the default, and the `local` and `local-text` extractors) answers 401, because the
+   verifier sends no token. The OCR client already sends one (`OCR_TOKEN`). Not changed: it
+   needs an optional token setting for the local model, which waits for a decision.
+2. **LM Studio writes request and response bodies to its log**
+   (`~/.lmstudio/server-logs`). With real documents that would put health data on disk in
+   plain text. "Redact Content" in Server Settings stops it. Left as it was, the product
+   owner's call.
+3. **Loading on demand is still on.** A request naming another downloaded model would load
+   it with default settings, beside Qwen. The client is told to name
+   `qwen/qwen3.6-35b-a3b` exactly.
