@@ -15,7 +15,7 @@ import path from "node:path";
 import { GoogleGenAI, type ThinkingLevel } from "@google/genai";
 
 import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL } from "@/lib/extractor";
-import { resolveLocalModel, resolveLocalUrl } from "@/lib/extractor/local";
+import { localHeaders, localHttpError, resolveLocalModel, resolveLocalUrl } from "@/lib/extractor/local";
 
 import type { Catalog } from "./catalog";
 import type { Candidate } from "./search";
@@ -167,7 +167,7 @@ export class LocalProvider implements Provider {
   async complete(system: string, user: string, schema: Record<string, unknown>): Promise<ProviderReply> {
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: localHeaders(),
       body: JSON.stringify({
         model: this.model,
         temperature: 0,
@@ -180,7 +180,7 @@ export class LocalProvider implements Provider {
         response_format: { type: "json_schema", json_schema: { name: "mapping", strict: true, schema } },
       }),
     });
-    if (!res.ok) throw new Error(`local model: HTTP ${res.status} ${await res.text()}`);
+    if (!res.ok) throw new Error(localHttpError(res.status, await res.text()));
     const body = (await res.json()) as {
       choices: { message: { content: string } }[];
       usage?: { prompt_tokens?: number; completion_tokens?: number };

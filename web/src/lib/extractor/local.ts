@@ -26,6 +26,23 @@ export function resolveLocalUrl(): string {
   return process.env.LOCAL_LLM_URL?.trim() || DEFAULT_LOCAL_URL;
 }
 
+/** The token a server that requires authentication asks for, such as LM Studio's; none by default. */
+export function resolveLocalToken(): string | undefined {
+  return process.env.LOCAL_LLM_TOKEN?.trim() || undefined;
+}
+
+/** The headers of every request to the local model: JSON, and the token when one is set. */
+export function localHeaders(): Record<string, string> {
+  const token = resolveLocalToken();
+  return { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+}
+
+/** What a reply the server refused says: a 401 means the token is missing or wrong. */
+export function localHttpError(status: number, text: string): string {
+  const hint = status === 401 ? " (the server requires a token: set LOCAL_LLM_TOKEN)" : "";
+  return `local model: HTTP ${status}${hint} ${text.slice(0, 300)}`;
+}
+
 export interface LocalRequest {
   baseUrl: string;
   model: string;
@@ -66,7 +83,7 @@ function postJson(url: string, body: unknown, timeoutMs: number): Promise<{ stat
   const target = new URL(url);
   const client = target.protocol === "https:" ? https : http;
   return new Promise((resolve, reject) => {
-    const req = client.request(target, { method: "POST", headers: { "Content-Type": "application/json" } }, (res) => {
+    const req = client.request(target, { method: "POST", headers: localHeaders() }, (res) => {
       const chunks: Buffer[] = [];
       res.on("data", (chunk: Buffer) => chunks.push(chunk));
       res.on("end", () => resolve({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString("utf8") }));
@@ -112,7 +129,7 @@ export async function callLocal(req: LocalRequest): Promise<LocalReply> {
     throw new LocalModelError(`local model at ${req.baseUrl}: ${err instanceof Error ? err.message : String(err)}`);
   }
   if (res.status < 200 || res.status >= 300) {
-    throw new LocalModelError(`local model: HTTP ${res.status} ${res.text.slice(0, 300)}`, res.status);
+    throw new LocalModelError(localHttpError(res.status, res.text), res.status);
   }
 
   let reply: {

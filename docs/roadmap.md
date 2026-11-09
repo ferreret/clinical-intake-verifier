@@ -2047,8 +2047,9 @@ What it means for this repository:
 1. **The verifier's local model now needs a token.** With authentication required, every
    call from the verifier to LM Studio on this machine (test mapping with the local model,
    the default, and the `local` and `local-text` extractors) answers 401, because the
-   verifier sends no token. The OCR client already sends one (`OCR_TOKEN`). Not changed: it
-   needs an optional token setting for the local model, which waits for a decision.
+   verifier sent no token. The OCR client already sent one (`OCR_TOKEN`). Since the same day
+   `LOCAL_LLM_TOKEN` sends one, read by test mapping, the extractor and the OCR package's
+   vision engines alike; the verifier gets a token of its own, not the other client's.
 2. **LM Studio writes request and response bodies to its log**
    (`~/.lmstudio/server-logs`). With real documents that would put health data on disk in
    plain text. "Redact Content" in Server Settings stops it. Left as it was, the product

@@ -470,9 +470,10 @@ Names, types, whether a field is mandatory, its form and how it is compared are 
 
 The repository runs without credentials except a Gemini API key for the extractor, and the
 replay demo needs none. See [`web/.env.example`](web/.env.example) for that key, the local
-model's address (`LOCAL_LLM_URL`, any OpenAI-compatible server such as LM Studio) and the
-optional settings. The Python package needs none; `INTAKE_SCHEMA_DIR` and `INTAKE_FONTS_DIR`
-can override where it looks for the shared schema and the handwriting fonts.
+model's address (`LOCAL_LLM_URL`, any OpenAI-compatible server such as LM Studio, with
+`LOCAL_LLM_TOKEN` when that server requires one) and the optional settings. The Python package
+needs none; `INTAKE_SCHEMA_DIR` and `INTAKE_FONTS_DIR` can override where it looks for the
+shared schema and the handwriting fonts.
 
 ## 📄 Licence
 

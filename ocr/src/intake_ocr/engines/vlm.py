@@ -17,6 +17,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import os
 import urllib.request
 
 from PIL import Image
@@ -24,6 +25,16 @@ from PIL import Image
 from intake_ocr.document import Segment
 
 DEFAULT_SERVER = "http://127.0.0.1:1234/v1"
+
+
+def server_headers() -> dict[str, str]:
+    """JSON, and LM Studio's token when its server requires one (LOCAL_LLM_TOKEN, as in web/)."""
+    headers = {"Content-Type": "application/json"}
+    token = os.environ.get("LOCAL_LLM_TOKEN", "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
 
 #: dots.ocr's own prompt for layout with text (prompt_layout_all_en in its repository, MIT):
 #: the model was trained on these words, so they are used as published.
@@ -98,7 +109,7 @@ class VlmEngine:
         request = urllib.request.Request(
             f"{self.server}/chat/completions",
             data=json.dumps(body).encode(),
-            headers={"Content-Type": "application/json"},
+            headers=server_headers(),
         )
         with urllib.request.urlopen(request, timeout=1800) as response:
             reply = json.load(response)
