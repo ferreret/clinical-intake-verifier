@@ -345,5 +345,90 @@ def validate(
         raise typer.Exit(code=1)
 
 
+# --------------------------------------------------------------------------- anonymization
+#
+# Tools for real scans that stay outside the repository: plans, previews and output go to a work
+# directory the caller chooses (by default next to the documents, under anon/).
+
+DocsDir = Annotated[
+    Path, typer.Option(exists=True, file_okay=False, help="Directory of the PDFs to anonymize.")
+]
+WorkDir = Annotated[
+    Path | None,
+    typer.Option(help="Plans, previews and output. Default: <docs>/../anon."),
+]
+
+
+def _work(docs: Path, work: Path | None) -> Path:
+    return work if work is not None else docs.resolve().parent / "anon"
+
+
+@app.command("anon-propose")
+def anon_propose(
+    docs: DocsDir,
+    readings: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            file_okay=False,
+            help="An extractor run (<doc>.pred.json) or golden files, whose boxes propose the plan.",
+        ),
+    ] = None,
+    work: WorkDir = None,
+    overwrite: Annotated[
+        bool, typer.Option(help="Replace existing plans, reviewed ones included.")
+    ] = False,
+) -> None:
+    """Write a first anonymization plan for every document that has none."""
+    from .anonymize.propose import propose
+
+    result = propose(docs, _work(docs, work), readings, overwrite=overwrite)
+    typer.echo(f"plans written: {result['made']}, kept: {result['kept']}")
+
+
+@app.command("anon-review")
+def anon_review(
+    docs: DocsDir,
+    work: WorkDir = None,
+    port: Annotated[int, typer.Option(min=1024, max=65535)] = 8770,
+    info: Annotated[
+        Path | None,
+        typer.Option(exists=True, dir_okay=False, help="A manifest.tsv whose notes to show."),
+    ] = None,
+) -> None:
+    """Serve the review page on 127.0.0.1 to check and correct each document's plan."""
+    from .anonymize.review import serve
+
+    serve(docs, _work(docs, work), port, info)
+
+
+@app.command("anon-apply")
+def anon_apply(
+    docs: DocsDir,
+    work: WorkDir = None,
+    all_plans: Annotated[
+        bool, typer.Option("--all", help="Apply unreviewed plans too (for a trial, never for use).")
+    ] = False,
+) -> None:
+    """Write the anonymized PDF of every reviewed plan, with the fictitious values written."""
+    from .anonymize.paint import apply_plan
+    from .anonymize.plan import load_plan
+    from .anonymize.propose import documents
+
+    out_dir = _work(docs, work)
+    done = skipped = 0
+    for pdf in documents(docs):
+        plan = load_plan(out_dir, pdf.stem)
+        if plan is None or not (plan.reviewed or all_plans):
+            skipped += 1
+            continue
+        truth = apply_plan(pdf, plan, out_dir / "out" / pdf.name)
+        (out_dir / "out" / f"{pdf.stem}.truth.json").write_text(
+            json.dumps(truth, ensure_ascii=False, indent=1), encoding="utf-8"
+        )
+        done += 1
+    typer.echo(f"anonymized: {done}, skipped (no plan or not reviewed): {skipped}")
+
+
 if __name__ == "__main__":
     app()

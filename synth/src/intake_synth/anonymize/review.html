@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Revisión de anonimización</title>
+<style>
+:root{--bg:#f4f4f2;--panel:#fff;--fg:#1c1c1a;--muted:#6b6b66;--line:#d9d9d4;--accent:#2b5ea7;--ok:#1f7a3a;--warn:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#1a1a19;--panel:#242422;--fg:#ececea;--muted:#a3a39e;--line:#3a3a37}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,sans-serif;height:100vh;display:grid;grid-template-columns:230px 1fr 300px;grid-template-rows:auto 1fr}
+header{grid-column:1/4;display:flex;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:16px;margin:0 12px 0 0}
+header .doc{font-weight:700;font-size:16px}
+header .status{margin-left:auto;color:var(--muted)}
+.warn{color:var(--warn);font-weight:600}
+button{font:inherit;padding:4px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.on{background:var(--fg);color:var(--bg)}
+nav{overflow:auto;border-right:1px solid var(--line);background:var(--panel)}
+nav .filter{padding:8px;display:flex;gap:6px;position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line)}
+nav a{display:flex;justify-content:space-between;padding:4px 10px;color:inherit;text-decoration:none;border-bottom:1px solid var(--line);cursor:pointer}
+nav a.cur{background:var(--accent);color:#fff}
+nav a .s{font-size:12px;opacity:.8}
+main{overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:center;gap:18px}
+.page{position:relative;width:min(100%,900px);box-shadow:0 1px 4px #0003;user-select:none;cursor:crosshair;background:#fff}
+.page img{display:block;width:100%;pointer-events:none}
+.page .num{position:absolute;left:-2px;top:-20px;font-size:12px;color:var(--muted)}
+.box{position:absolute;border:2px solid;background:rgba(255,255,255,.08);cursor:move}
+.box .lab{position:absolute;left:-2px;top:-17px;font-size:11px;white-space:nowrap;color:#fff;padding:0 4px;border-radius:3px 3px 0 0;pointer-events:none}
+.box.sel{outline:2px dashed var(--fg);outline-offset:2px}
+.box .h{position:absolute;right:-6px;bottom:-6px;width:12px;height:12px;background:var(--fg);border-radius:2px;cursor:nwse-resize}
+.preview .box{display:none}
+aside{overflow:auto;border-left:1px solid var(--line);background:var(--panel);padding:12px}
+aside h2{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:14px 0 6px}
+aside label{display:block;margin:6px 0 2px;color:var(--muted);font-size:12px}
+aside select,aside input[type=text],aside textarea{width:100%;font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+td{padding:2px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+td:first-child{color:var(--muted);white-space:nowrap}
+.keys{font-size:12px;color:var(--muted)}
+.keys kbd{border:1px solid var(--line);border-radius:3px;padding:0 4px;background:var(--bg)}
+.info{font-size:12px;background:var(--bg);padding:6px;border-radius:5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Anonimización</h1>
+  <button id="prev" title="Anterior (k)">◀</button><span class="doc" id="docname">…</span><button id="next" title="Siguiente (j)">▶</button>
+  <label><input type="checkbox" id="reviewed"> Revisado <span class="keys">(r)</span></label>
+  <button id="preview" title="Ver cómo queda (v)">Vista previa</button>
+  <button id="apply" class="primary" title="Escribe el PDF anonimizado">Generar PDF</button>
+  <span class="status" id="status"></span>
+</header>
+<nav>
+  <div class="filter"><button id="fAll" class="on">Todos</button><button id="fTodo">Pendientes</button></div>
+  <div id="list"></div>
+</nav>
+<main id="pages"></main>
+<aside>
+  <div class="info" id="info"></div>
+  <h2>Caja seleccionada</h2>
+  <div id="editor"><p class="keys">Arrastra sobre la página para dibujar una caja. Haz clic en una caja para editarla.</p></div>
+  <h2>Datos ficticios del volante</h2>
+  <table id="identity"></table>
+  <h2>Notas</h2>
+  <textarea id="notes" rows="3" placeholder="Algo a recordar de este volante"></textarea>
+  <h2>Atajos</h2>
+  <p class="keys"><kbd>j</kbd>/<kbd>k</kbd> volante siguiente/anterior · <kbd>Supr</kbd> borra la caja · <kbd>m</kbd> cambia imprenta/manuscrita · <kbd>t</kbd> tapar · <kbd>1</kbd>–<kbd>9</kbd> tipo · flechas mueven (<kbd>Mayús</kbd> redimensiona) · <kbd>v</kbd> vista previa · <kbd>r</kbd> revisado</p>
+</aside>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const LABEL = {Paciente:"Paciente",FechaNacimiento:"F. nacimiento",DocumentoIdentidad:"DNI/NIE",Telefono:"Teléfono",NumeroTarjeta:"Nº tarjeta",NombreMedico:"Médico",NumeroColegiado:"Nº colegiado",NumeroPeticion:"Nº petición",NumeroSolicitudMutua:"Nº solicitud mutua",NumeroAutorizacion:"Nº autorización",Otro:"Otro (texto libre)",Tapar:"Tapar (sin texto)"};
+const COLOR = {Paciente:"#c62828",FechaNacimiento:"#ad1457",DocumentoIdentidad:"#6a1b9a",Telefono:"#4527a0",NumeroTarjeta:"#283593",NombreMedico:"#00695c",NumeroColegiado:"#2e7d32",NumeroPeticion:"#ef6c00",NumeroSolicitudMutua:"#8d6e63",NumeroAutorizacion:"#5d4037",Otro:"#0277bd",Tapar:"#212121"};
+let KINDS = [], DOCS = [], cur = -1, plan = null, pages = [], sel = -1, last = {kind:"Paciente", style:"print"};
+let dirty = false, saveTimer = null, previewOn = false, filterTodo = false;
+
+function status(t, cls) { const s = $("status"); s.textContent = t; s.className = "status " + (cls || ""); }
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  return r;
+}
+
+async function loadDocs(keep) {
+  const d = await (await api("/api/docs")).json();
+  KINDS = d.kinds; DOCS = d.docs;
+  renderList();
+  if (!keep) { const first = DOCS.findIndex((x) => !x.reviewed); await open(first < 0 ? 0 : first); }
+}
+function renderList() {
+  $("list").innerHTML = "";
+  DOCS.forEach((d, i) => {
+    if (filterTodo && d.reviewed && i !== cur) return;
+    const a = document.createElement("a");
+    a.className = i === cur ? "cur" : "";
+    a.innerHTML = `<span>${d.doc}</span><span class="s">${d.boxes} ${d.reviewed ? "✓" : ""}${d.applied ? " PDF" : ""}</span>`;
+    a.onclick = () => open(i);
+    $("list").appendChild(a);
+    if (i === cur) a.scrollIntoView({block:"nearest"});
+  });
+}
+
+async function open(i) {
+  if (i < 0 || i >= DOCS.length) return;
+  await flush();
+  cur = i; sel = -1; previewOn = false; $("preview").classList.remove("on");
+  const d = await (await api(`/api/doc/${DOCS[i].doc}`)).json();
+  plan = d.plan; pages = d.pages;
+  $("docname").textContent = plan.doc;
+  $("reviewed").checked = plan.reviewed;
+  $("notes").value = plan.notes || "";
+  $("info").textContent = d.info || "";
+  $("info").style.display = d.info ? "" : "none";
+  renderIdentity(); renderPages(); renderEditor(); renderList();
+  status("");
+}
+
+function renderIdentity() {
+  $("identity").innerHTML = Object.entries(plan.identity).map(([k, v]) => `<tr><td>${LABEL[k] || k}</td><td>${esc(v)}</td></tr>`).join("");
+}
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function textFor(b) { return b.kind === "Tapar" ? "" : (b.text ?? plan.identity[b.kind] ?? ""); }
+
+function renderPages() {
+  const main = $("pages"); main.innerHTML = "";
+  main.classList.toggle("preview", previewOn);
+  pages.forEach((p, idx) => {
+    const n = idx + 1;
+    const div = document.createElement("div");
+    div.className = "page"; div.dataset.n = n;
+    div.style.aspectRatio = `${p.width_pt} / ${p.height_pt}`;
+    div.innerHTML = `<span class="num">Página ${n}</span><img alt="">`;
+    const img = div.querySelector("img");
+    if (previewOn) {
+      api(`/api/preview/${plan.doc}/${n}.png`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(plan)})
+        .then((r) => r.blob()).then((b) => { img.src = URL.createObjectURL(b); }).catch((e) => status(e.message, "warn"));
+    } else {
+      img.src = `/api/page/${plan.doc}/${n}.png`;
+    }
+    div.addEventListener("mousedown", (e) => startDraw(e, div, n));
+    main.appendChild(div);
+  });
+  renderBoxes();
+}
+
+function renderBoxes() {
+  document.querySelectorAll(".box").forEach((b) => b.remove());
+  plan.boxes.forEach((b, i) => {
+    const page = document.querySelector(`.page[data-n="${b.page}"]`);
+    if (!page) return;
+    const el = document.createElement("div");
+    el.className = "box" + (i === sel ? " sel" : "");
+    Object.assign(el.style, {left:`${b.x0*100}%`, top:`${b.y0*100}%`, width:`${(b.x1-b.x0)*100}%`, height:`${(b.y1-b.y0)*100}%`, borderColor:COLOR[b.kind]});
+    const t = textFor(b);
+    el.innerHTML = `<span class="lab" style="background:${COLOR[b.kind]}">${esc(LABEL[b.kind] || b.kind)}${b.style === "hand" && b.kind !== "Tapar" ? " ✍" : ""}${t ? ": " + esc(t) : ""}</span><span class="h"></span>`;
+    el.addEventListener("mousedown", (e) => startMove(e, el, i, e.target.classList.contains("h")));
+    page.appendChild(el);
+  });
+}
+
+function renderEditor() {
+  const ed = $("editor");
+  if (sel < 0 || !plan.boxes[sel]) { ed.innerHTML = `<p class="keys">Arrastra sobre la página para dibujar una caja. Haz clic en una caja para editarla.</p>`; return; }
+  const b = plan.boxes[sel];
+  ed.innerHTML = `
+    <label>Qué es</label>
+    <select id="eKind">${KINDS.map((k, i) => `<option value="${k}" ${k === b.kind ? "selected" : ""}>${i < 9 ? (i + 1) + " · " : ""}${LABEL[k] || k}</option>`).join("")}</select>
+    <label>Letra</label>
+    <select id="eStyle"><option value="print" ${b.style === "print" ? "selected" : ""}>Imprenta</option><option value="hand" ${b.style === "hand" ? "selected" : ""}>Manuscrita</option></select>
+    <label>Texto que se escribe</label>
+    <input type="text" id="eText" value="${esc(b.text ?? "")}" placeholder="${esc(b.kind === "Tapar" ? "(nada: solo se tapa)" : (plan.identity[b.kind] ?? "escribe el texto"))}">
+    <p class="keys">Vacío: el dato ficticio del volante. Página ${b.page} · ${b.source === "extractor" ? "propuesta del extractor" : "dibujada a mano"}</p>
+    <button id="eDel">Borrar caja</button>`;
+  $("eKind").onchange = (e) => { b.kind = e.target.value; last.kind = b.kind; changed(); };
+  $("eStyle").onchange = (e) => { b.style = e.target.value; last.style = b.style; changed(); };
+  $("eText").oninput = (e) => { b.text = e.target.value === "" ? null : e.target.value; changed(false); };
+  $("eDel").onclick = () => removeSel();
+}
+
+function frac(e, page) {
+  const r = page.getBoundingClientRect();
+  return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
+}
+function startDraw(e, page, n) {
+  if (previewOn || e.button !== 0 || e.target.closest(".box")) return;
+  e.preventDefault();
+  const [sx, sy] = frac(e, page);
+  const b = {page:n, x0:sx, y0:sy, x1:sx, y1:sy, kind:last.kind, style:last.style, text:null, source:"manual"};
+  plan.boxes.push(b); sel = plan.boxes.length - 1;
+  const move = (ev) => { const [x, y] = frac(ev, page); b.x0 = Math.min(sx, x); b.x1 = Math.max(sx, x); b.y0 = Math.min(sy, y); b.y1 = Math.max(sy, y); renderBoxes(); };
+  const up = () => {
+    window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up);
+    if (b.x1 - b.x0 < 0.004 || b.y1 - b.y0 < 0.003) { plan.boxes.pop(); sel = -1; renderBoxes(); renderEditor(); return; }
+    round(b); changed();
+  };
+  window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
+}
+function startMove(e, el, i, resize) {
+  if (e.button !== 0) return;
+  e.preventDefault(); e.stopPropagation();
+  sel = i; const b = plan.boxes[i]; const page = el.parentElement;
+  const [sx, sy] = frac(e, page); const o = {...b};
+  const move = (ev) => {
+    const [x, y] = frac(ev, page); const dx = x - sx, dy = y - sy;
+    if (resize) { b.x1 = Math.min(1, Math.max(b.x0 + 0.004, o.x1 + dx)); b.y1 = Math.min(1, Math.max(b.y0 + 0.003, o.y1 + dy)); }
+    else { const w = o.x1 - o.x0, h = o.y1 - o.y0; b.x0 = Math.min(1 - w, Math.max(0, o.x0 + dx)); b.y0 = Math.min(1 - h, Math.max(0, o.y0 + dy)); b.x1 = b.x0 + w; b.y1 = b.y0 + h; }
+    renderBoxes();
+  };
+  const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); round(b); changed(); };
+  window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
+  renderBoxes(); renderEditor();
+}
+function round(b) { for (const k of ["x0","y0","x1","y1"]) b[k] = Math.round(b[k] * 10000) / 10000; }
+function removeSel() { if (sel < 0) return; plan.boxes.splice(sel, 1); sel = -1; changed(); }
+
+function changed(rerenderEditor = true) {
+  dirty = true; status("Sin guardar…");
+  renderBoxes(); if (rerenderEditor) renderEditor();
+  clearTimeout(saveTimer); saveTimer = setTimeout(flush, 600);
+}
+async function flush() {
+  clearTimeout(saveTimer);
+  if (!dirty || !plan) return;
+  dirty = false;
+  try {
+    const r = await (await api(`/api/plan/${plan.doc}`, {method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(plan)})).json();
+    const d = DOCS[cur]; d.boxes = r.boxes; d.reviewed = plan.reviewed; renderList();
+    status("Guardado");
+  } catch (e) { dirty = true; status("No se ha guardado: " + e.message, "warn"); }
+}
+
+$("prev").onclick = () => open(cur - 1);
+$("next").onclick = () => open(cur + 1);
+$("reviewed").onchange = (e) => { plan.reviewed = e.target.checked; changed(false); };
+$("notes").oninput = (e) => { plan.notes = e.target.value; changed(false); };
+$("preview").onclick = async () => { await flush(); previewOn = !previewOn; $("preview").classList.toggle("on", previewOn); renderPages(); };
+$("apply").onclick = async () => {
+  await flush(); status("Generando PDF…");
+  try { await api(`/api/apply/${plan.doc}`, {method:"POST"}); DOCS[cur].applied = true; renderList(); status("PDF anonimizado escrito"); }
+  catch (e) { status("Error: " + e.message, "warn"); }
+};
+$("fAll").onclick = () => { filterTodo = false; $("fAll").classList.add("on"); $("fTodo").classList.remove("on"); renderList(); };
+$("fTodo").onclick = () => { filterTodo = true; $("fTodo").classList.add("on"); $("fAll").classList.remove("on"); renderList(); };
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input,select,textarea")) return;
+  const b = plan && sel >= 0 ? plan.boxes[sel] : null;
+  if (e.key === "j") open(cur + 1);
+  else if (e.key === "k") open(cur - 1);
+  else if (e.key === "v") $("preview").click();
+  else if (e.key === "r") { $("reviewed").checked = !$("reviewed").checked; $("reviewed").dispatchEvent(new Event("change")); }
+  else if (!b) return;
+  else if (e.key === "Delete" || e.key === "Backspace") removeSel();
+  else if (e.key === "m") { b.style = b.style === "hand" ? "print" : "hand"; last.style = b.style; changed(); }
+  else if (e.key === "t") { b.kind = "Tapar"; changed(); }
+  else if (/^[1-9]$/.test(e.key) && KINDS[+e.key - 1]) { b.kind = KINDS[+e.key - 1]; last.kind = b.kind; changed(); }
+  else if (e.key.startsWith("Arrow")) {
+    const s = 0.002, dx = {ArrowLeft:-s, ArrowRight:s}[e.key] || 0, dy = {ArrowUp:-s, ArrowDown:s}[e.key] || 0;
+    if (e.shiftKey) { b.x1 = Math.max(b.x0 + 0.004, Math.min(1, b.x1 + dx)); b.y1 = Math.max(b.y0 + 0.003, Math.min(1, b.y1 + dy)); }
+    else if (b.x0 + dx >= 0 && b.x1 + dx <= 1 && b.y0 + dy >= 0 && b.y1 + dy <= 1) { b.x0 += dx; b.x1 += dx; b.y0 += dy; b.y1 += dy; }
+    round(b); changed();
+  } else return;
+  e.preventDefault();
+});
+window.addEventListener("beforeunload", () => { if (dirty) navigator.sendBeacon && flush(); });
+loadDocs().catch((e) => status(e.message, "warn"));
+</script>
+</body>
+</html>

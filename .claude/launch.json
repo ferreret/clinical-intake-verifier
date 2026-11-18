@@ -9,6 +9,18 @@
         "if [ -s \"$HOME/.nvm/nvm.sh\" ]; then . \"$HOME/.nvm/nvm.sh\"; fi; exec npm --prefix web run dev"
       ],
       "port": 3000
+    },
+    {
+      "name": "anon-review",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": [
+        "run", "--project", "synth", "intake-synth", "anon-review",
+        "--docs", "samples_real/handwritten-tests/run-input",
+        "--work", "samples_real/handwritten-tests/anon",
+        "--info", "samples_real/handwritten-tests/manifest.tsv",
+        "--port", "8770"
+      ],
+      "port": 8770
     }
   ]
 }

@@ -2115,3 +2115,13 @@ request and response bodies (`logSensitiveData: false`), checked on 2026-11-18.
    what to cover, a person reviews them, a script paints the fictitious data and rebuilds
    image-only PDFs); the cloud pass, which also records the demo's replies; the private set's
    code (alongside anonymization, tested on synthetic documents); the deployment.
+
+**The anonymization tools, done on 2026-11-18** (`docs/anonymize.md`): `intake-synth
+anon-propose`, `anon-review` and `anon-apply` in the generator's package, which already had the
+fake-identity helpers and the two handwriting fonts. A plan per document lists boxes and what to
+write in each; the fictitious values keep the original's shape (a valid DNI with the same
+separators, a name in the same order and case, a birth date within half a year). The review page
+is served on 127.0.0.1 only. The output is rebuilt from page images alone, a bilevel scan stays
+bilevel, and a `.truth.json` records what was written where. Tried on synthetic documents and on
+two real scans, one of each scanner format; the real set's review waits for the overnight pass,
+whose boxes make the first plans.
