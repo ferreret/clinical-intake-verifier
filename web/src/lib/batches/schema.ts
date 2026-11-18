@@ -27,6 +27,9 @@ export const DOCUMENT_STATES = [
 ] as const;
 export type DocumentState = (typeof DOCUMENT_STATES)[number];
 
+export const DOCUMENT_ORIGINS = ["bundled", "upload", "private"] as const;
+export type DocumentOrigin = (typeof DOCUMENT_ORIGINS)[number];
+
 export const batches = sqliteTable("batches", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -47,9 +50,12 @@ export const batchDocuments = sqliteTable(
     position: integer("position").notNull(),
     fileName: text("file_name").notNull(),
     sha256: text("sha256").notNull(),
-    /** `bundled`: one of the demo's synthetic documents; `upload`: a PDF sent in live mode. */
-    origin: text("origin", { enum: ["bundled", "upload"] }).notNull(),
-    /** Where the PDF is: its name in the bundled set, or its path under the uploads directory. */
+    /**
+     * `bundled`: one of the demo's synthetic documents; `upload`: a PDF sent in live mode;
+     * `private`: one of the deployment's private set, for a workspace that unlocked it.
+     */
+    origin: text("origin", { enum: DOCUMENT_ORIGINS }).notNull(),
+    /** Where the PDF is: its name in the bundled or the private set, or its path under the uploads directory. */
     location: text("location").notNull(),
     state: text("state", { enum: DOCUMENT_STATES }).notNull(),
     attempts: integer("attempts").notNull().default(0),
@@ -160,4 +166,15 @@ export const decisions = sqliteTable("decisions", {
   approved: text("approved", { mode: "json" }).$type<ApprovalRecord>(),
   /** Rejected: why. */
   reason: text("reason"),
+});
+
+/**
+ * The workspace unlocked the deployment's private set (private-set.ts): who gave the password,
+ * and when. A sandbox that has a row may choose the set's documents; one that starts over is
+ * deleted, and with it the row.
+ */
+export const privateSetUnlocks = sqliteTable("private_set_unlocks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  technician: text("technician").notNull(),
+  at: text("at").notNull(),
 });

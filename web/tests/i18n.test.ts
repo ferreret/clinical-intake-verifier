@@ -56,5 +56,7 @@ describe("the server's refusals in Spanish", () => {
     expect(es.server("FechaNacimiento is not in its form: 31/02/1990")).toBe("Fecha de nacimiento: «31/02/1990» no tiene la forma del campo");
     expect(es.server("the document is not in verification by you")).toBe("el documento no está en verificación a tu nombre");
     expect(es.server("no proposal yet; the document is extracting")).toMatch(/^aún no hay propuesta: el documento está /);
+    expect(es.server("wrong password")).toBe("contraseña incorrecta");
+    expect(es.server("too many wrong passwords from this address: try again later")).toMatch(/^demasiadas contraseñas incorrectas/);
   });
 });

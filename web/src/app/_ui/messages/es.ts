@@ -336,6 +336,15 @@ export const es: Messages = {
     readBy: (provider) => `Lo lee el ${provider}`,
     creating: "Creando…",
     create: (n) => (n > 0 ? `Crear y leer ${plural(n, "documento")}` : "Crear y leer"),
+    privateSet: {
+      link: "Set privado",
+      title: "Set privado",
+      hint: "Peticiones reales anonimizadas: los datos del paciente y del médico son ficticios.",
+      password: "Contraseña",
+      unlock: "Desbloquear",
+      unlocking: "Comprobando…",
+      cancel: "Cancelar",
+    },
   },
 
   batch: {
@@ -605,4 +614,10 @@ SERVER.push(
   [/^at most (\d+) documents queued or being read at once: wait for some to be read$/, (n) => `como mucho ${n} documentos en cola o leyéndose a la vez: espera a que se lean algunos`],
   [/^at most (\d+) documents per batch$/, (n) => `como mucho ${n} documentos por lote`],
   [/^a batch needs at least one document$/, () => "un lote necesita al menos un documento"],
+  // The private set (app/api/private-set, lib/batches/private-set.ts, sources.ts).
+  [/^wrong password$/, () => "contraseña incorrecta"],
+  [/^send the password$/, () => "escribe la contraseña"],
+  [/^too many wrong passwords from this address: try again later$/, () => "demasiadas contraseñas incorrectas desde esta dirección: vuelve a intentarlo dentro de un rato"],
+  [/^the private set is locked$/, () => "el set privado está bloqueado"],
+  [/^the private set is not available$/, () => "el set privado ya no está disponible"],
 );

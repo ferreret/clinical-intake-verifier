@@ -9,7 +9,7 @@ import type { TrafficLight } from "@/lib/fusion/types";
 import type { LisDb } from "@/lib/lis/db";
 
 import { lockMinutes, type Provider } from "./config";
-import { batchDocuments, batches, DOCUMENT_STATES, proposals, type DocumentState } from "./schema";
+import { batchDocuments, batches, DOCUMENT_STATES, proposals, type DocumentOrigin, type DocumentState } from "./schema";
 
 export type Batch = typeof batches.$inferSelect;
 export type BatchDocument = typeof batchDocuments.$inferSelect;
@@ -18,7 +18,7 @@ export type StoredProposal = typeof proposals.$inferSelect;
 export interface NewDocument {
   fileName: string;
   sha256: string;
-  origin: "bundled" | "upload";
+  origin: DocumentOrigin;
   location: string;
 }
 

@@ -15,14 +15,14 @@ import { readCatalog, type Catalog } from "@/lib/mapping/catalog";
 import { proposeDocument, type ModelOptions } from "@/lib/mapping/document";
 import { DbMemory } from "@/lib/mapping/memory";
 import { resolveProvider, type ModelLine, type Provider as MappingProvider } from "@/lib/mapping/model";
-import { loadRecordedMapping, replayConsultation } from "@/lib/mapping/recorded";
+import { loadRecordedMapping, replayConsultation, type RecordedMapping } from "@/lib/mapping/recorded";
 import { CatalogIndex } from "@/lib/mapping/search";
 import { compareKey } from "@/lib/schema/compare";
 import type { Prediction } from "@/lib/schema/prediction";
 
-import { appMode, modelCacheDir, replayMapping, replaySpeed, type AppMode, type Provider } from "./config";
+import { appMode, modelCacheDir, privateSetConfig, replayMapping, replaySpeed, type AppMode, type Provider } from "./config";
 import type { ProcessingTrace, TestProposal } from "./schema";
-import { recordedPrediction } from "./sources";
+import { privateSetPaths, recordedPrediction } from "./sources";
 
 export class ProcessingError extends Error {
   constructor(message: string) {
@@ -159,6 +159,15 @@ export async function withChosenLinks(
   return { fused, ...(await mapLines(db, stored.prediction, fused)) };
 }
 
+/** The mapping model's recorded replies for a document: the demo's, or the private set's for one of its documents. */
+async function recordedMappingFor(sha256: string): Promise<RecordedMapping | null> {
+  const demo = await loadRecordedMapping(replayMapping());
+  if (demo?.documents[sha256]) return demo;
+  const set = privateSetConfig();
+  const own = set ? await loadRecordedMapping(privateSetPaths(set).mapping) : null;
+  return own?.documents[sha256] ? own : demo;
+}
+
 /**
  * The codes proposed for each line, with the memory of the insurer `fused` is linked to. Also
  * when the technician chose another insurer (decision of 2026-10-29): its memory then
@@ -177,7 +186,7 @@ export async function mapLines(
   const lines = prediction.tests.map((t) => t.value);
   const memory = new DbMemory(db);
   // In replay mode the model answers from its recording, per line (mapping/recorded.ts).
-  const recording = mode === "replay" ? await loadRecordedMapping(replayMapping()) : null;
+  const recording = mode === "replay" ? await recordedMappingFor(prediction.sha256) : null;
   const provider = recording ? new RecordedReplies(recording.provider, recording.model) : mappingProvider(mode);
   const model: ModelOptions | undefined = provider
     ? {

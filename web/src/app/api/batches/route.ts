@@ -6,7 +6,9 @@
  * POST /api/batches: creates a batch and queues its documents. JSON
  * `{ "provider": "gemini", "name": "…", "documents": ["synth-000003.pdf", …] }` with bundled
  * documents; in live mode, also a multipart form with `provider`, `name`, `documents`
- * (repeated) and PDF `files` (repeated), which can be mixed.
+ * (repeated) and PDF `files` (repeated), which can be mixed. On a deployment with a private
+ * set, a workspace that unlocked it (POST /api/private-set) may add the set's documents by
+ * name, in `private` (an array, or repeated in the form).
  */
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -14,11 +16,12 @@ import { NextResponse } from "next/server";
 import { cleanName } from "@/lib/http";
 
 import { appMode, maxSandboxDocuments, type Provider } from "@/lib/batches/config";
+import { privateSetOpen } from "@/lib/batches/private-set";
 import { queue } from "@/lib/batches/queue";
 import { deleteAllBatches } from "@/lib/batches/remove";
 import { PROVIDERS } from "@/lib/batches/schema";
 import { getSession, noSession } from "@/lib/batches/session";
-import { deleteUpload, listBundled, readBundled, saveUpload } from "@/lib/batches/sources";
+import { deleteUpload, listBundled, listPrivate, readBundled, readPrivate, saveUpload } from "@/lib/batches/sources";
 import { countReading, createBatch, listBatches, releaseExpiredLocks, TooManyDocuments, TooManyReading, type NewDocument } from "@/lib/batches/store";
 import { looksLikePdf, readPages, sha256Hex } from "@/lib/extractor/pdf";
 
@@ -60,6 +63,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   let provider: unknown;
   let name: unknown;
   let bundled: unknown[] = [];
+  let privates: unknown[] = [];
   let files: File[] = [];
   if (req.headers.get("content-type")?.startsWith("multipart/form-data")) {
     const form = await req.formData().catch(() => null);
@@ -67,31 +71,44 @@ export async function POST(req: Request): Promise<NextResponse> {
     provider = form.get("provider");
     name = form.get("name");
     bundled = form.getAll("documents");
+    privates = form.getAll("private");
     files = form.getAll("files").filter((f): f is File => f instanceof File);
     if (files.length > 0 && mode !== "live") return bad("uploads are accepted in live mode only");
   } else {
-    const body = (await req.json().catch(() => null)) as { provider?: unknown; name?: unknown; documents?: unknown } | null;
+    const body = (await req.json().catch(() => null)) as { provider?: unknown; name?: unknown; documents?: unknown; private?: unknown } | null;
     if (!body) return bad("send JSON or a multipart form");
     ({ provider, name } = body);
     bundled = Array.isArray(body.documents) ? body.documents : [];
+    privates = Array.isArray(body.private) ? body.private : [];
   }
 
   if (typeof provider !== "string" || !(PROVIDERS as readonly string[]).includes(provider)) {
     return bad(`provider must be one of ${PROVIDERS.join(", ")}`);
   }
-  if (bundled.length + files.length === 0) return bad("a batch needs at least one document");
-  if (bundled.length + files.length > MAX_DOCUMENTS) return bad(`at most ${MAX_DOCUMENTS} documents per batch`);
-  const available = new Set(await listBundled(mode === "replay" ? (provider as Provider) : null));
+  const asked = bundled.length + privates.length + files.length;
+  if (asked === 0) return bad("a batch needs at least one document");
+  if (asked > MAX_DOCUMENTS) return bad(`at most ${MAX_DOCUMENTS} documents per batch`);
+  const recordedBy = mode === "replay" ? (provider as Provider) : null;
+  const available = new Set(await listBundled(recordedBy));
   const unknown = bundled.filter((d) => typeof d !== "string" || !available.has(d));
   if (unknown.length > 0) return bad(`not available for ${provider}: ${unknown.map(String).join(", ")}`);
+  if (privates.length > 0) {
+    if (!(await privateSetOpen(session.db))) return NextResponse.json({ error: "the private set is locked" }, { status: 403 });
+    const inSet = new Set(await listPrivate(recordedBy));
+    const missing = privates.filter((d) => typeof d !== "string" || !inSet.has(d));
+    if (missing.length > 0) return bad(`not available for ${provider}: ${missing.map(String).join(", ")}`);
+  }
 
-  if ((await countReading(session.db)) + bundled.length + files.length > MAX_READING) {
+  if ((await countReading(session.db)) + asked > MAX_READING) {
     return NextResponse.json({ error: `at most ${MAX_READING} documents queued or being read at once: wait for some to be read` }, { status: 429 });
   }
 
   const documents: NewDocument[] = [];
   for (const d of bundled as string[]) {
     documents.push({ fileName: d, sha256: sha256Hex(new Uint8Array(await readBundled(d))), origin: "bundled", location: d });
+  }
+  for (const d of privates as string[]) {
+    documents.push({ fileName: d, sha256: sha256Hex(new Uint8Array(await readPrivate(d))), origin: "private", location: d });
   }
   // Every upload is checked before any is saved: one refused would otherwise leave the others
   // stored with no batch, where nothing can delete them, and they may be real documents.

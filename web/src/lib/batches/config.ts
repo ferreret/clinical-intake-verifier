@@ -56,6 +56,34 @@ export function bundledDir(): string {
   return dir("DEMO_DOCUMENTS", "../data/synth/seed-42");
 }
 
+/**
+ * A deployment's private set (docs/deploy.md, "A private set"): anonymized real requests,
+ * offered behind a password. Its folder holds `documents/` (the PDFs), `runs/gemini/` and
+ * `runs/local/` (the extractor's recorded runs on them) and `mapping.json` (the mapping
+ * model's recorded replies). Null unless PRIVATE_SET_DIR and PRIVATE_SET_PASSWORD are both
+ * set, and the password is long enough: then nothing about the set exists, not even its link.
+ */
+export interface PrivateSetConfig {
+  dir: string;
+  password: string;
+}
+
+export const MIN_PRIVATE_SET_PASSWORD = 12;
+
+let warnedShortPassword = false;
+
+export function privateSetConfig(): PrivateSetConfig | null {
+  const folder = process.env.PRIVATE_SET_DIR?.trim();
+  const password = process.env.PRIVATE_SET_PASSWORD ?? "";
+  if (!folder || password.trim() === "") return null;
+  if (password.length < MIN_PRIVATE_SET_PASSWORD) {
+    if (!warnedShortPassword) console.warn(`private set: PRIVATE_SET_PASSWORD has fewer than ${MIN_PRIVATE_SET_PASSWORD} characters; the set stays off`);
+    warnedShortPassword = true;
+    return null;
+  }
+  return { dir: dir("PRIVATE_SET_DIR", folder), password };
+}
+
 /** The extractor runs whose replies replay mode serves, per provider. */
 export function replayRun(provider: Provider): string {
   return provider === "gemini"

@@ -1,7 +1,8 @@
 /** GET /api/documents/:id/pages/:n: page n of the document as a PNG, for the viewer. */
 import { documentPages } from "@/lib/batches/pages";
 import { getSession, noSession } from "@/lib/batches/session";
-import { readBundled, readUpload } from "@/lib/batches/sources";
+import { privateSetOpen } from "@/lib/batches/private-set";
+import { readSource } from "@/lib/batches/sources";
 import { getDocument } from "@/lib/batches/store";
 
 export const runtime = "nodejs";
@@ -11,11 +12,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string; n:
   if (!session) return noSession();
   const { id, n } = await ctx.params;
   const doc = await getDocument(session.db, id);
-  if (!doc) return Response.json({ error: "no such document" }, { status: 404 });
+  // A private document only to a workspace that unlocked the set, and while the deployment has it.
+  if (!doc || (doc.origin === "private" && !(await privateSetOpen(session.db)))) {
+    return Response.json({ error: "no such document" }, { status: 404 });
+  }
   let pages: Uint8Array[];
   try {
     pages = await documentPages(`${session.workspace}:${doc.id}`, async () =>
-      new Uint8Array(doc.origin === "bundled" ? await readBundled(doc.location) : await readUpload(doc.location)),
+      new Uint8Array(await readSource(doc)),
     );
   } catch (err) {
     // A document pdf.js cannot draw: said, rather than an empty 500.

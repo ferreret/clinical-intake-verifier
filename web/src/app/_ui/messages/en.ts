@@ -266,6 +266,15 @@ export const en = {
     readBy: (provider: string) => `Read by the ${provider.toLowerCase()}`,
     creating: "Creating…",
     create: (n: number) => (n > 0 ? `Create and read ${plural(n, "document")}` : "Create and read"),
+    privateSet: {
+      link: "Private set",
+      title: "Private set",
+      hint: "Real requests, anonymized: the patient's and the physician's data are fictitious.",
+      password: "Password",
+      unlock: "Unlock",
+      unlocking: "Checking…",
+      cancel: "Cancel",
+    },
   },
 
   batch: {

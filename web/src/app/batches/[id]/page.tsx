@@ -12,7 +12,7 @@ import { ACTIVE_STATES, api, documentError, providerOf, type BatchDetail, type D
 import { useI18n } from "../../_ui/i18n";
 import { Avatar } from "../../_ui/avatar";
 import { DeleteBatchDialog } from "../../_ui/delete-batch";
-import { ArrowRight, Clock, Cloud, Cpu, FileText, Retry, Trash, Upload } from "../../_ui/icons";
+import { ArrowRight, Clock, Cloud, Cpu, FileText, Lock, Retry, Trash, Upload } from "../../_ui/icons";
 import { LoadError, passing } from "../../_ui/load-error";
 import { usePolling } from "../../_ui/polling";
 import { BackLink, PageHeader, useSession } from "../../_ui/session";
@@ -170,6 +170,8 @@ export default function BatchPage() {
                     <span className="inline-flex items-center gap-2 whitespace-nowrap">
                       {d.origin === "upload" ? (
                         <Upload className="size-4 text-sky-500" />
+                      ) : d.origin === "private" ? (
+                        <Lock className="size-4 text-amber-600" />
                       ) : (
                         <FileText className="size-4 text-slate-400" />
                       )}

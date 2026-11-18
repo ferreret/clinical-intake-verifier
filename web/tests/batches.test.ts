@@ -6,7 +6,7 @@ import { monitorEventLoopDelay } from "node:perf_hooks";
 import { createClient } from "@libsql/client";
 import { eq } from "drizzle-orm";
 import { PDFDocument } from "pdf-lib";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { fuse } from "@/lib/fusion/fuse";
 import { chosenLink } from "@/lib/fusion/link";
@@ -16,8 +16,10 @@ import { withChosenLinks } from "@/lib/batches/pipeline";
 import { BatchQueue, failure } from "@/lib/batches/queue";
 import { deleteAllBatches, deleteBatch } from "@/lib/batches/remove";
 import { batchDocuments } from "@/lib/batches/schema";
+import { privateSetConfig } from "@/lib/batches/config";
+import { isUnlocked, MAX_WRONG_PASSWORDS, privateSetOpen, samePassword, TooManyAttempts, unlockPrivateSet } from "@/lib/batches/private-set";
 import { addressFrom } from "@/lib/batches/session";
-import { describeBundled, listBundled } from "@/lib/batches/sources";
+import { describeBundled, describePrivate, listBundled, listPrivate, readSource } from "@/lib/batches/sources";
 import {
   claimNext,
   countReading,
@@ -52,6 +54,7 @@ import { requests } from "@/lib/lis/schema";
 import { loadCatalog } from "@/lib/mapping/catalog";
 import { DbMemory } from "@/lib/mapping/memory";
 import { textKey } from "@/lib/mapping/propose";
+import type { RecordedMapping } from "@/lib/mapping/recorded";
 import { FIELD_NAMES, FIELDS } from "@/lib/schema/fields";
 
 import { documentError } from "@/app/_ui/api";
@@ -62,7 +65,18 @@ import { checkOf, itemsOf } from "@/app/batches/[id]/[docId]/model";
 import type { Prediction } from "@/lib/schema/prediction";
 
 let root: string;
-const ENV = ["APP_MODE", "APP_DATA_DIR", "LIS_TEMPLATE", "DEMO_DOCUMENTS", "REPLAY_GEMINI_RUN", "REPLAY_SPEED", "MAPPING_MODEL_CACHE", "REPLAY_MAPPING"];
+const ENV = [
+  "APP_MODE",
+  "APP_DATA_DIR",
+  "LIS_TEMPLATE",
+  "DEMO_DOCUMENTS",
+  "REPLAY_GEMINI_RUN",
+  "REPLAY_SPEED",
+  "MAPPING_MODEL_CACHE",
+  "REPLAY_MAPPING",
+  "PRIVATE_SET_DIR",
+  "PRIVATE_SET_PASSWORD",
+];
 const saved = Object.fromEntries(ENV.map((k) => [k, process.env[k]]));
 
 async function pdf(): Promise<Uint8Array> {
@@ -154,6 +168,8 @@ beforeAll(async () => {
     MAPPING_MODEL_CACHE: path.join(root, "model-cache"),
     REPLAY_MAPPING: path.join(root, "no-recording.json"),
   });
+  delete process.env.PRIVATE_SET_DIR;
+  delete process.env.PRIVATE_SET_PASSWORD;
 });
 
 afterAll(async () => {
@@ -929,5 +945,124 @@ describe("deleting a batch", () => {
     expect(await getBatch(db, untouched.id)).toBeNull();
     // A sandbox of the demo is for trying things out: there it all goes.
     expect(await deleteAllBatches(db, "replay")).toEqual({ deleted: 2, reading: 0, decided: 0 });
+  });
+});
+
+describe("the private set", () => {
+  const PASSWORD = "a long enough password";
+  let set: string;
+  let hw1: Uint8Array;
+
+  beforeAll(async () => {
+    set = path.join(root, "private");
+    await fs.mkdir(path.join(set, "documents"), { recursive: true });
+    await fs.mkdir(path.join(set, "runs", "gemini"), { recursive: true });
+    const two = await PDFDocument.create();
+    two.addPage([595, 842]);
+    two.addPage([595, 842]);
+    hw1 = await two.save();
+    const hw2 = await pdf();
+    hw2[hw2.length - 2] ^= 2;
+    await fs.writeFile(path.join(set, "documents", "hw001.pdf"), hw1);
+    await fs.writeFile(path.join(set, "documents", "hw002.pdf"), hw2);
+    // Only the first was read by the recorded run, and its mapping reply recorded.
+    await fs.writeFile(path.join(set, "runs", "gemini", "hw001.pred.json"), JSON.stringify(recorded("hw001.pdf", sha256Hex(hw1), ["Glucosa", "Hemograma"])));
+    const mapping: RecordedMapping = {
+      recording_version: 1,
+      provider: "gemini",
+      model: "recorded-private",
+      prompt_version: "1",
+      recorded_at: "2026-11-18T00:00:00Z",
+      documents: { [sha256Hex(hw1)]: { latency_ms: 700, lines: { [textKey("Hemograma")]: null } } },
+    };
+    await fs.writeFile(path.join(set, "mapping.json"), JSON.stringify(mapping));
+  });
+
+  const configure = (password = PASSWORD) => Object.assign(process.env, { PRIVATE_SET_DIR: set, PRIVATE_SET_PASSWORD: password });
+  afterEach(() => {
+    delete process.env.PRIVATE_SET_DIR;
+    delete process.env.PRIVATE_SET_PASSWORD;
+  });
+
+  it("exists only with its folder and a long enough password", async () => {
+    expect(privateSetConfig()).toBeNull();
+    expect(await listPrivate(null)).toEqual([]);
+    process.env.PRIVATE_SET_DIR = set;
+    expect(privateSetConfig()).toBeNull();
+    configure("short");
+    expect(privateSetConfig()).toBeNull();
+    configure();
+    expect(privateSetConfig()).toEqual({ dir: set, password: PASSWORD });
+  });
+
+  it("lists its documents, in replay mode those with a recorded reply, with their pages", async () => {
+    configure();
+    expect(await listPrivate(null)).toEqual(["hw001.pdf", "hw002.pdf"]);
+    expect(await listPrivate("gemini")).toEqual(["hw001.pdf"]);
+    expect(await listPrivate("local")).toEqual([]);
+    expect(await describePrivate(["hw001.pdf"])).toEqual([
+      { name: "hw001.pdf", pages: 2, scanned: true, handwritten: null, language: null, template: null },
+    ]);
+    // Never a path out of its folder.
+    await expect(describePrivate(["../bundled/doc-a.pdf"])).rejects.toThrow(/not a plain file name/);
+  });
+
+  it("compares the password in constant time, whatever its length", () => {
+    expect(samePassword(PASSWORD, PASSWORD)).toBe(true);
+    expect(samePassword("a long enough passwor", PASSWORD)).toBe(false);
+    expect(samePassword("", PASSWORD)).toBe(false);
+  });
+
+  it("unlocks the workspace that gave the password, and no other", async () => {
+    configure();
+    const [mine, theirs] = [await openWorkspace(await createSandbox()), await openWorkspace(await createSandbox())];
+    const cfg = privateSetConfig()!;
+    expect(await unlockPrivateSet(mine, cfg, { password: "wrong", technician: "T01", client: "198.51.100.1" })).toBe(false);
+    expect(await privateSetOpen(mine)).toBe(false);
+    expect(await unlockPrivateSet(mine, cfg, { password: PASSWORD, technician: "T01", client: "198.51.100.1" })).toBe(true);
+    expect(await unlockPrivateSet(mine, cfg, { password: PASSWORD, technician: "T02", client: "198.51.100.1" })).toBe(true);
+    expect(await privateSetOpen(mine)).toBe(true);
+    expect(await privateSetOpen(theirs)).toBe(false);
+    // Without the deployment's settings, an unlocked workspace has no set either.
+    delete process.env.PRIVATE_SET_PASSWORD;
+    expect(await isUnlocked(mine)).toBe(true);
+    expect(await privateSetOpen(mine)).toBe(false);
+  });
+
+  it("refuses an address after too many wrong passwords, the right one too, for a while", async () => {
+    configure();
+    const db = await openWorkspace(await createSandbox());
+    const cfg = privateSetConfig()!;
+    const at = new Date("2026-11-18T10:00:00Z");
+    const attempt = (password: string, client: string, now = at) => unlockPrivateSet(db, cfg, { password, technician: "T01", client, now });
+    for (let i = 0; i < MAX_WRONG_PASSWORDS; i++) expect(await attempt(`guess ${i}`, "203.0.113.7")).toBe(false);
+    await expect(attempt(PASSWORD, "203.0.113.7")).rejects.toThrow(TooManyAttempts);
+    expect(await isUnlocked(db)).toBe(false);
+    // Another address is not held back, and the first one may try again later.
+    expect(await attempt("guess", "203.0.113.8")).toBe(false);
+    expect(await attempt(PASSWORD, "203.0.113.7", new Date("2026-11-18T10:16:00Z"))).toBe(true);
+  });
+
+  it("replays a private document from the set's own recordings", async () => {
+    configure();
+    const ws = await createSandbox();
+    const db = await openWorkspace(ws);
+    const doc = { fileName: "hw001.pdf", sha256: sha256Hex(hw1), origin: "private" as const, location: "hw001.pdf" };
+    expect(new Uint8Array(await readSource(doc))).toEqual(hw1);
+    const batch = await createBatch(db, { name: "B", provider: "gemini", createdBy: "T01", documents: [doc] });
+    const q = new BatchQueue();
+    q.kick(ws);
+    await q.idle();
+    const [read] = (await getBatch(db, batch.id))!.documents;
+    expect(read).toMatchObject({ state: "awaiting_verification", origin: "private", error: null });
+    const proposal = (await getProposal(db, read.id))!;
+    expect(proposal.recorded).toBe(true);
+    expect(proposal.tests.map((t) => t.text)).toEqual(["Glucosa", "Hemograma"]);
+    // The red line was answered from the set's mapping replies, not the demo's (there are none).
+    expect(proposal.trace?.mapping.model).toMatchObject({ status: "asked", provider: "gemini", model: "recorded-private", lines: 1 });
+  });
+
+  it("cannot read a private document once the deployment no longer has the set", async () => {
+    await expect(readSource({ origin: "private", location: "hw001.pdf" })).rejects.toThrow("the private set is not available");
   });
 });

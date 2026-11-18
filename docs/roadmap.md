@@ -2097,7 +2097,7 @@ scanner formats and fails without the fix.
 **LM Studio's log** (item 2 of the 2026-11-09 entry) now writes `[Sensitive]` in place of
 request and response bodies (`logSensitiveData: false`), checked on 2026-11-18.
 
-**The private set: design approved on 2026-11-18, not yet implemented.**
+**The private set: design approved on 2026-11-18, implemented the same day.**
 
 1. **Where it lives.** `PRIVATE_SET_DIR`, a folder mounted into the container and copied to the
    server over SSH, never in a release: `documents/` (the anonymized PDFs), `runs/gemini/`
@@ -2115,6 +2115,20 @@ request and response bodies (`logSensitiveData: false`), checked on 2026-11-18.
    what to cover, a person reviews them, a script paints the fictitious data and rebuilds
    image-only PDFs); the cloud pass, which also records the demo's replies; the private set's
    code (alongside anonymization, tested on synthetic documents); the deployment.
+
+**How it was built.** A batch's documents have a third origin, `private`, beside `bundled` and
+`upload`, read from `PRIVATE_SET_DIR`. The unlock is a row in the workspace's database
+(`private_set_unlocks`, migration 0004: who gave the password, and when), so a sandbox that
+starts over is locked again. A password shorter than 12 characters leaves the set off; five
+wrong ones from an address hold it back for fifteen minutes. Replay looks for a private
+document's reading and mapping replies in the set's own recordings, after the demo's. The
+new-batch screen lists the set in a section of its own, with the same filter and random pick
+(one component for both lists), and the batch screen marks its documents with a lock. Seven
+tests, and a pass in the browser with four synthetic documents posing as the set: a wrong
+password refused, the right one listing the set, a batch mixing both sets read and its private
+document shown; from another sandbox, the set locked, a batch of it refused (403) and the first
+sandbox's document not found (404); the sixth wrong password from an address refused (429).
+How a deployment gets it: `docs/deploy.md`, "A private set".
 
 **The anonymization tools, done on 2026-11-18** (`docs/anonymize.md`): `intake-synth
 anon-propose`, `anon-review` and `anon-apply` in the generator's package, which already had the

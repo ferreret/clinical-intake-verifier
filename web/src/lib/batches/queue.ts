@@ -12,7 +12,7 @@ import { appMode, concurrency, type Provider } from "./config";
 import { documentPages, RENDERED_AHEAD } from "./pages";
 import { proposeFor, readDocument } from "./pipeline";
 import { PROVIDERS } from "./schema";
-import { readBundled, readUpload } from "./sources";
+import { readSource } from "./sources";
 import { claimNext, completeDocument, failDocument, hasQueued, requeueInterrupted, type BatchDocument } from "./store";
 import { listWorkspaces, LIVE_WORKSPACE, openWorkspace, sweepSandboxes, workspaceExists, WorkspaceGone } from "./workspace";
 
@@ -133,7 +133,7 @@ export class BatchQueue {
     const db = await openWorkspace(workspace).catch(() => null);
     if (!db) return;
     try {
-      const pdf = new Uint8Array(doc.origin === "bundled" ? await readBundled(doc.location) : await readUpload(doc.location));
+      const pdf = new Uint8Array(await readSource(doc));
       const { prediction, recorded } = await readDocument(pdf, doc, doc.provider);
       const { fused, tests, trace } = await proposeFor(db, prediction);
       await completeDocument(db, doc.id, { prediction, fused, tests, recorded, trace });

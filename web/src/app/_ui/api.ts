@@ -135,17 +135,22 @@ export const api = {
   session: () => call<SessionInfo>("/api/session"),
   pickTechnician: (technician: string) => call<SessionInfo>("/api/session", postJson({ technician })),
   startOver: () => call<SessionInfo>("/api/session", { method: "DELETE" }),
-  bundled: (provider: Provider) => call<{ documents: BundledInfo[] }>(`/api/bundled?provider=${provider}`),
+  /** The bundled documents; on a deployment with a private set, whether it is unlocked and, once it is, its documents. */
+  bundled: (provider: Provider) =>
+    call<{ documents: BundledInfo[]; privateSet?: { unlocked: boolean }; private?: BundledInfo[] }>(`/api/bundled?provider=${provider}`),
+  unlockPrivateSet: (password: string) => call<{ unlocked: true }>("/api/private-set", postJson({ password })),
   batches: () => call<{ batches: BatchSummary[] }>("/api/batches"),
   batch: (id: string) => call<BatchDetail>(`/api/batches/${id}`),
-  createBatch: (input: { provider: Provider; name: string; documents: string[]; files: File[] }) => {
+  createBatch: (input: { provider: Provider; name: string; documents: string[]; private: string[]; files: File[] }) => {
     if (input.files.length === 0) {
-      return call<{ batch: Batch }>("/api/batches", postJson({ provider: input.provider, name: input.name, documents: input.documents }));
+      const body = { provider: input.provider, name: input.name, documents: input.documents, ...(input.private.length > 0 ? { private: input.private } : {}) };
+      return call<{ batch: Batch }>("/api/batches", postJson(body));
     }
     const form = new FormData();
     form.set("provider", input.provider);
     form.set("name", input.name);
     for (const d of input.documents) form.append("documents", d);
+    for (const d of input.private) form.append("private", d);
     for (const f of input.files) form.append("files", f);
     return call<{ batch: Batch }>("/api/batches", { method: "POST", body: form });
   },
