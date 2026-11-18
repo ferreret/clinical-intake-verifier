@@ -170,7 +170,10 @@ layer-1 schema as `responseJsonSchema`, low thinking (the current Flash rejects 
 **Local, `page-images`.** A vision model behind an OpenAI-compatible chat API, LM Studio's
 server with Qwen by default (`LOCAL_LLM_URL`, `LOCAL_LLM_MODEL`, and `LOCAL_LLM_TOKEN` when the
 server requires authentication). Each page is rendered to a PNG at 150 dpi with pdf.js and
-sent as one image, in page order. `temperature: 0` and reasoning switched off;
+sent as one image, in page order. pdf.js is given its WebAssembly image decoders: scanners
+store pages as CCITT fax (TIFF scans), JPEG 2000 or JBIG2, and without the decoders such a
+page is drawn blank with no error (fixed on 2026-11-18; the synthetic documents, stored
+otherwise, never showed it). `temperature: 0` and reasoning switched off;
 `thinking_level` is recorded as `null`. The output is **not** constrained by a
 schema while decoding: in the manual check of 2026-10-26 that left the values intact but made
 the boxes far worse. The layer-1 schema, in the model's own box convention, is appended to the

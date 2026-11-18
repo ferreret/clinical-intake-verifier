@@ -13,13 +13,13 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 export const DEFAULT_DPI = 150;
 
 /**
- * Forms generated with the standard PDF fonts do not embed them; pdf.js needs its own copies.
- * Resolved from the working directory, not from this module: once bundled by Next.js, this
- * module has no file URL of its own.
+ * A directory of the pdf.js package, with a trailing separator. Resolved from the working
+ * directory, not from this module: once bundled by Next.js, this module has no file URL of
+ * its own.
  */
-function standardFontsDir(): string {
+function pdfjsDir(name: string): string {
   const require = createRequire(path.join(process.cwd(), "package.json"));
-  return path.join(path.dirname(require.resolve("pdfjs-dist/package.json")), "standard_fonts") + path.sep;
+  return path.join(path.dirname(require.resolve("pdfjs-dist/package.json")), name) + path.sep;
 }
 
 /** One PNG per page, in page order, on a white background. */
@@ -27,7 +27,11 @@ export async function renderPages(pdf: Uint8Array, dpi = DEFAULT_DPI): Promise<U
   // pdf.js takes ownership of the buffer it is given, so it gets a copy.
   const task = getDocument({
     data: pdf.slice(),
-    standardFontDataUrl: standardFontsDir(),
+    // Forms generated with the standard PDF fonts do not embed them; pdf.js needs its own copies.
+    standardFontDataUrl: pdfjsDir("standard_fonts"),
+    // Its image decoders: without them a scanned page (CCITT fax from a TIFF, JPEG 2000 from
+    // a desktop scanner, JBIG2) is drawn as a blank page, with no error.
+    wasmUrl: pdfjsDir("wasm"),
     verbosity: 0,
   });
   try {

@@ -40,14 +40,16 @@ const nextConfig: NextConfig = {
   // Page rendering and OCR for the local model: a native addon, pdf.js's worker and
   // Tesseract's worker threads, loaded by Node at run time rather than bundled.
   serverExternalPackages: ["@napi-rs/canvas", "pdfjs-dist", "tesseract.js"],
-  // What pdf.js finds at run time by path rather than import (its worker, its fonts, found
-  // through its package.json), which the standalone build would otherwise leave out.
+  // What pdf.js finds at run time by path rather than import (its worker, its fonts, its
+  // image decoders, found through its package.json), which the standalone build would
+  // otherwise leave out.
   outputFileTracingIncludes: {
     "/api/**": [
       "./node_modules/pdfjs-dist/package.json",
       "./node_modules/pdfjs-dist/legacy/build/**",
       "./node_modules/pdfjs-dist/standard_fonts/**",
       "./node_modules/pdfjs-dist/cmaps/**",
+      "./node_modules/pdfjs-dist/wasm/**",
     ],
   },
 };
