@@ -4,7 +4,7 @@ Where the project stands, what has been decided and what is only proposed. Read 
 starting a work session. Anything marked **proposed** is a design that has not been approved or
 implemented; it changes only after an explicit decision.
 
-Last updated: 2026-11-09.
+Last updated: 2026-11-18.
 
 ## Where things stand
 
@@ -2057,3 +2057,61 @@ What it means for this repository:
 3. **Loading on demand is still on.** A request naming another downloaded model would load
    it with default settings, beside Qwen. The client is told to name
    `qwen/qwen3.6-35b-a3b` exactly.
+
+### 2026-11-18: real requests with handwritten tests, and a private set for one deployment
+
+The product owner's company shows the verifier to laboratories and insurers. A client's main
+pain is reading tests that anyone writes by hand, and the synthetic set cannot show it with
+real handwriting. Decided with the product owner on 2026-11-18:
+
+- **A set of real requests whose tests are handwritten**, kept outside version control in
+  `samples_real/` (already ignored, and outside the image: `.dockerignore` lets in only `web/`
+  and `schema/`). 188 documents, every page screened by eye: 51 from the PDF samples and 137
+  from 2,232 TIFF scans (6,871 pages, 43 requesting centres, 2019 to 2024), the ones with the
+  most handwritten tests (all with ten or more, and the best two with five to nine from
+  centres otherwise missing). Three kinds: tests written by hand as the request itself;
+  printed or ticked tests with more added by hand; a generic word ("Analítica") written by
+  hand, with the tests printed on another page.
+- **An exception to CLAUDE.md rule 4, for one deployment only.** The company's deployment may
+  offer these requests, once anonymized (patient and physician data replaced by fictitious
+  data), behind a password. The portfolio deployment and the repository stay synthetic.
+  Real documents, anonymized or not, never enter the repository, a release or the image.
+- **Only anonymized documents leave the machine.** Gemini and the server see the anonymized
+  versions alone; the local model reads the originals.
+- **Measured on the set:** the local model on the originals first; then, on the anonymized
+  versions, `gemini-3.8-flash` (the measured default) against `gemini-4-hydrogen` (released
+  2026-11-12, available to the project's key), both compared with the local model test by
+  test. The reference for the tests is a transcription Claude proposes and a person confirms.
+- **The portfolio deployment is frozen** at its current commit. New work is published to the
+  company's deployment only, through a branch of its own; `production` stays where it is.
+
+**Scanned pages were drawn blank (found with this set, fixed in `35d4b03`).** pdf.js decodes
+CCITT fax, JPEG 2000 and JBIG2 images with WebAssembly decoders it loads by path, and
+`renderPages` never said where they were: every scanned page came out as a white PNG, with
+no error. That blinded the local model and the Tesseract OCR, and the viewer's page images
+would have been white for a real scan in live mode. The demos, in replay with synthetic
+documents (whose images pdf.js decodes without them), never showed it. Gemini, which receives
+the PDF itself, was not affected. A test renders one synthetic page of each of the two
+scanner formats and fails without the fix.
+
+**LM Studio's log** (item 2 of the 2026-11-09 entry) now writes `[Sensitive]` in place of
+request and response bodies (`logSensitiveData: false`), checked on 2026-11-18.
+
+**The private set: design approved on 2026-11-18, not yet implemented.**
+
+1. **Where it lives.** `PRIVATE_SET_DIR`, a folder mounted into the container and copied to the
+   server over SSH, never in a release: `documents/` (the anonymized PDFs), `runs/gemini/`
+   and `runs/local/` (recorded extractor runs) and `mapping.json` (recorded mapping replies).
+   `PRIVATE_SET_PASSWORD` in the deployment's settings. Without both, nothing changes and
+   nothing about the set shows.
+2. **How it is chosen.** On the new-batch screen, a discreet "Private set" link asks for the
+   password. On success the visitor's sandbox (not the browser) is unlocked and the private
+   documents join the list, to be chosen like the bundled ones. Replay finds their recorded
+   replies by the PDF's hash, as it does now.
+3. **Safety.** The password is a second layer: the first is that the documents are
+   anonymized. Constant-time comparison, attempts limited per client address, and a private
+   document is served only to a sandbox that unlocked the set.
+4. **Order of work:** the local pass (overnight); anonymization (the extractor's boxes propose
+   what to cover, a person reviews them, a script paints the fictitious data and rebuilds
+   image-only PDFs); the cloud pass, which also records the demo's replies; the private set's
+   code (alongside anonymization, tested on synthetic documents); the deployment.
