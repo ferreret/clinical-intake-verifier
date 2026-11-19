@@ -60,7 +60,10 @@ red dot beside it was read as ticked. With prompt 8: none in five readings of th
 on the 40 synthetic requests the same as prompt 7. The omissions that remain (the ticked
 bilirubin missed in three readings of five) are the model skipping a line, not a reading of
 the mark; with `GEMINI_THINKING_LEVEL=medium` that request was read right in five readings of
-five, at several times the latency.
+five. On the 40 synthetic requests medium did not help: fields the same, one test list kept
+its printed bullets ("• COLESTEROL", tests F1 -1.4 pp), boxes -1.6 pp, latency 22 s a document
+against 9 (median) and 2,500 thinking tokens more. Low stays the default; the real handwritten
+set, once anonymized and transcribed, is where the two are to be compared.
 
 #### Another model's conventions
 
