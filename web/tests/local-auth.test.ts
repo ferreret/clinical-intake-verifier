@@ -1,20 +1,23 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { callLocal, LocalModelError } from "@/lib/extractor/local";
+import { callLocal, DEFAULT_LOCAL_MAX_TOKENS, LocalModelError, resolveLocalMaxTokens } from "@/lib/extractor/local";
 import { LocalProvider } from "@/lib/mapping/model";
 
-/** A stand-in for LM Studio's server: records each request's Authorization header. */
+/** A stand-in for LM Studio's server: records each request's Authorization header and reply cap. */
 let server: http.Server;
 let baseUrl: string;
 let required: string | null = null;
 const seen: (string | undefined)[] = [];
+const caps: unknown[] = [];
 
 beforeAll(async () => {
   server = http.createServer((req, res) => {
-    req.resume();
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
     req.on("end", () => {
       seen.push(req.headers.authorization);
+      caps.push((JSON.parse(Buffer.concat(chunks).toString("utf8")) as { max_tokens?: unknown }).max_tokens);
       res.setHeader("Content-Type", "application/json");
       if (required !== null && req.headers.authorization !== `Bearer ${required}`) {
         res.statusCode = 401;
@@ -34,6 +37,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
   required = null;
   seen.length = 0;
+  caps.length = 0;
 });
 
 const request = () => ({ baseUrl, model: "qwen/test", pages: [], systemInstruction: "", userMessage: "hi", temperature: 0 });
@@ -65,5 +69,26 @@ describe("the token for a local model server that requires one", () => {
     expect((err as LocalModelError).retryable).toBe(false);
     expect((err as Error).message).toContain("set LOCAL_LLM_TOKEN");
     await expect(new LocalProvider("qwen/test", baseUrl).complete("s", "u", {})).rejects.toThrow("set LOCAL_LLM_TOKEN");
+  });
+});
+
+describe("the local model's reply cap", () => {
+  it("is the default when LOCAL_LLM_MAX_TOKENS is not set", async () => {
+    vi.stubEnv("LOCAL_LLM_MAX_TOKENS", "");
+    await callLocal(request());
+    expect(caps).toEqual([DEFAULT_LOCAL_MAX_TOKENS]);
+  });
+
+  it("is raised by LOCAL_LLM_MAX_TOKENS, for a server loaded with room for it", async () => {
+    vi.stubEnv("LOCAL_LLM_MAX_TOKENS", " 20000 ");
+    await callLocal(request());
+    expect(caps).toEqual([20000]);
+  });
+
+  it("refuses a value that is not a whole number of tokens", () => {
+    for (const bad of ["0", "-5", "20k", "1.5"]) {
+      vi.stubEnv("LOCAL_LLM_MAX_TOKENS", bad);
+      expect(resolveLocalMaxTokens).toThrow("LOCAL_LLM_MAX_TOKENS must be a whole number");
+    }
   });
 });

@@ -18,6 +18,9 @@ export const DEFAULT_LOCAL_URL = "http://127.0.0.1:1234/v1";
 /** A long document takes minutes on a laptop GPU; this only catches a server that hangs. */
 const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
 
+/** Room for a reply of about 115 tests with their boxes; a longer one is cut and does not parse. */
+export const DEFAULT_LOCAL_MAX_TOKENS = 8192;
+
 export function resolveLocalModel(): string {
   return process.env.LOCAL_LLM_MODEL?.trim() || DEFAULT_LOCAL_MODEL;
 }
@@ -29,6 +32,19 @@ export function resolveLocalUrl(): string {
 /** The token a server that requires authentication asks for, such as LM Studio's; none by default. */
 export function resolveLocalToken(): string | undefined {
   return process.env.LOCAL_LLM_TOKEN?.trim() || undefined;
+}
+
+/**
+ * The most tokens the model may write in one reply (LOCAL_LLM_MAX_TOKENS). The server's
+ * context must hold the pages and the reply together: LM Studio loaded with 16k has no room
+ * for more than the default, so a larger one is for runs on a server loaded with more.
+ */
+export function resolveLocalMaxTokens(): number {
+  const raw = process.env.LOCAL_LLM_MAX_TOKENS?.trim();
+  if (!raw) return DEFAULT_LOCAL_MAX_TOKENS;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) throw new Error(`LOCAL_LLM_MAX_TOKENS must be a whole number of tokens, not ${raw}`);
+  return n;
 }
 
 /** The headers of every request to the local model: JSON, and the token when one is set. */
@@ -117,7 +133,7 @@ export async function callLocal(req: LocalRequest): Promise<LocalReply> {
       { role: "user", content },
     ],
     temperature: req.temperature,
-    max_tokens: 8192,
+    max_tokens: resolveLocalMaxTokens(),
     // Reasoning multiplies the latency of a local model tenfold and did not change the values.
     reasoning_effort: "none",
   };

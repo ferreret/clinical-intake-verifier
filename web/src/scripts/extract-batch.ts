@@ -13,7 +13,8 @@
  * boxes come from the page's OCR where it finds the value: [--no-ocr-boxes] keeps the model's
  * own, [--ocr-boxes] applies the OCR to Gemini too. Experiments with the local model: [--dpi 200] renders the
  * pages at another resolution, [--grounding] locates the values again in a second pass per
- * page. All are recorded under `options` in run.json.
+ * page. LOCAL_LLM_MAX_TOKENS raises the local model's reply cap, for documents with more tests
+ * than the default leaves room for. All are recorded under `options` in run.json.
  *
  * `local-text` is the text pipeline: an OCR reads the pages and the local model gets only its
  * text. The OCR is Tesseract, in-process, unless [--ocr-dir] names a directory of
@@ -39,6 +40,7 @@ import {
 } from "@/lib/extractor";
 
 import { loadDotEnv } from "./env";
+import { DEFAULT_LOCAL_MAX_TOKENS, resolveLocalMaxTokens } from "@/lib/extractor/local";
 import { validateOcrDocument, type OcrDocument } from "@/lib/extractor/ocr-text";
 import {
   DEFAULT_OCR_ENGINE,
@@ -70,6 +72,8 @@ interface RunManifest {
     dpi?: number;
     grounding?: boolean;
     ocr_boxes?: boolean;
+    /** The local model's reply cap, when not the default (LOCAL_LLM_MAX_TOKENS). */
+    max_tokens?: number;
     /** local-text: the OCR engine, the directory its files came from, and whether checkboxes were read. */
     ocr_engine?: string;
     ocr_dir?: string;
@@ -234,6 +238,17 @@ async function main(): Promise<number> {
   const defaultConcurrency = provider === "gemini" ? "4" : "1";
   const concurrency = Math.max(1, Number.parseInt(values.concurrency ?? defaultConcurrency, 10) || 1);
   const limit = values.limit ? Number.parseInt(values.limit, 10) : undefined;
+  // Read before the first call: a wrong value would otherwise fail every document.
+  let maxTokens: number | undefined;
+  if (provider !== "gemini") {
+    try {
+      maxTokens = resolveLocalMaxTokens();
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      return 1;
+    }
+  }
+  const raisedCap = maxTokens !== undefined && maxTokens !== DEFAULT_LOCAL_MAX_TOKENS ? maxTokens : undefined;
   const only = values.only ? new Set(values.only.split(",").map((s) => s.trim()).filter(Boolean)) : null;
 
   let pdfs = (await fs.readdir(inDir)).filter((f) => f.toLowerCase().endsWith(".pdf")).sort();
@@ -276,11 +291,12 @@ async function main(): Promise<number> {
   const firstOcr = ocrFiles.values().next().value;
   const repoRoot = path.resolve(process.cwd(), "..");
   const options =
-    dpi !== undefined || grounding || ocrBoxes || textPipeline
+    dpi !== undefined || grounding || ocrBoxes || textPipeline || raisedCap !== undefined
       ? {
           ...(dpi !== undefined && { dpi }),
           ...(grounding && { grounding }),
           ...(ocrBoxes && { ocr_boxes: true }),
+          ...(raisedCap !== undefined && { max_tokens: raisedCap }),
           ...(textPipeline && { ocr_engine: firstOcr?.engine ?? ocrServer?.engine ?? "tesseract" }),
           ...(ocrDir !== null && { ocr_dir: path.relative(repoRoot, ocrDir).split(path.sep).join("/") }),
           ...(ocrServer !== null && { ocr_url: ocrServer.url }),
@@ -304,6 +320,9 @@ async function main(): Promise<number> {
     documents: [],
     totals: totals([]),
   };
+  // A cap cuts only the replies that reach it: raised on a resumed run, it changes only the
+  // documents that failed by reaching it, and the run records the cap now in force.
+  if (previous && raisedCap !== undefined) manifest.options = { ...manifest.options, max_tokens: raisedCap };
   const documents = new Map(manifest.documents.map((d) => [d.id, d]));
 
   const flush = async () => {
@@ -315,6 +334,7 @@ async function main(): Promise<number> {
   console.log(`run ${manifest.run_id}: ${pdfs.length} PDF(s) from ${inDir}`);
   console.log(
     `${provider} model ${model}, prompt v${promptVersion}, ${inputMode}, concurrency ${concurrency}` +
+      (maxTokens !== undefined ? `, max tokens ${maxTokens}` : "") +
       (options ? `, options ${JSON.stringify(options)}` : ""),
   );
   console.log(`writing to ${outDir}`);

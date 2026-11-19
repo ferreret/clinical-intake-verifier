@@ -174,7 +174,10 @@ sent as one image, in page order. pdf.js is given its WebAssembly image decoders
 store pages as CCITT fax (TIFF scans), JPEG 2000 or JBIG2, and without the decoders such a
 page is drawn blank with no error (fixed on 2026-11-18; the synthetic documents, stored
 otherwise, never showed it). `temperature: 0` and reasoning switched off;
-`thinking_level` is recorded as `null`. The output is **not** constrained by a
+`thinking_level` is recorded as `null`. A reply is capped at 8192 tokens, room for about 115
+tests with their boxes; a document with more is cut, fails as `invalid_json`, and
+`LOCAL_LLM_MAX_TOKENS` raises the cap on a server loaded with the context for it (found on
+2026-11-19, on real requests with 120 to 150 tests; recorded as `options.max_tokens`). The output is **not** constrained by a
 schema while decoding: in the manual check of 2026-10-26 that left the values intact but made
 the boxes far worse. The layer-1 schema, in the model's own box convention, is appended to the
 instruction instead, and the reply goes through the same validation and retry as Gemini's.
