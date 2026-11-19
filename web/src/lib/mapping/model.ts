@@ -225,8 +225,54 @@ function replyObject(text: unknown): Record<string, unknown> | null {
   }
 }
 
+/**
+ * The most lines asked about in one request. The response schema lists every line's candidates,
+ * and Gemini refuses a schema with too many states: a real form with 88 handwritten lines (about
+ * 1,750 candidate codes) was refused, one with 75 was not. A longer form is asked in parts of
+ * equal size, each with the whole form as context; a shorter one is asked exactly as before.
+ */
+export const MAX_LINES_PER_REQUEST = 40;
+
+/** The lines in parts of at most `max`, of sizes as equal as can be, in order. */
+export function splitLines<T>(lines: T[], max = MAX_LINES_PER_REQUEST): T[][] {
+  if (lines.length <= max) return [lines];
+  const parts = Math.ceil(lines.length / max);
+  const base = Math.floor(lines.length / parts);
+  const longer = lines.length % parts; // the first parts take one line more
+  const out: T[][] = [];
+  for (let i = 0, start = 0; i < parts; i++) {
+    const size = base + (i < longer ? 1 : 0);
+    out.push(lines.slice(start, start + size));
+    start += size;
+  }
+  return out;
+}
+
 /** Asks the provider (or the cache) which codes each line means. */
 export async function consult(
+  req: ModelRequest,
+  catalog: Catalog,
+  provider: Provider,
+  cacheDir: string | null,
+): Promise<Consultation> {
+  const parts = splitLines(req.lines);
+  if (parts.length === 1) return consultPart(req, catalog, provider, cacheDir);
+  const choices = new Map<string, string[] | null>();
+  const usage: Usage = { inputTokens: 0, outputTokens: 0 };
+  let latencyMs = 0;
+  let cached = true;
+  for (const lines of parts) {
+    const c = await consultPart({ ...req, lines }, catalog, provider, cacheDir);
+    for (const [id, codes] of c.choices) choices.set(id, codes);
+    usage.inputTokens = usage.inputTokens === null || c.usage.inputTokens === null ? null : usage.inputTokens + c.usage.inputTokens;
+    usage.outputTokens = usage.outputTokens === null || c.usage.outputTokens === null ? null : usage.outputTokens + c.usage.outputTokens;
+    latencyMs += c.latencyMs;
+    cached &&= c.cached;
+  }
+  return { choices, usage, latencyMs, cached };
+}
+
+async function consultPart(
   req: ModelRequest,
   catalog: Catalog,
   provider: Provider,

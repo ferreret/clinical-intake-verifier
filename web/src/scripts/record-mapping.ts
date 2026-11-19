@@ -1,8 +1,9 @@
 /**
  * Records the mapping model's replies for the demo (mapping/recorded.ts): for every document
- * of the given extractor runs, the model is asked about all its lines at once, with the whole
- * form as context, and each line's answer is kept. Replay mode then serves them to whichever
- * lines are red, whatever the sandbox's memory.
+ * of the given extractor runs, the model is asked about all its lines at once (a long form in
+ * parts: MAX_LINES_PER_REQUEST in mapping/model.ts), with the whole form as context, and each
+ * line's answer is kept. Replay mode then serves them to whichever lines are red, whatever the
+ * sandbox's memory.
  *
  *   npm run record-mapping -- [--provider gemini] [--runs <run dir>,<run dir>]
  *                             [--out <file>] [--template <db>] [--limit n] [--parallel 4]

@@ -8,7 +8,7 @@ import { openLis } from "@/lib/lis/db";
 import { loadCatalog, readCatalog, type Catalog, type CatalogFile } from "@/lib/mapping/catalog";
 import { proposeDocument } from "@/lib/mapping/document";
 import { DbMemory, InMemoryMemory, type MappingMemory } from "@/lib/mapping/memory";
-import { buildPrompt, consult, type Provider } from "@/lib/mapping/model";
+import { buildPrompt, consult, MAX_LINES_PER_REQUEST, splitLines, type Provider } from "@/lib/mapping/model";
 import { GREEN_APPROVALS, propose, textKey } from "@/lib/mapping/propose";
 import { browse, codeNames } from "@/lib/mapping/browse";
 import { CatalogIndex, searchKey } from "@/lib/mapping/search";
@@ -278,6 +278,33 @@ describe("model replies", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+
+  it("splits a long form into parts of equal size, and leaves a short one whole", () => {
+    const sizes = (n: number) => splitLines(Array.from({ length: n }, (_, i) => i)).map((p) => p.length);
+    expect(MAX_LINES_PER_REQUEST).toBe(40);
+    expect(sizes(0)).toEqual([0]);
+    expect(sizes(40)).toEqual([40]);
+    expect(sizes(41)).toEqual([21, 20]);
+    expect(sizes(88)).toEqual([30, 29, 29]);
+    expect(splitLines([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+  });
+
+  it("asks about a long form in parts, each with the whole form as context", async () => {
+    const texts = Array.from({ length: 90 }, (_, i) => `IONES ${i + 1}`);
+    const lines = texts.map((text, i) => ({ id: `L${i + 1}`, text, candidates: INDEX_SYNC_IONES }));
+    const provider = fakeProvider(Object.fromEntries(texts.map((t, i) => [t, i % 2 ? ["BQ0005"] : ["BQ0004"]])));
+    const users: string[] = [];
+    const complete = provider.complete.bind(provider);
+    provider.complete = async (system, user, schema) => (users.push(user), complete(system, user, schema));
+    const out = await consult({ insurer: null, language: "es", formLines: texts, lines }, CATALOG, provider, null);
+    expect(provider.asked.map((ids) => ids.length)).toEqual([30, 30, 30]);
+    expect(provider.asked.flat()).toEqual(lines.map((l) => l.id));
+    for (const user of users) expect(user).toContain(`Tests requested on this form: ${texts.join("; ")}.`);
+    expect(out.choices.size).toBe(90);
+    expect(out.choices.get("L1")).toEqual(["BQ0004"]);
+    expect(out.choices.get("L90")).toEqual(["BQ0005"]);
+    expect(out.usage).toEqual({ inputTokens: 30, outputTokens: 6 });
   });
 
   it("retries a reply that is not the JSON object asked for", async () => {
