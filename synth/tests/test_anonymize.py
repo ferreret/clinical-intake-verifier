@@ -228,12 +228,43 @@ def test_a_value_written_in_parts_is_recorded_whole():
         "Telefono": "600 11 12 22",
         OTHER: "C/ Mayor 3",
     }
-    plan.boxes[1].text = "P."  # not the identity's words: the first box's text, as before
+    plan.boxes[1].text = "PEREZ"  # not the identity's words: the first box's text, as before
     assert plan.written()["Paciente"] == "RUIZ"
     plan.boxes[0].text, plan.boxes[1].text = "Ruiz", "Pons,"  # case and commas aside
     assert plan.written()["Paciente"] == "ANA RUIZ PONS"
     plan.identity["Paciente"] = "RUIZ PONS, ANA"
     assert plan.written()["Paciente"] == "RUIZ PONS, ANA"
+
+
+def test_parts_with_variants_titles_and_dates_are_recorded_whole():
+    plan = Plan(
+        doc="d",
+        pdf="d.pdf",
+        identity={
+            "Paciente": "LORENA SARMIENTO ABELLÁN",
+            "NombreMedico": "PANCHO GRAU ALMANSA",
+            "FechaNacimiento": "06/05/1985",
+        },
+    )
+    plan.boxes = [
+        Box(1, 0.1, 0.10, 0.4, 0.12, "Paciente", text="SARMIENTO"),
+        Box(1, 0.1, 0.13, 0.4, 0.15, "Paciente", text="ABELLAN"),
+        Box(1, 0.1, 0.16, 0.4, 0.18, "Paciente", text="LORENA"),
+        Box(2, 0.1, 0.10, 0.4, 0.12, "Paciente", text="Lorena Sarmiento"),  # a variant elsewhere
+        Box(3, 0.1, 0.10, 0.4, 0.12, "Paciente", text="L. SARMIENTO"),  # an initial
+        Box(1, 0.5, 0.10, 0.8, 0.12, "NombreMedico", text="DR. PANCHO GRAU"),  # a title
+        Box(1, 0.5, 0.13, 0.8, 0.15, "NombreMedico", text="ALMANSA"),
+        Box(1, 0.5, 0.20, 0.55, 0.22, "FechaNacimiento", text="06"),  # a date in three boxes
+        Box(1, 0.56, 0.20, 0.6, 0.22, "FechaNacimiento", text="05"),
+        Box(1, 0.61, 0.20, 0.7, 0.22, "FechaNacimiento", text="1985"),
+    ]
+    assert plan.written() == {
+        "Paciente": "LORENA SARMIENTO ABELLÁN",
+        "NombreMedico": "PANCHO GRAU ALMANSA",
+        "FechaNacimiento": "06/05/1985",
+    }
+    plan.boxes.append(Box(4, 0.1, 0.1, 0.4, 0.12, "Paciente", text="OTRA PERSONA"))  # foreign words
+    assert plan.written()["Paciente"] == "SARMIENTO"
 
 
 def test_omitted_pages_are_left_out_and_the_rest_renumbered(tmp_path):

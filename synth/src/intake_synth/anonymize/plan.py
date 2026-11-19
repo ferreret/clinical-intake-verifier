@@ -10,6 +10,8 @@ personal data: an address, an e-mail, a record number; ``text`` is written as gi
 from __future__ import annotations
 
 import json
+import re
+import unicodedata
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -34,9 +36,38 @@ KINDS = (*PERSONAL_FIELDS, OTHER, COVER)
 STYLES = ("print", "hand")
 
 
-def _words(text: str) -> list[str]:
-    """A value's words in any order, case and commas aside ("Ruiz Pons, Ana" ~ "ANA RUIZ PONS")."""
-    return sorted(w.casefold() for w in text.replace(",", " ").split())
+#: Titles written in front of a name on some forms ("DR. ALBINO", "Sra. Ruiz"), and the words
+#: that join surnames ("Cortina i Ariño", "Ruiz y Pons"): not part of the value.
+_TITLES = {"dr", "dra", "doctor", "doctora", "sr", "sra", "srta", "i", "y"}
+
+
+def _tokens(text: str) -> set[str]:
+    """A value's words and numbers, case, accents and punctuation aside ("17/01/1958" ~ 17 01 1958)."""
+    folded = "".join(
+        c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn"
+    )
+    return set(re.findall(r"[^\W_]+", folded.casefold()))
+
+
+def _in_parts(texts: list[str], whole: str) -> bool:
+    """Whether ``texts`` together write ``whole``: all its words, and nothing but its words,
+    their initials, titles and joining words (surnames on one line and the name on another, a
+    date in three boxes, a variant such as "Lorena" or "DR. PANCHO GRAU" elsewhere)."""
+    want = _tokens(whole)
+    have = set().union(*(_tokens(t) for t in texts))
+
+    def short_year(t: str, w: str) -> bool:  # "24/01/43" for 24/01/1943
+        return len(t) == 2 and t.isdigit() and len(w) == 4 and w.endswith(t)
+
+    def fits(t: str) -> bool:
+        if t in want or t in _TITLES:
+            return True
+        if len(t) == 1:  # an initial
+            return any(w.startswith(t) for w in want)
+        return any(short_year(t, w) for w in want)
+
+    covered = all(w in have or any(short_year(t, w) for t in have) for w in want)
+    return bool(want) and covered and all(fits(t) for t in have)
 
 
 @dataclass
@@ -85,10 +116,11 @@ class Plan:
     def written(self) -> dict[str, str]:
         """What each kind's boxes write, the first box's text unless the boxes write a value in parts.
 
-        A value printed in parts (surnames and name on lines of their own) gets a box per part,
-        each with its part as text: when the parts hold the words of the identity's value, the
-        value written is the identity's whole one, in whatever order, case and punctuation the form
-        asks for them.
+        A value printed in parts (surnames and name on lines of their own, a date in three boxes)
+        gets a box per part, each with its part as text, and variants elsewhere may repeat some of
+        it: when the parts hold the words of the identity's value and nothing else (but titles and
+        initials), the value written is the identity's whole one, in whatever order, case and
+        punctuation the form asks for them.
         """
         texts: dict[str, list[str]] = {}
         for b in self.boxes:
@@ -99,12 +131,8 @@ class Plan:
         written = {}
         for kind, parts in texts.items():
             whole = self.identity.get(kind)
-            pieces = [
-                t for t in parts if t != whole
-            ]  # the whole value may be written elsewhere too
-            in_parts = (
-                whole is not None and len(pieces) > 1 and _words(" ".join(pieces)) == _words(whole)
-            )
+            # The whole value may be written too, on another page: it counts with the parts.
+            in_parts = whole is not None and len(parts) > 1 and _in_parts(parts, whole)
             written[kind] = whole if in_parts else parts[0]
         return written
 
