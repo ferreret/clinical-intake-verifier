@@ -21,6 +21,8 @@ export interface DocumentContext {
   scope: string;
   insurer: string | null;
   language: string;
+  /** The diagnosis or clinical orientation read on the form, for the model's context. */
+  diagnosis?: string | null;
 }
 
 export interface ModelOptions {
@@ -61,7 +63,7 @@ export async function proposeDocument(
   const asked: ModelLine[] = needs.map(({ p, i }) => ({ id: `L${i + 1}`, text: lines[i], candidates: p.candidates }));
   const consultation = model.replay
     ? model.replay(asked)
-    : await consult({ insurer: ctx.insurer, language: ctx.language, formLines: lines, lines: asked }, model.catalog, model.provider, model.cacheDir);
+    : await consult({ insurer: ctx.insurer, language: ctx.language, formLines: lines, diagnosis: ctx.diagnosis, lines: asked }, model.catalog, model.provider, model.cacheDir);
   for (const { p, i } of needs) {
     // Only among the line's candidates, whatever the answer came from: consult() holds the
     // live model to them, and a recorded answer is held to them here too.

@@ -80,7 +80,7 @@ async function main(): Promise<void> {
         missing.map(async ({ text, i }) => ({ id: `L${i + 1}`, text, candidates: await index.search(text, CANDIDATES) })),
       );
       const insurer = p.fields.NombreMutua?.value ?? null;
-      const c = await consult({ insurer, language: "es", formLines: lines, lines: asked }, catalog, provider, modelCacheDir());
+      const c = await consult({ insurer, language: "es", formLines: lines, diagnosis: p.diagnosis ?? null, lines: asked }, catalog, provider, modelCacheDir());
       const doc = (recording.documents[p.sha256] ??= { latency_ms: c.latencyMs, lines: {} });
       for (const line of asked) {
         doc.lines[textKey(line.text)] = c.choices.get(line.id) ?? null;

@@ -17,6 +17,7 @@ function extraction(): NormalisedExtraction {
       { value: "UREA", page: 1, bbox: box(0.5, 0.5) },
       { value: "K", page: 1, bbox: null },
     ],
+    diagnosis: null,
     warnings: [],
   };
 }

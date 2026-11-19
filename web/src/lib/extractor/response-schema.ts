@@ -21,7 +21,14 @@ export interface RawItem {
 export interface RawExtraction {
   fields: Record<string, RawItem>;
   tests: RawItem[];
+  /** The diagnosis or clinical orientation written on the form: context, not a field to verify. */
+  diagnosis?: string | null;
 }
+
+export const DIAGNOSIS_DESCRIPTION =
+  "The diagnosis, clinical orientation or reason for the request written on the form " +
+  "(Orientación diagnóstica, Orientació diagnòstica, Diagnóstico, Juicio clínico, Motivo), " +
+  "exactly as written. Null when the form has none.";
 
 /** How a model family writes a box: the key it uses and the order of the four numbers. */
 export interface BoxConvention {
@@ -111,6 +118,8 @@ function responseSchema(location: [string, Record<string, unknown>]): Record<str
         description: TESTS.description,
         items: itemSchema("One requested test, exactly as printed.", false, location),
       },
+      // Not required: a model that leaves it out has read none, and its reply is still valid.
+      diagnosis: { anyOf: [{ type: "string" }, { type: "null" }], description: DIAGNOSIS_DESCRIPTION },
     },
     required: ["fields", "tests"],
   };

@@ -9,6 +9,13 @@ describe("system instruction", () => {
     expect(PROMPT_VERSION).toMatch(/^\d+$/);
   });
 
+  it("asks for the diagnosis as context, for every kind of tick, and reads handwriting with Greek letters", () => {
+    const s = buildSystemInstruction();
+    expect(s).toContain('Diagnosis (string "diagnosis")');
+    expect(s).toContain("circle struck through");
+    expect(s).toMatch(/Greek letters are part of many test names/);
+  });
+
   it("names every configured field", () => {
     const text = buildSystemInstruction();
     for (const name of FIELD_NAMES) expect(text).toContain(`- ${name}:`);

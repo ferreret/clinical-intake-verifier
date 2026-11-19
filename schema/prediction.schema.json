@@ -94,6 +94,10 @@
       "items": { "$ref": "#/$defs/field" },
       "description": "One entry per distinct requested test, in order of first appearance."
     },
+    "diagnosis": {
+      "type": ["string", "null"],
+      "description": "The diagnosis or clinical orientation written on the form, exactly as written: context for reading and mapping the tests, not a field to verify. Absent in predictions made before prompt v7."
+    },
     "warnings": {
       "type": "array",
       "items": {

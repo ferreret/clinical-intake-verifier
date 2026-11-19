@@ -11,7 +11,7 @@ import { DbMemory, InMemoryMemory, type MappingMemory } from "@/lib/mapping/memo
 import { buildPrompt, consult, type Provider } from "@/lib/mapping/model";
 import { GREEN_APPROVALS, propose, textKey } from "@/lib/mapping/propose";
 import { browse, codeNames } from "@/lib/mapping/browse";
-import { CatalogIndex } from "@/lib/mapping/search";
+import { CatalogIndex, searchKey } from "@/lib/mapping/search";
 
 const FILE: CatalogFile = {
   catalog_version: 2,
@@ -50,6 +50,13 @@ describe("catalog search", () => {
     expect((await INDEX.search("Glucosa"))[0].codes).toEqual(["BQ0001"]);
     expect((await INDEX.search("GLU (SUERO)"))[0].codes).toEqual(["BQ0001"]);
     expect((await INDEX.search("Glucosa en orina"))[0].codes).toEqual(["BQ0002"]);
+  });
+
+  it("reads Greek letters as the catalogue spells them", () => {
+    expect(searchKey("γGT")).toBe(searchKey("Gamma GT"));
+    expect(searchKey("γ-GT")).toBe("gamma gt");
+    expect(searchKey("β-hCG")).toBe(searchKey("Beta hCG"));
+    expect(searchKey("Δ4-androstenediona")).toBe("delta 4 androstenediona");
   });
 
   it("finds truncated words and profiles", async () => {
@@ -226,6 +233,19 @@ describe("model layer", () => {
     expect(enumOf).toEqual(expect.arrayContaining(["BQ0004", "BQ0005"]));
     expect(enumOf).not.toContain("PF07");
     expect(prompt.user).toContain('lab profile "Iones" = BQ0004, BQ0005');
+  });
+
+  it("gives the model the form's diagnosis, when it has one", () => {
+    const req = {
+      insurer: null,
+      language: "es",
+      formLines: ["IONES"],
+      lines: [{ id: "L1", text: "IONES", candidates: INDEX_SYNC_IONES }],
+    };
+    expect(buildPrompt(req, CATALOG).user).not.toContain("Diagnosis");
+    expect(buildPrompt({ ...req, diagnosis: "Alopecia androgenética" }, CATALOG).user).toContain(
+      "Diagnosis or clinical orientation on the form: Alopecia androgenética.",
+    );
   });
 });
 

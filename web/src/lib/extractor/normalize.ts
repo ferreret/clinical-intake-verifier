@@ -14,6 +14,7 @@ import type { RawExtraction, RawItem } from "./response-schema";
 export interface NormalisedExtraction {
   fields: Record<string, PredictedField | null>;
   tests: PredictedField[];
+  diagnosis: string | null;
   warnings: PredictionWarning[];
 }
 
@@ -191,5 +192,6 @@ export function normaliseExtraction(raw: RawExtraction, pageCount: number): Norm
     tests.push(test);
   }
 
-  return { fields, tests, warnings };
+  const diagnosis = typeof raw.diagnosis === "string" && raw.diagnosis.trim() !== "" ? raw.diagnosis.trim() : null;
+  return { fields, tests, diagnosis, warnings };
 }

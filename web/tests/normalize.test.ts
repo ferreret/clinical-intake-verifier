@@ -45,6 +45,12 @@ describe("stripTitle", () => {
 });
 
 describe("normaliseExtraction", () => {
+  it("keeps the diagnosis written on the form, trimmed, as context", () => {
+    expect(normaliseExtraction({ ...raw(), diagnosis: "  Alopecia androgenética " }, 1).diagnosis).toBe("Alopecia androgenética");
+    expect(normaliseExtraction({ ...raw(), diagnosis: " " }, 1).diagnosis).toBeNull();
+    expect(normaliseExtraction(raw(), 1).diagnosis).toBeNull();
+  });
+
   it("returns every configured field in configuration order and nothing else", () => {
     const out = normaliseExtraction(raw(), 1);
     expect(Object.keys(out.fields)).toEqual([...FIELD_NAMES]);

@@ -20,7 +20,7 @@ import { localHeaders, localHttpError, resolveLocalModel, resolveLocalUrl } from
 import type { Catalog } from "./catalog";
 import type { Candidate } from "./search";
 
-export const MAPPING_PROMPT_VERSION = "1";
+export const MAPPING_PROMPT_VERSION = "2";
 
 /** Profile candidates this high in the ranking bring their component tests along. */
 const PROFILE_EXPANSION_RANK = 5;
@@ -36,6 +36,8 @@ export interface ModelRequest {
   language: string;
   /** Every test requested on the form, for context. */
   formLines: string[];
+  /** The diagnosis or clinical orientation written on the form, when there is one. */
+  diagnosis?: string | null;
   lines: ModelLine[];
 }
 
@@ -70,6 +72,8 @@ For each line, choose from that line's candidates exactly the tests the line req
 - a profile or group requested as one line: every test of it that the insurer means, which may differ from the laboratory's own profile of the same name;
 - a line that names no specimen means the test's usual specimen (marked "usual").
 
+Read each line with the whole form in mind: the other tests requested and, when the form gives one, the diagnosis or clinical orientation. They tell which of several candidates the line most likely means (thyroid tests next to TSH, hormones for an endocrine diagnosis). Lines may have been read from handwriting and carry misread letters; Greek letters are part of test names (γGT is GGT, β-hCG is Beta-HCG).
+
 If no candidate fits, or you are not sure, return an empty list for that line. An empty answer costs the technician a click; a wrong one may go unnoticed.
 
 The form may be in Spanish or Catalan; the catalogue is in Spanish. Return only the JSON object.`;
@@ -101,6 +105,7 @@ export function buildPrompt(req: ModelRequest, catalog: Catalog) {
   const user = [
     `Insurer: ${req.insurer ?? "(none printed)"}. Form language: ${language}.`,
     `Tests requested on this form: ${req.formLines.join("; ")}.`,
+    ...(req.diagnosis ? [`Diagnosis or clinical orientation on the form: ${req.diagnosis}.`] : []),
     "",
     "Lines to map:",
     ...blocks,

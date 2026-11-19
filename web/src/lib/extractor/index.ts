@@ -401,6 +401,7 @@ export async function extract(pdf: Uint8Array, opts: ExtractOptions = {}): Promi
     pages,
     fields: result?.fields ?? emptyFields(),
     tests: result?.tests ?? [],
+    diagnosis: result?.diagnosis ?? null,
     warnings: result?.warnings ?? [],
   };
   assertPrediction(prediction);

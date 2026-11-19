@@ -182,7 +182,7 @@ export async function mapLines(
   const { catalog, index } = await catalogOf(db);
   const insurer = prediction.fields.NombreMutua?.value ?? null;
   // The form's language is not read by the extractor; the model is told Spanish.
-  const ctx = { scope: memoryScope(fused, prediction), insurer, language: "es" };
+  const ctx = { scope: memoryScope(fused, prediction), insurer, language: "es", diagnosis: prediction.diagnosis ?? null };
   const lines = prediction.tests.map((t) => t.value);
   const memory = new DbMemory(db);
   // In replay mode the model answers from its recording, per line (mapping/recorded.ts).

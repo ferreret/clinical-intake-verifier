@@ -19,9 +19,15 @@ export interface Candidate {
   score: number;
 }
 
-/** The form a line is compared in: lower case, no accents, punctuation as spaces. */
+/** Greek letters of test names, spelled out as the catalogue spells them (γ-GT ~ Gamma GT). */
+const GREEK: Record<string, string> = {
+  α: "alfa", β: "beta", γ: "gamma", δ: "delta", Δ: "delta", κ: "kappa", λ: "lambda", μ: "mu",
+};
+
+/** The form a line is compared in: lower case, no accents, Greek letters spelled out, punctuation as spaces. */
 export function searchKey(text: string): string {
   return text
+    .replace(/[αβγδΔκλμ]/gu, (c) => ` ${GREEK[c]} `)
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
     .toLowerCase()

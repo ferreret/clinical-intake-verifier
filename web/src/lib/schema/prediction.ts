@@ -93,6 +93,8 @@ export interface Prediction {
   pages: PageInfo[];
   fields: Record<string, PredictedField | null>;
   tests: PredictedField[];
+  /** The diagnosis or clinical orientation written on the form (prompt v7 on), for context. */
+  diagnosis?: string | null;
   warnings: PredictionWarning[];
 }
 

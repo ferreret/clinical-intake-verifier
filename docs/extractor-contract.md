@@ -41,6 +41,19 @@ the fields with a `normalize` rule in `fields.json` (date of birth as `dd/mm/yyy
 printed more than once returned once. The prompt is versioned (`prompt_version`) and every
 prediction records the version that produced it.
 
+Prompt 7 (2026-11-19, asked for after a real request was shown to a lab) adds three things.
+The reply may carry a `diagnosis`: the diagnosis or clinical orientation written on the form,
+kept in the prediction as context for reading and mapping the tests, not as a field to verify.
+Any deliberate mark on a checkbox counts as ticked, a circle struck through (⊘) included.
+Handwritten tests are read as a technician would, with the diagnosis, the other tests and the
+usual names and abbreviations as context, Greek letters kept (γGT, β-hCG, Δ4-androstenediona).
+On 40 synthetic requests it changed nothing for the fields and fixed two test lists (F1 +0.3
+pp, none broken); on the real request it was asked for, Gemini read the ticked bilirubin,
+"T4 libre" and "γGT" in two readings out of three, Qwen "T4 libre" but not "γGT". The prompt
+names those tests among its examples, so that request is no independent measure of it. The
+mapping model is given the diagnosis too (its prompt 2), and the catalogue search spells Greek
+letters out, so that "γGT" finds "Gamma GT".
+
 #### Another model's conventions
 
 A model family trained on another box convention is asked in its own, and its reply is
