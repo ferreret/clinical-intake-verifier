@@ -46,9 +46,10 @@ entry for the handwritten set.
 
 **Proposing** turns the extractor's box of each personal field into a box of that kind (a
 golden also lists the other places a value is printed). It never replaces a plan that exists,
-reviewed or not, unless told to with `--overwrite`. The extractor gives one box per field; the
-rest is the reviewer's: other occurrences of a value, signatures, stamps, labels, photos of
-cards, names in a letterhead.
+reviewed or not, unless told to with `--overwrite`. A document whose reading failed gets no
+plan, which would otherwise stay empty: read it again, then propose again. The extractor
+gives one box per field; the rest is the reviewer's: other occurrences of a value,
+signatures, stamps, labels, photos of cards, names in a letterhead.
 
 **Reviewing.** The page lists the documents, shows each page with its boxes and the document's
 fictitious values, and saves on every change. Drag on a page to draw a box; drag a box to move

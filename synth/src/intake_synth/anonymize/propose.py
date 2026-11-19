@@ -56,14 +56,23 @@ def new_plan(doc: str, pdf_name: str, reading: dict | None) -> Plan:
 
 
 def propose(docs_dir: Path, work: Path, readings: Path | None, overwrite: bool = False) -> dict:
-    """Writes a plan for every document without one (or every one, with ``overwrite``)."""
+    """Writes a plan for every document without one (or every one, with ``overwrite``).
+
+    A document whose reading failed gets none: an empty plan would stay once the document is
+    read again, since plans are kept. Its id is returned in ``waiting``, to propose it then.
+    """
     made = kept = 0
+    waiting: list[str] = []
     for pdf in documents(docs_dir):
         doc = pdf.stem
         existing = load_plan(work, doc)
         if existing is not None and not overwrite:
             kept += 1
             continue
-        save_plan(work, new_plan(doc, pdf.name, reading_for(doc, readings)))
+        reading = reading_for(doc, readings)
+        if reading is not None and (reading.get("extractor") or {}).get("error"):
+            waiting.append(doc)
+            continue
+        save_plan(work, new_plan(doc, pdf.name, reading))
         made += 1
-    return {"made": made, "kept": kept}
+    return {"made": made, "kept": kept, "waiting": waiting}

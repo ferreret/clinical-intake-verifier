@@ -118,14 +118,30 @@ def synthetic(tmp_path_factory):
 
 def test_proposals_cover_every_place_a_personal_value_is_printed(synthetic, tmp_path):
     result = propose(synthetic, tmp_path, synthetic)
-    assert result == {"made": 2, "kept": 0}
+    assert result == {"made": 2, "kept": 0, "waiting": []}
     golden = json.loads((synthetic / "synth-000000.json").read_text(encoding="utf-8"))
     plan = load_plan(tmp_path, "synth-000000")
     patient = golden["fields"]["Paciente"]
     assert sum(b.kind == "Paciente" for b in plan.boxes) == 1 + len(patient.get("also_at") or [])
     assert all(b.source == "extractor" for b in plan.boxes)
     assert "NombreMutua" not in {b.kind for b in plan.boxes}  # an insurer is not personal data
-    assert propose(synthetic, tmp_path, synthetic) == {"made": 0, "kept": 2}  # work is kept
+    again = propose(synthetic, tmp_path, synthetic)
+    assert again == {"made": 0, "kept": 2, "waiting": []}  # work is kept
+
+
+def test_a_document_whose_reading_failed_waits_for_a_new_reading(synthetic, tmp_path):
+    readings = tmp_path / "run"
+    readings.mkdir()
+    failed = {"extractor": {"error": {"code": "invalid_json"}}, "fields": {}, "tests": []}
+    (readings / "synth-000000.pred.json").write_text(json.dumps(failed), encoding="utf-8")
+    work = tmp_path / "work"
+    assert propose(synthetic, work, readings) == {"made": 1, "kept": 0, "waiting": ["synth-000000"]}
+    assert load_plan(work, "synth-000000") is None
+    golden = json.loads((synthetic / "synth-000000.json").read_text(encoding="utf-8"))
+    read = {"extractor": {"error": None}, "fields": golden["fields"], "tests": []}
+    (readings / "synth-000000.pred.json").write_text(json.dumps(read), encoding="utf-8")
+    assert propose(synthetic, work, readings) == {"made": 1, "kept": 1, "waiting": []}
+    assert load_plan(work, "synth-000000").boxes
 
 
 # --------------------------------------------------------------------------- painting

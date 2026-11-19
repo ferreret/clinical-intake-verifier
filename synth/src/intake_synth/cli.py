@@ -384,6 +384,11 @@ def anon_propose(
 
     result = propose(docs, _work(docs, work), readings, overwrite=overwrite)
     typer.echo(f"plans written: {result['made']}, kept: {result['kept']}")
+    if result["waiting"]:
+        typer.echo(
+            f"no plan yet, their reading failed: {', '.join(result['waiting'])}"
+            " (read them again, then propose again)"
+        )
 
 
 @app.command("anon-review")
