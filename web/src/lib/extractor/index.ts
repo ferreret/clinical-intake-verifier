@@ -49,7 +49,12 @@ import {
 } from "./response-schema";
 
 export const DEFAULT_MODEL = "gemini-3.8-flash";
-export const DEFAULT_THINKING_LEVEL = "low";
+/**
+ * Medium since 2026-11-19: on a real request with handwritten tests, low skipped a ticked test
+ * in three readings of five and medium read it right in five of five; on 40 synthetic requests
+ * medium cost 2.4 times the latency for the same fields (docs/extractor-contract.md).
+ */
+export const DEFAULT_THINKING_LEVEL = "medium";
 
 export const PROVIDERS = ["gemini", "local", "local-text"] as const;
 export type Provider = (typeof PROVIDERS)[number];

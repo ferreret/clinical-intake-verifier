@@ -62,8 +62,10 @@ bilirubin missed in three readings of five) are the model skipping a line, not a
 the mark; with `GEMINI_THINKING_LEVEL=medium` that request was read right in five readings of
 five. On the 40 synthetic requests medium did not help: fields the same, one test list kept
 its printed bullets ("• COLESTEROL", tests F1 -1.4 pp), boxes -1.6 pp, latency 22 s a document
-against 9 (median) and 2,500 thinking tokens more. Low stays the default; the real handwritten
-set, once anonymized and transcribed, is where the two are to be compared.
+against 9 (median) and 2,500 thinking tokens more. Asked to make that real request reliable,
+medium became the default (a further prompt asking to go over the checklist before answering
+made low worse: one right reading of five). The real handwritten set, once anonymized and
+transcribed, is where the two are to be compared properly; `GEMINI_THINKING_LEVEL=low` goes back.
 
 #### Another model's conventions
 
@@ -188,7 +190,7 @@ runs, or by a `provider` form field in the API. Every prediction records `model`
 asked per value. There is no server-side rendering; Gemini rasterises the pages and runs OCR
 on scanned ones. The model id comes from `GEMINI_MODEL` (default: the current Flash).
 Generation is deterministic within the limits of the API: `temperature: 0`, JSON mode with the
-layer-1 schema as `responseJsonSchema`, low thinking (the current Flash rejects `minimal` with a
+layer-1 schema as `responseJsonSchema`, medium thinking since 2026-11-19, low before (`GEMINI_THINKING_LEVEL`; the current Flash rejects `minimal` with a
 400).
 
 **Local, `page-images`.** A vision model behind an OpenAI-compatible chat API, LM Studio's
