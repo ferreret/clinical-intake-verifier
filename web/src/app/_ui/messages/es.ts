@@ -385,6 +385,8 @@ export const es: Messages = {
     fieldsTitle: (n) => `Campos · ${n}`,
     testsTitle: (read, added) =>
       `Pruebas solicitadas · ${plural(read, "línea")} ${read === 1 ? "leída" : "leídas"}${added > 0 ? `, ${added} ${added === 1 ? "añadida" : "añadidas"}` : ""}`,
+    diagnosis: "Diagnóstico del volante",
+    diagnosisHint: "Leído del volante: contexto para leer y mapear las pruebas, no un campo que haya que verificar",
     leftToResolve: (n) => `${n} por resolver o confirmar`,
     nextPending: "Siguiente elemento por resolver o confirmar (Alt+N)",
     prevPending: "Elemento anterior por resolver o confirmar (Alt+Mayús+N)",

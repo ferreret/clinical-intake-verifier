@@ -314,6 +314,8 @@ export const en = {
     records: "The lab's records",
     fieldsTitle: (n: number) => `Fields · ${n}`,
     testsTitle: (read: number, added: number) => `Requested tests · ${plural(read, "line")} read${added > 0 ? `, ${added} added` : ""}`,
+    diagnosis: "Diagnosis on the form",
+    diagnosisHint: "Read from the form: context for reading and mapping the tests, not a field to verify",
     leftToResolve: (n: number) => `${n} to resolve or confirm`,
     nextPending: "Next item to resolve or confirm (Alt+N)",
     prevPending: "Previous item to resolve or confirm (Alt+Shift+N)",

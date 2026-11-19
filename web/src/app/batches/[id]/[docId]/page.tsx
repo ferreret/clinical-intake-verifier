@@ -716,6 +716,11 @@ export default function VerifyPage() {
               <h2 className="mb-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
                 {m.testsTitle(tests.length, added.length)}
               </h2>
+              {view.proposal.prediction.diagnosis && (
+                <p className="mb-3 text-sm text-slate-700" title={m.diagnosisHint}>
+                  <span className="font-medium text-slate-500">{m.diagnosis}:</span> {view.proposal.prediction.diagnosis}
+                </p>
+              )}
               <Tests
               view={view}
               items={tests}
