@@ -34,6 +34,11 @@ KINDS = (*PERSONAL_FIELDS, OTHER, COVER)
 STYLES = ("print", "hand")
 
 
+def _words(text: str) -> list[str]:
+    """A value's words in any order, case and commas aside ("Ruiz Pons, Ana" ~ "ANA RUIZ PONS")."""
+    return sorted(w.casefold() for w in text.replace(",", " ").split())
+
+
 @dataclass
 class Box:
     page: int  # 1-based
@@ -80,7 +85,8 @@ class Plan:
 
         A value printed in parts (surnames and name on lines of their own) gets a box per part,
         each with its part as text: when the parts hold the words of the identity's value, the
-        value written is the identity's whole one, in whatever order the form asks for them.
+        value written is the identity's whole one, in whatever order, case and punctuation the form
+        asks for them.
         """
         texts: dict[str, list[str]] = {}
         for b in self.boxes:
@@ -95,9 +101,7 @@ class Plan:
                 t for t in parts if t != whole
             ]  # the whole value may be written elsewhere too
             in_parts = (
-                whole is not None
-                and len(pieces) > 1
-                and sorted(" ".join(pieces).split()) == sorted(whole.split())
+                whole is not None and len(pieces) > 1 and _words(" ".join(pieces)) == _words(whole)
             )
             written[kind] = whole if in_parts else parts[0]
         return written

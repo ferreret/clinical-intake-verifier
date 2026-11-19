@@ -207,6 +207,10 @@ def test_a_value_written_in_parts_is_recorded_whole():
     }
     plan.boxes[1].text = "P."  # not the identity's words: the first box's text, as before
     assert plan.written()["Paciente"] == "RUIZ"
+    plan.boxes[0].text, plan.boxes[1].text = "Ruiz", "Pons,"  # case and commas aside
+    assert plan.written()["Paciente"] == "ANA RUIZ PONS"
+    plan.identity["Paciente"] = "RUIZ PONS, ANA"
+    assert plan.written()["Paciente"] == "RUIZ PONS, ANA"
 
 
 def test_a_bilevel_scan_stays_bilevel(tmp_path):
