@@ -27,6 +27,7 @@ _PRINT_FONTS = (
     "/usr/share/fonts/TTF/DejaVuSans.ttf",
 )
 _PAD = 0.002  # fraction of the page added around a box, so a stroke's edge is covered too
+_MAX_INK = 100  # the lightest ink written, in luminance: well under the bilevel threshold (150)
 
 
 @dataclass
@@ -107,6 +108,11 @@ def _paper_and_ink(image: Image.Image, rect: tuple[int, int, int, int]) -> tuple
     ink = tuple(sorted(c[i] for c in dark)[len(dark) // 2] for i in range(3))
     if sum(paper) - sum(ink) < 150:  # nothing written there: a dark grey that reads as ink
         ink = (40, 40, 40)
+    # Faint ink (a pale stamp, pencil) would be lost when a bilevel page is thresholded: the
+    # text keeps its hue, darkened until it reads.
+    lum = 0.299 * ink[0] + 0.587 * ink[1] + 0.114 * ink[2]
+    if lum > _MAX_INK:
+        ink = tuple(int(c * _MAX_INK / lum) for c in ink)
     return paper, ink
 
 

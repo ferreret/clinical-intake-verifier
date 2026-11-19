@@ -19,7 +19,7 @@ import pytest
 from PIL import Image, ImageDraw
 
 from intake_synth.anonymize.identity import doc_id, make_identity, shifted_date
-from intake_synth.anonymize.paint import apply_plan, paint, render
+from intake_synth.anonymize.paint import _paper_and_ink, apply_plan, paint, render
 from intake_synth.anonymize.plan import COVER, OTHER, Box, Plan, load_plan, save_plan
 from intake_synth.anonymize.propose import propose
 from intake_synth.anonymize.review import Review, make_handler
@@ -200,6 +200,14 @@ def test_a_cover_never_erases_a_value_written_next_to_it(tmp_path):
     w, h = page.size
     px = list(page.crop((int(0.30 * w), int(0.10 * h), int(0.44 * w), int(0.12 * h))).getdata())
     assert sum(v < 128 for v in px) / len(px) > 0.02  # the name is written over the cover
+
+
+def test_text_over_faint_ink_is_dark_enough_to_survive_thresholding():
+    image = Image.new("RGB", (400, 100), (250, 250, 250))
+    ImageDraw.Draw(image).rectangle((50, 30, 350, 70), fill=(150, 170, 230))  # a pale blue stamp
+    _, ink = _paper_and_ink(image, (40, 20, 360, 80))
+    assert 0.299 * ink[0] + 0.587 * ink[1] + 0.114 * ink[2] <= 100
+    assert ink[2] > ink[0]  # still blue
 
 
 def test_a_value_written_in_parts_is_recorded_whole():
