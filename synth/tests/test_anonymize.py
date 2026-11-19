@@ -236,6 +236,28 @@ def test_a_value_written_in_parts_is_recorded_whole():
     assert plan.written()["Paciente"] == "RUIZ PONS, ANA"
 
 
+def test_omitted_pages_are_left_out_and_the_rest_renumbered(tmp_path):
+    src = tmp_path / "three.pdf"
+    doc = pymupdf.open()
+    for i in range(3):
+        doc.new_page(width=595, height=842).insert_text((72, 100), f"page {i + 1}", fontsize=14)
+    doc.save(src)
+    plan = Plan(doc="three", pdf="three.pdf", identity={"Paciente": "ANA RUIZ PONS"}, omit=[2])
+    plan.boxes = [
+        Box(2, 0.1, 0.1, 0.4, 0.13, "Paciente", text="OTRA PERSONA"),  # another person's page
+        Box(3, 0.1, 0.1, 0.4, 0.13, "Paciente"),
+    ]
+    truth = apply_plan(src, plan, tmp_path / "out.pdf")
+    assert pymupdf.open(tmp_path / "out.pdf").page_count == 2
+    assert truth["pages"] == 2 and truth["omitted_source_pages"] == [2]
+    assert truth["fields"] == {"Paciente": "ANA RUIZ PONS"}
+    assert [(b["page"], b["text"]) for b in truth["boxes"]] == [(2, "ANA RUIZ PONS")]
+    assert Plan.from_json(json.loads(json.dumps(plan.to_json()))).omit == [2]
+    for bad in ([4], [1, 2, 3]):
+        with pytest.raises(ValueError):
+            Plan(doc="three", pdf="three.pdf", identity={}, omit=bad).validate(pages=3)
+
+
 def test_a_bilevel_scan_stays_bilevel(tmp_path):
     image = Image.new("1", (1240, 1754), 1)
     ImageDraw.Draw(image).text((150, 200), SECRET, fill=0)

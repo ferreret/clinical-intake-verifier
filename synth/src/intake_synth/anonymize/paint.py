@@ -169,11 +169,15 @@ def _is_grey(image: Image.Image) -> bool:
 
 
 def apply_plan(pdf: Path, plan: Plan, out_pdf: Path, dpi: int = OUTPUT_DPI) -> dict:
-    """Writes the anonymized PDF; returns what was written where (the fictitious truth)."""
+    """Writes the anonymized PDF; returns what was written where (the fictitious truth).
+
+    Pages the plan omits are left out, and the truth numbers the pages as the output has them.
+    """
     n = page_count(pdf)
     plan.validate(n)
+    kept = [number for number in range(1, n + 1) if number not in plan.omit]
     pages: list[Image.Image] = []
-    for number in range(1, n + 1):
+    for number in kept:
         rendered = render(pdf, number, dpi)
         boxes = [b for b in plan.boxes if b.page == number]
         pages.append(_final(paint(rendered, boxes, plan), rendered.bilevel))
@@ -186,11 +190,12 @@ def apply_plan(pdf: Path, plan: Plan, out_pdf: Path, dpi: int = OUTPUT_DPI) -> d
     return {
         "doc": plan.doc,
         "source_pdf": plan.pdf,
-        "pages": n,
+        "pages": len(kept),
+        **({"omitted_source_pages": plan.omit} if plan.omit else {}),
         "fields": plan.written(),
         "boxes": [
             {
-                "page": b.page,
+                "page": kept.index(b.page) + 1,
                 "x0": b.x0,
                 "y0": b.y0,
                 "x1": b.x1,
@@ -199,6 +204,7 @@ def apply_plan(pdf: Path, plan: Plan, out_pdf: Path, dpi: int = OUTPUT_DPI) -> d
                 "text": plan.text_for(b),
             }
             for b in plan.boxes
+            if b.page in kept
         ],
     }
 

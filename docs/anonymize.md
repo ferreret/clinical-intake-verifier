@@ -19,6 +19,9 @@ the golden and the predictions), a kind and a style:
 | `Otro` | The box's own text: any other personal data (an address, an e-mail, a record number) |
 | `Tapar` | Nothing: the region is covered (signatures, stamps, labels, photos of cards) |
 
+A plan may also list pages to `omit`: they are left out of the anonymized PDF (pages of another
+person's request scanned with this one), and the truth numbers the pages as the output has them.
+
 A value printed in parts, such as surnames and name on lines of their own, gets a box per
 part, each of the field's kind with its part as text; the truth then records the whole value.
 

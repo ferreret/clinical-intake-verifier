@@ -70,6 +70,8 @@ class Plan:
     boxes: list[Box] = field(default_factory=list)
     reviewed: bool = False
     notes: str = ""
+    #: Pages left out of the anonymized PDF, such as pages of another person's request.
+    omit: list[int] = field(default_factory=list)
     version: int = PLAN_VERSION
 
     def text_for(self, box: Box) -> str:
@@ -90,7 +92,7 @@ class Plan:
         """
         texts: dict[str, list[str]] = {}
         for b in self.boxes:
-            if b.kind != COVER:
+            if b.kind != COVER and b.page not in self.omit:
                 seen = texts.setdefault(b.kind, [])
                 if (t := self.text_for(b)) not in seen:
                     seen.append(t)
@@ -113,6 +115,10 @@ class Plan:
             b.validate()
             if pages is not None and b.page > pages:
                 raise ValueError(f"box on page {b.page} of a {pages}-page document")
+        if any(n < 1 or (pages is not None and n > pages) for n in self.omit):
+            raise ValueError(f"omitted pages out of the document: {self.omit}")
+        if pages is not None and len(set(self.omit)) >= pages:
+            raise ValueError("a plan cannot omit every page")
 
     def to_json(self) -> dict:
         return asdict(self)
@@ -127,6 +133,7 @@ class Plan:
             boxes=boxes,
             reviewed=bool(data.get("reviewed", False)),
             notes=str(data.get("notes", "")),
+            omit=sorted({int(n) for n in data.get("omit", [])}),
             version=int(data.get("version", PLAN_VERSION)),
         )
 
