@@ -136,10 +136,15 @@ def paint(page: RenderedPage, boxes: list[Box], plan: Plan) -> Image.Image:
     w, h = image.size
     draw = ImageDraw.Draw(image)
     hand = hand_font_for(plan.doc)
+    # Colours are taken from the page as scanned, and every box is filled before any text is
+    # written: a cover next to a value never erases it, whatever the order of the boxes.
+    filled = []
     for box in boxes:
         rect = _pixels(box, w, h)
-        paper, ink = _paper_and_ink(image, rect)
+        paper, ink = _paper_and_ink(page.image, rect)
         draw.rectangle(rect, fill=paper)
+        filled.append((box, rect, ink))
+    for box, rect, ink in filled:
         text = plan.text_for(box)
         if text and box.kind != COVER:
             _write(draw, rect, text, box.style, hand, ink)

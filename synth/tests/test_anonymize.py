@@ -19,7 +19,7 @@ import pytest
 from PIL import Image, ImageDraw
 
 from intake_synth.anonymize.identity import doc_id, make_identity, shifted_date
-from intake_synth.anonymize.paint import apply_plan, render
+from intake_synth.anonymize.paint import apply_plan, paint, render
 from intake_synth.anonymize.plan import COVER, OTHER, Box, Plan, load_plan, save_plan
 from intake_synth.anonymize.propose import propose
 from intake_synth.anonymize.review import Review, make_handler
@@ -185,6 +185,21 @@ def test_painting_leaves_an_image_only_pdf_without_the_original(tmp_path):
     assert ink((0.12, 0.10, 0.44, 0.12)) > 0.02  # the fictitious name was written
     assert ink((0.12, 0.335, 0.29, 0.355)) < 0.001  # the covered line is gone
     assert ink((0.12, 0.40, 0.9, 0.9)) == 0  # nothing else drawn
+
+
+def test_a_cover_never_erases_a_value_written_next_to_it(tmp_path):
+    src = tmp_path / "doc.pdf"
+    _pdf_with_text(src)
+    plan = Plan(doc="doc", pdf="doc.pdf", identity={"Paciente": "RUIZ PONS, ANA"})
+    # The cover comes after the name and overlaps its right half.
+    plan.boxes = [
+        Box(1, 0.11, 0.095, 0.45, 0.125, "Paciente"),
+        Box(1, 0.30, 0.09, 0.60, 0.13, COVER),
+    ]
+    page = paint(render(src, 1, 100), plan.boxes, plan).convert("L")
+    w, h = page.size
+    px = list(page.crop((int(0.30 * w), int(0.10 * h), int(0.44 * w), int(0.12 * h))).getdata())
+    assert sum(v < 128 for v in px) / len(px) > 0.02  # the name is written over the cover
 
 
 def test_a_value_written_in_parts_is_recorded_whole():

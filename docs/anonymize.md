@@ -62,7 +62,8 @@ it (with `Shift`, resize it), `v` shows the page as it will be written, `r` mark
 reviewed. Only reviewed plans are applied.
 
 **Applying** renders every page at 300 dpi, fills each box with the paper's colour taken around
-it, writes its text in the ink colour found inside it, and rebuilds the PDF from the images
+it, writes its text in the ink colour found inside it (every box is filled before any text is
+written, so a cover never erases a value next to it), and rebuilds the PDF from the images
 alone: no text layer, no original image under the paint, no metadata. A bilevel scan stays
 bilevel (CCITT); others are stored as JPEG. Beside each PDF, `<doc>.truth.json` records what
 was written where: the fictitious values are the reference for the personal fields when the
