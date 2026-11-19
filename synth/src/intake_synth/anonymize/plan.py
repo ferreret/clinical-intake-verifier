@@ -75,6 +75,33 @@ class Plan:
             return box.text
         return self.identity.get(box.kind, "")
 
+    def written(self) -> dict[str, str]:
+        """What each kind's boxes write, the first box's text unless the boxes write a value in parts.
+
+        A value printed in parts (surnames and name on lines of their own) gets a box per part,
+        each with its part as text: when the parts hold the words of the identity's value, the
+        value written is the identity's whole one, in whatever order the form asks for them.
+        """
+        texts: dict[str, list[str]] = {}
+        for b in self.boxes:
+            if b.kind != COVER:
+                seen = texts.setdefault(b.kind, [])
+                if (t := self.text_for(b)) not in seen:
+                    seen.append(t)
+        written = {}
+        for kind, parts in texts.items():
+            whole = self.identity.get(kind)
+            pieces = [
+                t for t in parts if t != whole
+            ]  # the whole value may be written elsewhere too
+            in_parts = (
+                whole is not None
+                and len(pieces) > 1
+                and sorted(" ".join(pieces).split()) == sorted(whole.split())
+            )
+            written[kind] = whole if in_parts else parts[0]
+        return written
+
     def validate(self, pages: int | None = None) -> None:
         if self.version != PLAN_VERSION:
             raise ValueError(f"plan version {self.version}, expected {PLAN_VERSION}")

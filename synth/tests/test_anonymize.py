@@ -20,7 +20,7 @@ from PIL import Image, ImageDraw
 
 from intake_synth.anonymize.identity import doc_id, make_identity, shifted_date
 from intake_synth.anonymize.paint import apply_plan, render
-from intake_synth.anonymize.plan import COVER, Box, Plan, load_plan, save_plan
+from intake_synth.anonymize.plan import COVER, OTHER, Box, Plan, load_plan, save_plan
 from intake_synth.anonymize.propose import propose
 from intake_synth.anonymize.review import Review, make_handler
 from intake_synth.generate.lis import DNI_LETTERS
@@ -185,6 +185,28 @@ def test_painting_leaves_an_image_only_pdf_without_the_original(tmp_path):
     assert ink((0.12, 0.10, 0.44, 0.12)) > 0.02  # the fictitious name was written
     assert ink((0.12, 0.335, 0.29, 0.355)) < 0.001  # the covered line is gone
     assert ink((0.12, 0.40, 0.9, 0.9)) == 0  # nothing else drawn
+
+
+def test_a_value_written_in_parts_is_recorded_whole():
+    plan = Plan(
+        doc="d", pdf="d.pdf", identity={"Paciente": "ANA RUIZ PONS", "Telefono": "600111222"}
+    )
+    plan.boxes = [
+        Box(1, 0.1, 0.10, 0.4, 0.12, "Paciente", "hand", text="RUIZ"),
+        Box(1, 0.1, 0.13, 0.4, 0.15, "Paciente", "hand", text="PONS"),
+        Box(1, 0.1, 0.16, 0.4, 0.18, "Paciente", "hand", text="ANA"),
+        Box(2, 0.1, 0.10, 0.4, 0.12, "Paciente"),  # the whole value again, elsewhere
+        Box(1, 0.5, 0.10, 0.8, 0.12, "Telefono", text="600 11 12 22"),
+        Box(1, 0.5, 0.20, 0.8, 0.22, OTHER, text="C/ Mayor 3"),
+        Box(1, 0.5, 0.30, 0.8, 0.32, COVER),
+    ]
+    assert plan.written() == {
+        "Paciente": "ANA RUIZ PONS",
+        "Telefono": "600 11 12 22",
+        OTHER: "C/ Mayor 3",
+    }
+    plan.boxes[1].text = "P."  # not the identity's words: the first box's text, as before
+    assert plan.written()["Paciente"] == "RUIZ"
 
 
 def test_a_bilevel_scan_stays_bilevel(tmp_path):

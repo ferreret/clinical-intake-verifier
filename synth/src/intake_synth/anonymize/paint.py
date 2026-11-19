@@ -172,15 +172,11 @@ def apply_plan(pdf: Path, plan: Plan, out_pdf: Path, dpi: int = OUTPUT_DPI) -> d
     # encoder option would reach the CCITT encoder too, which rejects it.
     pages[0].save(tmp, "PDF", save_all=True, append_images=pages[1:], resolution=dpi)
     tmp.replace(out_pdf)
-    written: dict[str, str] = {}
-    for b in plan.boxes:
-        if b.kind != COVER and b.kind not in written:
-            written[b.kind] = plan.text_for(b)
     return {
         "doc": plan.doc,
         "source_pdf": plan.pdf,
         "pages": n,
-        "fields": written,
+        "fields": plan.written(),
         "boxes": [
             {
                 "page": b.page,

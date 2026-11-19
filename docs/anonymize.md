@@ -19,6 +19,9 @@ the golden and the predictions), a kind and a style:
 | `Otro` | The box's own text: any other personal data (an address, an e-mail, a record number) |
 | `Tapar` | Nothing: the region is covered (signatures, stamps, labels, photos of cards) |
 
+A value printed in parts, such as surnames and name on lines of their own, gets a box per
+part, each of the field's kind with its part as text; the truth then records the whole value.
+
 The style is `print` or `hand`; a document's handwriting is one of the two handwriting fonts the
 generator already uses, the same for all its boxes.
 
