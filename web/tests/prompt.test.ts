@@ -13,6 +13,7 @@ describe("system instruction", () => {
     const s = buildSystemInstruction();
     expect(s).toContain('Diagnosis (string "diagnosis")');
     expect(s).toContain("circle struck through");
+    expect(s).toContain("Coloured dots, squares or symbols printed next to the tests");
     expect(s).toMatch(/Greek letters are part of many test names/);
   });
 

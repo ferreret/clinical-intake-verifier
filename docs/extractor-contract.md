@@ -54,6 +54,14 @@ names those tests among its examples, so that request is no independent measure 
 mapping model is given the diagnosis too (its prompt 2), and the catalogue search spells Greek
 letters out, so that "γGT" finds "Gamma GT".
 
+Prompt 8 (the same day) adds that coloured dots or symbols printed next to the tests (tube
+colours) are never a mark: in one Gemini reading of four with prompt 7, an empty circle with a
+red dot beside it was read as ticked. With prompt 8: none in five readings of that request, and
+on the 40 synthetic requests the same as prompt 7. The omissions that remain (the ticked
+bilirubin missed in three readings of five) are the model skipping a line, not a reading of
+the mark; with `GEMINI_THINKING_LEVEL=medium` that request was read right in five readings of
+five, at several times the latency.
+
 #### Another model's conventions
 
 A model family trained on another box convention is asked in its own, and its reply is

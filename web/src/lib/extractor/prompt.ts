@@ -7,7 +7,7 @@
 import { FIELDS, TESTS, type FieldSpec } from "@/lib/schema/fields";
 import { DIAGNOSIS_DESCRIPTION, GEMINI_BOXES, type BoxConvention } from "./response-schema";
 
-export const PROMPT_VERSION = "7";
+export const PROMPT_VERSION = "8";
 
 /**
  * How each `normalize` rule in fields.json is explained to the model. Shared with the text
@@ -67,7 +67,7 @@ Rules:
 2. If a field is not clearly printed, return null for its value, page and ${boxes.key}. Never infer a value from another field (do not compute Edad from FechaNacimiento, do not derive Sexo from the name) and never invent one.
 3. Prefer the value printed on the request form. If it appears only on a companion sheet (an authorisation letter, a card), take it from there. Return each field once even when the same value appears on several pages. NumeroPeticion in particular is often printed twice, in the body and under a barcode: return it once, from the body.
 4. page is the 1-based page the returned value was read from. ${boxes.key} is ${boxes.order} on a 0-1000 scale relative to that page, tight around the value only, never including its label.
-5. tests: one entry per requested test, in order of first appearance, each with its own page and ${boxes.key}. Never merge several tests because they share a box, a border, a table row or a profile heading, and never split one test into several. Profile or group headings are not tests. Pre-printed tests whose checkbox is not ticked are not requested. A checkbox is ticked when it carries any deliberate mark: a tick, a cross, a slash, a filled or circled box, or a circle struck through (⊘); an empty box or circle is not. If the same tests are repeated on another sheet, list them once.
+5. tests: one entry per requested test, in order of first appearance, each with its own page and ${boxes.key}. Never merge several tests because they share a box, a border, a table row or a profile heading, and never split one test into several. Profile or group headings are not tests. Pre-printed tests whose checkbox is not ticked are not requested. A checkbox is ticked when it carries any deliberate mark: a tick, a cross, a slash, a filled or circled box, or a circle struck through (⊘); an empty box or circle is not. Coloured dots, squares or symbols printed next to the tests (tube colours, specimen keys) belong to the form and are never a mark: judge only the checkbox itself. If the same tests are repeated on another sheet, list them once.
 6. Ignore distractors: record numbers (NHC), fax numbers, issue dates, centre addresses and phone numbers, and the physician's details when the field asks for the patient's.
 7. Handwritten tests (free lines such as "Otras pruebas" or "Altres proves", or a list written by hand): read each one as a laboratory technician would, with the rest of the form as context: the diagnosis, the other tests requested on it, and the usual names and abbreviations of laboratory tests (T4 libre, T3 libre, TSH, γGT or GGT, β-hCG, Δ4-androstenediona, 17-OH progesterona, HbA1c, PSA, Vit B12, ác. fólico). Greek letters are part of many test names and are kept as written (γ, β, α, Δ): a handwritten γ is easily taken for an f, a y or a J, and a handwritten 4 for a u. When the strokes allow more than one reading, return the one that is a real test and fits the request; when none does, return what the strokes say. This is reading, not correcting: keep the writer's own abbreviation and language (a written "T4 libre" stays "T4 libre", not "Tiroxina libre"), and never add a test that is not written.`;
 }
